@@ -1,0 +1,208 @@
+{
+  "Name": "Majinheim",
+  "Revision": 2,
+  "GameAddress": "majinrouter.asuscomm.com:2456",
+  "LanHost": "",
+  "LauncherVersion": "1.1.2",
+  "Message": "Bienvenido a Majinheim 1.0",
+  "Mods": [
+    {
+      "Id": "denikson-BepInExPack_Valheim",
+      "Version": "5.4.2360",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Cargador de mods",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "ValheimModding-Jotunn",
+      "Version": "2.30.2",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Librería",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "ValheimModding-JsonDotNET",
+      "Version": "13.0.4",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Librería",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "RandyKnapp-EpicLoot",
+      "Version": "0.15.5",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Botín mágico y encantamientos",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "Therzie-Wizardry",
+      "Version": "1.2.3",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Magia",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "blacks7ar-BoatAdditions",
+      "Version": "1.4.5",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Barcos",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "blacks7ar-CoreWoodPieces",
+      "Version": "1.2.6",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Construcción",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "Advize-PlantEverything",
+      "Version": "1.21.4",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Plantar de todo",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "ReefTeam-ReefCharacters",
+      "Version": "0.1.1",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Personajes guardados en el server (lee los de ServerCharacters)",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "Azumatt-AzuCraftyBoxes",
+      "Version": "1.8.19",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Craftear desde cofres cercanos",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "Azumatt-AzuExtendedPlayerInventory",
+      "Version": "2.4.14",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Inventario ampliado",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "MainStreetGaming-MassFarming",
+      "Version": "1.13.0",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Cultivo masivo",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "SpikeHimself-XPortal",
+      "Version": "1.2.26",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Portales con lista de destinos",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "Galateam-FarmGrid",
+      "Version": "1.0.0",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Cuadrícula de cultivo (antiguo, pero probado en 1.0: funciona)",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "Firehunter1980-ItemDrawers_QuickFix_Unofficial",
+      "Version": "1.2.1",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Cajones ORIGINALES: el launcher los repara para la 1.0 al instalarlos (los 474 del mundo)",
+      "Local": false,
+      "Patch": "itemdrawers-1.0"
+    },
+    {
+      "Id": "Azumatt-Official_BepInEx_ConfigurationManager",
+      "Version": "18.4.1",
+      "Enabled": true,
+      "Side": "client",
+      "Note": "Menú de ajustes de los mods dentro del juego (tecla F1)",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "Nextek-SpeedyPaths",
+      "Version": "1.0.9",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Velocidad en caminos (antiguo, pero probado en 1.0: funciona)",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "TastyChickenLegs-AutomaticFuel",
+      "Version": "1.6.1",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Combustible automático",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "Cartur-Carturs_Map_Pins",
+      "Version": "2.1.0",
+      "Enabled": true,
+      "Side": "client",
+      "Note": "Pines automáticos en el mapa (solo jugadores)",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "DrummerCraig-OneMapToRuleThemAll",
+      "Version": "2.8.1",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Mapa compartido",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "tibijczyk-BetterNetworking_Valheim",
+      "Version": "2.3.4",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Red mejorada (antiguo, pero probado en 1.0: funciona)",
+      "Local": false,
+      "Patch": ""
+    },
+    {
+      "Id": "Hardwire99-Offspring_Portal",
+      "Version": "1.4.4",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Portal",
+      "Local": false,
+      "Patch": ""
+    }
+  ]
+}

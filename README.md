@@ -1,0 +1,33 @@
+# Majinheim
+
+Launcher propio para el server de Valheim **Majinheim** (Valheim 1.0).
+Sustituye a Thunderstore/r2modman: un solo programa que instala los mods, los mantiene al día y entra al server.
+
+## Para jugar
+
+1. Descarga **Majinheim.exe** de [Releases](https://github.com/MajinSander/Majinheim/releases/latest).
+2. Guárdalo en una carpeta propia y corta (por ejemplo `C:\Majinheim`) y ábrelo.
+3. Pulsa **JUGAR**. Se baja los mods solo, se actualiza solo y entra al server.
+
+Si Windows avisa (SmartScreen): *Más información → Ejecutar de todas formas*.
+Abrir Valheim normal desde Steam = sin mods. Para jugar con mods, siempre desde Majinheim.exe.
+En el juego, **F1** abre el menú de ajustes de los mods.
+
+## Cómo funciona
+
+- `modpack.json` (en este repositorio) es la lista de mods y versiones. La publica el launcher del server.
+- Los mods se descargan de [Thunderstore](https://thunderstore.io/c/valheim/). **Este repositorio no contiene ningún mod.**
+- El mod de cajones (kg ItemDrawers, versión QuickFix de Firehunter1980) no funciona tal cual en Valheim 1.0:
+  el launcher descarga el original y le aplica en tu PC un pequeño arreglo (`src/Patch.cs`) sin cambiar
+  nombres ni datos, así los cajones ya construidos se conservan.
+- Las actualizaciones del launcher salen de [Releases](https://github.com/MajinSander/Majinheim/releases).
+
+## Código
+
+C# (.NET Framework 4.8, sin dependencias externas). `src/build.bat` compila las dos ediciones:
+`MajinheimServer.exe` (administra el server) y `Majinheim.exe` (jugadores).
+`src/lib/Mono.Cecil.dll` no se incluye: cópialo de `BepInExPack_Valheim/BepInEx/core`.
+
+Créditos de los mods a sus autores en Thunderstore. Mod de cajones: KGvalheim y Firehunter1980.
+
+— Majin
