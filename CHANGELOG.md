@@ -1,5 +1,8 @@
 # Novedades
 
+## 1.1.3
+- La consola del juego (tecla **F5**) viene activada al jugar desde el launcher.
+
 ## 1.1.2
 - Privacidad: la dirección de la red local del server ya no se publica. Quien juegue en la misma casa que el server puede indicarla en **Ajustes**.
 - El aviso de actualización ahora muestra las novedades de la versión nueva.
