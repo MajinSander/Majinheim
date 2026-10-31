@@ -1,9 +1,9 @@
 {
   "Name": "Majinheim",
-  "Revision": 2,
+  "Revision": 3,
   "GameAddress": "majinrouter.asuscomm.com:2456",
   "LanHost": "",
-  "LauncherVersion": "1.1.2",
+  "LauncherVersion": "1.1.3",
   "Message": "Bienvenido a Majinheim 1.0",
   "Mods": [
     {
@@ -140,6 +140,15 @@
       "Note": "Cajones ORIGINALES: el launcher los repara para la 1.0 al instalarlos (los 474 del mundo)",
       "Local": false,
       "Patch": "itemdrawers-1.0"
+    },
+    {
+      "Id": "JereKuusela-Server_devcommands",
+      "Version": "1.116.0",
+      "Enabled": true,
+      "Side": "both",
+      "Note": "Trucos para admins en el server (F5: devcommands, god, debugmode...)",
+      "Local": false,
+      "Patch": ""
     },
     {
       "Id": "Azumatt-Official_BepInEx_ConfigurationManager",
