@@ -1376,7 +1376,7 @@ namespace Majinheim
             string game = GameDir();
             if (game == null) throw new Exception("No encuentro Valheim instalado en Steam. Indica la carpeta del juego en Ajustes.");
             if (modded) Doorstop.EnsureClientProxy(game, AppInfo.Profile);
-            string args = "-applaunch " + AppInfo.GameAppId + " " + Doorstop.Args(AppInfo.Profile, modded);
+            string args = "-applaunch " + AppInfo.GameAppId + " -console " + Doorstop.Args(AppInfo.Profile, modded);   // -console: activa la consola (F5)
             string addr = pack != null ? GameAddressFor(pack) : "";
             if (modded && connect && addr != "") args += " +connect " + addr;
             Log.W("Lanzando Valheim {0}", modded ? "con mods" : "vanilla");
