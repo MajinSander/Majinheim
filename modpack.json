@@ -3,8 +3,9 @@
   "Revision": 3,
   "GameAddress": "majinrouter.asuscomm.com:2456",
   "LanHost": "",
-  "LauncherVersion": "1.1.3",
+  "LauncherVersion": "1.4.2",
   "Message": "Bienvenido a Majinheim 1.0",
+  "WebUrl": "",
   "Mods": [
     {
       "Id": "denikson-BepInExPack_Valheim",
