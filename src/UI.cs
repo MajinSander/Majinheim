@@ -123,12 +123,13 @@ namespace Majinheim
             return t;
         }
 
-        public static string Ask(IWin32Window owner, string title, string prompt, string def)
+        public static string Ask(IWin32Window owner, string title, string prompt, string def, bool secret = false)
         {
             using (var f = new Form { Text = title, FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MinimizeBox = false, MaximizeBox = false, BackColor = Th.Bg, ForeColor = Th.Text, Font = Th.F(9.5f), AutoScaleMode = AutoScaleMode.Dpi, ClientSize = new Size(560, 150) })
             {
                 var lbl = Lbl(prompt); lbl.MaximumSize = new Size(530, 0); lbl.Location = new Point(14, 12);
                 var tb = Txt(def, 530); tb.Location = new Point(14, 62);
+                tb.UseSystemPasswordChar = secret;
                 string result = null;
                 var ok = Btn("Aceptar", () => { result = tb.Text; f.DialogResult = DialogResult.OK; }, true); ok.Location = new Point(360, 100);
                 var cancel = Btn("Cancelar", () => f.DialogResult = DialogResult.Cancel); cancel.Location = new Point(460, 100);
@@ -893,10 +894,37 @@ namespace Majinheim
                 srvWarn.Text = "Falta distribucion\\" + AppInfo.ClientExeName + ": tus amigos no podran bajarse el launcher.";
             runner.TryAdopt();
             UpdateServerState();
+            WebAdmin.Action = WebAction;
             WebPanel.Apply();
             CheckUpdatesQuiet();
             if (!File.Exists(Doorstop.Preloader(AppInfo.Profile))) { ShowPage("Mods"); Status("Los mods no están instalados: pulsa APLICAR CAMBIOS."); }
             else if (autostart && !runner.Running) StartServer();
+        }
+
+        // Lo que se puede hacer desde la administración web. Se ejecuta en la ventana del launcher, como los botones.
+        string WebAction(string what)
+        {
+            if (InvokeRequired) return (string)Invoke(new Func<string>(() => WebAction(what)));
+            if (busy) return "El launcher está ocupado con otra tarea; prueba en un momento.";
+            switch (what)
+            {
+                case "iniciar":
+                    if (runner.Running) return "El server ya está en marcha.";
+                    RunBg("Arrancando el server (desde la web)...", () => runner.Start(), () => Status("Server arrancando (pedido desde la web)."));
+                    return "Arrancando. El mundo tarda un minuto en cargar.";
+                case "parar":
+                    if (!runner.Running) return "El server ya está apagado.";
+                    RunBg("Guardando el mundo y apagando (desde la web)...", () => runner.Stop(true), null);
+                    return "Guardando el mundo y apagando.";
+                case "reiniciar":
+                    if (!runner.Running) return "El server está apagado: usa Encender.";
+                    RunBg("Reiniciando el server (desde la web)...", () => { runner.Stop(true); System.Threading.Thread.Sleep(3000); runner.Start(); }, null);
+                    return "Reiniciando: se guarda el mundo, se apaga y vuelve a arrancar.";
+                case "backup":
+                    RunBg("Creando backup (desde la web)...", () => Backup.Create("web", Backup.FullItems(), false), () => { if (pages.ContainsKey("Backups") && pages["Backups"].Visible) RefreshBackups(); });
+                    return "Haciendo backup completo (mundo, personajes y ajustes).";
+            }
+            return "Acción desconocida.";
         }
 
         protected override void OnResize(EventArgs e)
