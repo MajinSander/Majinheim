@@ -49,7 +49,7 @@ namespace Majinheim
                 catch (Exception e) { http = null; Error = "No pude abrir el puerto " + Port + ": " + e.Message; Log.W("ERROR: panel web: {0}", Error); }
             }
             else if (!s.WebEnabled && http != null) { http.Stop(); http = null; Log.W("Panel web apagado."); }
-            if (s.WebEnabled && s.WebPublic && http != null) Caddy.Start();
+            if (s.WebEnabled && s.WebPublic && http != null) { if (Caddy.Installed) Caddy.Start(); else Caddy.InstallInBackground(); }
             else Caddy.Stop();
         }
 
@@ -388,7 +388,40 @@ namespace Majinheim
         public static bool Running { get { try { return proc != null && !proc.HasExited; } catch { return false; } } }
         public static string LastError { get; private set; }
 
+        // IP de este PC en la red de casa (la de Ajustes si sigue siendo suya; si no, la primera privada). null si no hay.
+        public static string LanAddress()
+        {
+            var ips = Net.LocalIPv4();
+            string want = (Settings.Current.LanHost ?? "").Trim();
+            if (want != "" && ips.Contains(want) && Net.IsPrivate(want)) return want;
+            return ips.FirstOrDefault(ip => Net.IsPrivate(ip) && !ip.StartsWith("127."));
+        }
+
+        static readonly object installLk = new object();
+        static volatile bool installing;
+        public static bool Installing { get { return installing; } }
+
+        // "Acceso desde internet" marcado pero sin Caddy (una descarga que falló o se cortó): se prepara solo, sin volver a marcar la casilla.
+        public static void InstallInBackground()
+        {
+            if (installing) return;
+            installing = true;
+            var t = new Thread(() =>
+            {
+                try { Install(m => Log.W("{0}", m)); Start(); }
+                catch (Exception e) { LastError = e.Message; Log.W("ERROR: no pude preparar el HTTPS: {0}", e.Message); }
+                finally { installing = false; }
+            });
+            t.IsBackground = true;
+            t.Start();
+        }
+
         public static void Install(Action<string> status)
+        {
+            lock (installLk) InstallLocked(status);
+        }
+
+        static void InstallLocked(Action<string> status)
         {
             if (Installed) return;
             Directory.CreateDirectory(Dir);
@@ -434,6 +467,23 @@ namespace Majinheim
             sb.Append("\treverse_proxy 127.0.0.1:").Append(WebPanel.Port).Append("\n");
             sb.Append("\tlog {\n\t\toutput file \"").Append(logs).Append("/caddy-visitas.log\" {\n\t\t\troll_size 5MiB\n\t\t\troll_keep 3\n\t\t}\n\t}\n");
             sb.Append("}\n");
+            // En casa: el router no deja usar la dirección pública desde dentro (no hace "NAT loopback"), así que en la red
+            // de casa la parte pública de la web (estado, estadísticas, mapa) se abre en http://<IP de este PC>:<puerto>.
+            // Solo escucha en esa IP y el router no reenvía ese puerto: desde internet no se ve. Sin cifrar no se entra:
+            // las páginas de cuentas van a la dirección HTTPS y sus llamadas se rechazan.
+            string lan = LanAddress();
+            if (lan != null)
+            {
+                sb.Append("\nhttp://").Append(lan).Append(":").Append(WebPanel.Port).Append(" {\n");
+                sb.Append("\tbind ").Append(lan).Append("\n");
+                sb.Append("\theader -Server\n");
+                sb.Append("\t@cuentas path /admin /admin.html /admin.js\n");
+                sb.Append("\tredir @cuentas ").Append(WebPanel.PublicUrl).Append("admin 302\n");
+                sb.Append("\t@cuentasApi path /api/entrar /api/salir /api/admin/*\n");
+                sb.Append("\trespond @cuentasApi \"Para entrar usa la dirección segura (HTTPS).\" 403\n");
+                sb.Append("\treverse_proxy 127.0.0.1:").Append(WebPanel.Port).Append("\n");
+                sb.Append("}\n");
+            }
             Directory.CreateDirectory(Dir);
             File.WriteAllText(Conf, sb.ToString(), new UTF8Encoding(false));
         }
