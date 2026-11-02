@@ -169,7 +169,7 @@ namespace Majinheim
 
         // ------------------------------------------------------------ comandos
 
-        static readonly string[] AdminCommands = { "encender", "apagar", "reiniciar", "backup" };
+        static readonly string[] AdminCommands = { "encender", "apagar", "reiniciar", "backup", "avisar" };
 
         static void RegisterCommands()
         {
@@ -190,6 +190,9 @@ namespace Majinheim
                 cmd("reiniciar", "Guarda el mundo y reinicia el server (solo administradores)", true),
                 cmd("backup", "Hace un backup completo del server (solo administradores)", true),
             };
+            var avisar = cmd("avisar", "Manda un mensaje al chat del juego (solo administradores)", true);
+            avisar["options"] = new[] { new Dictionary<string, object> { { "type", 3 }, { "name", "mensaje" }, { "description", "Lo que verán los jugadores" }, { "required", true }, { "max_length", 200 } } };
+            list.Add(avisar);
             Rest("PUT", "/applications/" + appId + "/commands", list);
             Log.W("Bot de Discord: comandos registrados.");
         }
@@ -216,9 +219,20 @@ namespace Majinheim
                     if ((perms & (PermAdministrator | PermManageGuild)) == 0) { reply = "Este comando es solo para los administradores del Discord."; ephemeral = true; }
                     else
                     {
-                        var act = WebAdmin.Action;
                         string what = name == "encender" ? "iniciar" : name == "apagar" ? "parar" : name;
-                        reply = act == null ? "El launcher del server no está listo." : act(what);
+                        if (name == "avisar")
+                        {
+                            string text = Option(data, "mensaje");
+                            var say = WebAdmin.Say;
+                            string err = say == null ? "el launcher del server no está listo" : say(text);
+                            reply = err == null ? "mensaje enviado al chat del juego: «" + Esc(text) + "»" : "no se pudo mandar el mensaje: " + err;
+                            what = "aviso en el juego";
+                        }
+                        else
+                        {
+                            var act = WebAdmin.Action;
+                            reply = act == null ? "El launcher del server no está listo." : act(what);
+                        }
                         WebAdmin.Audit("Discord", who + " · " + what + ": " + reply);
                         reply = "**" + Esc(who) + "**: " + reply;
                     }
@@ -232,6 +246,15 @@ namespace Majinheim
                 Rest("POST", "/interactions/" + id + "/" + itoken + "/callback", resp, false);
             }
             catch (Exception e) { Log.W("Bot de Discord: comando falló: {0}", e.Message); }
+        }
+
+        static string Option(Dictionary<string, object> data, string name)
+        {
+            object o;
+            if (data == null || !data.TryGetValue("options", out o) || o == null) return "";
+            foreach (var x in ((System.Collections.IEnumerable)o).Cast<object>().OfType<Dictionary<string, object>>())
+                if ((x["name"] as string) == name) return Convert.ToString(x["value"], CultureInfo.InvariantCulture) ?? "";
+            return "";
         }
 
         static string Esc(string s) { return (s ?? "").Replace("*", "\\*").Replace("_", "\\_").Replace("`", "\\`").Replace("~", "\\~").Replace("|", "\\|").Replace("@", "@​"); }

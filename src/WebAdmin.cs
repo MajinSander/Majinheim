@@ -48,6 +48,7 @@ namespace Majinheim
 
         // Lo pone la ventana del launcher: ejecuta "iniciar", "parar", "reiniciar" o "backup" y devuelve qué ha hecho.
         public static Func<string, string> Action;
+        public static Func<string, string> Say;   // mensaje al chat del juego; devuelve null si ha llegado (lo pone el launcher)
         public static Func<Dictionary<string, object>> AdminExtras;   // backups, mods con versión nueva y tareas (lo pone el launcher)
 
         static List<WebUser> Users { get { var s = Settings.Current; if (s.WebUsers == null) s.WebUsers = new List<WebUser>(); return s.WebUsers; } }
@@ -254,6 +255,17 @@ namespace Majinheim
                 res = Ok("Sesión cerrada en todos los dispositivos.");
                 res.Extra.Add(ClearCookie(req));
                 return res;
+            }
+            else if (req.Path == "/api/admin/aviso")
+            {
+                string text = null;
+                try { var o = Json.ParseObj(req.BodyText); object v; if (o.TryGetValue("mensaje", out v)) text = v as string; } catch { }
+                if (string.IsNullOrWhiteSpace(text)) return Err(400, "Escribe el mensaje.");
+                if (text.Length > 200) return Err(400, "Máximo 200 caracteres.");
+                var say = Say;
+                string err = say == null ? "El launcher del server no está listo." : say(text);
+                Audit(ip, user.Name + " · aviso en el juego: " + (err == null ? text : "no llegó (" + err + ")"));
+                res = err == null ? Ok("Mensaje enviado al chat del juego.") : Err(409, "No se pudo: " + err);
             }
             else if (req.Path == "/api/admin/accion")
             {

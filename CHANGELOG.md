@@ -1,5 +1,10 @@
 # Novedades
 
+## 1.7.0
+- **Avisos en el juego**: si hay alguien jugando, antes de apagar o reiniciar desde la web, desde Discord o con el reinicio diario, sale un aviso en el chat del juego 1 minuto antes y otro 10 segundos antes.
+- **Mensajes al chat del juego** desde el panel de administración de la web, con `/avisar` en Discord (solo administradores) y desde el launcher.
+- Usa el mod ValheimRcon (solo en el server). El launcher le pone una contraseña larga al azar y hace que solo acepte órdenes desde el propio PC. Se prepara en la pestaña **Automático**.
+
 ## 1.6.0
 - **Comandos del bot de Discord**: `/estado`, `/jugadores`, `/estadisticas` y `/web` para todos; `/encender`, `/apagar`, `/reiniciar` y `/backup` solo para los administradores del Discord. El bot no lee mensajes ni ve a nadie: solo recibe los comandos. Se activa o desactiva en la pestaña **Automático**.
 - Lo que se hace desde Discord queda apuntado en el mismo registro que lo que se hace desde la web.

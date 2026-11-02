@@ -12,7 +12,7 @@ set OPTS=/nologo /optimize+ /platform:anycpu /codepage:65001 /win32icon:icon.ico
 
 if not exist ..\distribucion mkdir ..\distribucion
 
-"%CSC%" %OPTS% /target:winexe /define:SERVER /out:..\MajinheimServer.exe %REFS% %WEBRES% Core.cs Patch.cs Web.cs WebAdmin.cs Config.cs UI.cs ConfigPage.cs WebPage.cs AutoPage.cs Extras.cs DiscordBot.cs Program.cs || goto :err
+"%CSC%" %OPTS% /target:winexe /define:SERVER /out:..\MajinheimServer.exe %REFS% %WEBRES% Core.cs Patch.cs Web.cs WebAdmin.cs Config.cs UI.cs ConfigPage.cs WebPage.cs AutoPage.cs Extras.cs DiscordBot.cs Rcon.cs Program.cs || goto :err
 "%CSC%" %OPTS% /target:winexe /out:..\distribucion\Majinheim.exe %REFS% Core.cs Patch.cs Config.cs UI.cs ConfigPage.cs Program.cs || goto :err
 "%CSC%" %OPTS% /target:exe /define:SERVER /out:..\MajinheimCli.exe %REFS% Core.cs Patch.cs Web.cs WebAdmin.cs Cli.cs || goto :err
 echo Compilado OK

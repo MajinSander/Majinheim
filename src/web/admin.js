@@ -147,6 +147,18 @@
     api('/api/admin/salir-todos', {}).then(function (r) { verLogin(r.mensaje || 'Sesiones cerradas.'); });
   });
 
+  $('form-aviso').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var t = $('aviso-texto').value.trim();
+    if (!t) return;
+    $('aviso-resultado').textContent = 'Enviando…';
+    api('/api/admin/aviso', { mensaje: t }).then(function (r) {
+      if (r._code === 401) { verLogin('Tu sesión ha caducado. Entra otra vez.'); return; }
+      $('aviso-resultado').textContent = r.mensaje || '';
+      if (r.ok) $('aviso-texto').value = '';
+    });
+  });
+
   Array.prototype.forEach.call(document.querySelectorAll('[data-accion]'), function (b) {
     b.addEventListener('click', function () {
       var msg = b.getAttribute('data-confirmar');
