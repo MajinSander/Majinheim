@@ -949,6 +949,7 @@ namespace Majinheim
             }
             if (tray != null) { tray.Visible = false; tray.Dispose(); }
             WebPanel.Shutdown();
+            DiscordBot.Stop();
             base.OnFormClosing(e);
         }
 

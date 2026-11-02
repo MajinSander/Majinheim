@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "1.5.0";
+        public const string Version = "1.6.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -201,6 +201,7 @@ namespace Majinheim
         public string DiscordChannel { get; set; } // ID del canal donde escribe el bot
         public bool DiscordJoins { get; set; }     // avisar cuando alguien entra o sale
         public bool DiscordUpdates { get; set; }   // avisar de mods con versión nueva
+        public bool DiscordCommands { get; set; }  // comandos del bot (/estado, /encender...)
         public int BackupEveryHours { get; set; }  // backup del mundo cada N horas con el server en marcha (0 = no)
         public bool NightlyRestart { get; set; }   // reinicio diario si no hay nadie jugando
         public int NightlyRestartHour { get; set; }
@@ -217,7 +218,7 @@ namespace Majinheim
             StaleBefore = "2026-06-01";
             GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; WebEnabled = true; WebPublic = false; WebPort = 8456; MapPort = 3000; WebAdminHash = "";
             WebUsers = new List<WebUser>();
-            DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true;
+            DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true;
             BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5;
         }
         public static Settings Current = new Settings();

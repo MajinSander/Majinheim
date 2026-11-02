@@ -12,7 +12,7 @@ namespace Majinheim
     public partial class MainForm
     {
         TextBox tDiscToken, tDiscChannel;
-        CheckBox cDiscJoins, cDiscUpdates, cNightly;
+        CheckBox cDiscJoins, cDiscUpdates, cDiscCommands, cNightly;
         ComboBox cbBackupHours, cbNightlyHour;
         Label discState, autoState;
         bool autoPopulating;
@@ -46,22 +46,25 @@ namespace Majinheim
             tDiscChannel = Ui.Txt(s.DiscordChannel, 220);
             cDiscJoins = Ui.Chk("Avisar cuando alguien entra o sale (con el tiempo que ha jugado)", s.DiscordJoins);
             cDiscUpdates = Ui.Chk("Avisar cuando un mod tiene versión nueva", s.DiscordUpdates);
+            cDiscCommands = Ui.Chk("Comandos del bot: /estado, /jugadores, /estadisticas, /web para todos; /encender, /apagar, /reiniciar, /backup solo para administradores del Discord", s.DiscordCommands);
+            cDiscCommands.MaximumSize = new Size(540, 0);
+            cDiscCommands.CheckedChanged += (o, e) => { if (autoPopulating) return; s.DiscordCommands = cDiscCommands.Checked; Settings.Save(); DiscordBot.Apply(); UpdateAutoState(); };
             cDiscJoins.CheckedChanged += (o, e) => { if (autoPopulating) return; s.DiscordJoins = cDiscJoins.Checked; Settings.Save(); };
             cDiscUpdates.CheckedChanged += (o, e) => { if (autoPopulating) return; s.DiscordUpdates = cDiscUpdates.Checked; Settings.Save(); };
             discState = Ui.Lbl("", 10, FontStyle.Regular, Th.Muted);
             discState.MaximumSize = new Size(540, 0);
             var help = Ui.Lbl("Cómo se consigue (una sola vez):\n" +
                 "1. En discord.com/developers/applications abre vuestro bot > Bot > \"Reset Token\" y cópialo aquí.\n" +
-                "2. En OAuth2 > URL Generator marca \"bot\" y el permiso \"Send Messages\"; abre el enlace e invítalo a vuestro servidor.\n" +
+                "2. En OAuth2 > URL Generator marca \"bot\" y \"applications.commands\" y el permiso \"Send Messages\"; abre el enlace e invítalo a vuestro servidor.\n" +
                 "3. En Discord: Ajustes > Avanzado > Modo desarrollador. Clic derecho en el canal > \"Copiar ID del canal\".\n" +
                 "El token se guarda cifrado y solo sirve en este PC. Nunca se publica.", 9f, FontStyle.Regular, Th.Muted);
             help.MaximumSize = new Size(540, 0);
             var disc = Ui.Col(Ui.Lbl("Avisos en Discord", 11, FontStyle.Bold), discState,
                 Ui.Lbl("Token del bot (déjalo vacío para mantener el guardado)", 9.5f), tDiscToken,
                 Ui.Lbl("ID del canal", 9.5f), tDiscChannel,
-                cDiscJoins, cDiscUpdates,
+                cDiscJoins, cDiscUpdates, cDiscCommands,
                 Ui.Row(Ui.Btn("Guardar y probar", SaveDiscord, true),
-                       Ui.Btn("Quitar", () => { if (!Confirm("¿Quitar el bot de Discord? Dejará de avisar.")) return; s.DiscordToken = ""; Settings.Save(); UpdateAutoState(); })),
+                       Ui.Btn("Quitar", () => { if (!Confirm("¿Quitar el bot de Discord? Dejará de avisar.")) return; s.DiscordToken = ""; Settings.Save(); DiscordBot.Stop(); UpdateAutoState(); })),
                 help);
 
             // ---- Tareas
@@ -119,6 +122,7 @@ namespace Majinheim
                 Settings.Save();
                 tDiscToken.Text = "";
                 Log.W("Discord configurado (canal {0}).", channel);
+                DiscordBot.Apply();
                 UpdateAutoState();
                 discState.Text = "✔ Funciona: el bot ha escrito en el canal. " + discState.Text;
             });
@@ -132,6 +136,7 @@ namespace Majinheim
             discState.Text = !conf ? "Sin configurar. Cuando lo esté, el bot avisará de: server encendido, apagado o caído; quién entra y sale; backups que fallen; y mods con versión nueva."
                 : Discord.LastError != null ? "Configurado, pero el último aviso falló: " + Discord.LastError + "."
                 : "Configurado. Avisa en el canal " + s.DiscordChannel + (Discord.LastSent != DateTime.MinValue ? " (último aviso: " + Discord.LastSent.ToString("dd/MM HH:mm") + ")" : "") + ".";
+            if (conf && DiscordBot.State != null) discState.Text += "\nComandos: " + DiscordBot.State;
             discState.ForeColor = !conf ? Th.Muted : Discord.LastError != null ? Th.Warn : Th.Good;
 
             var parts = new List<string>();
@@ -158,6 +163,7 @@ namespace Majinheim
             };
             WebAdmin.AdminExtras = AdminExtras;
             lastUpdateCheck = DateTime.Now;   // OnShown ya lanza la primera búsqueda de versiones
+            DiscordBot.Apply();
         }
 
         static string Esc(string s) { return (s ?? "").Replace("*", "\\*").Replace("_", "\\_").Replace("`", "\\`").Replace("~", "\\~").Replace("|", "\\|").Replace("@", "@​"); }

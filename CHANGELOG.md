@@ -1,5 +1,9 @@
 # Novedades
 
+## 1.6.0
+- **Comandos del bot de Discord**: `/estado`, `/jugadores`, `/estadisticas` y `/web` para todos; `/encender`, `/apagar`, `/reiniciar` y `/backup` solo para los administradores del Discord. El bot no lee mensajes ni ve a nadie: solo recibe los comandos. Se activa o desactiva en la pestaña **Automático**.
+- Lo que se hace desde Discord queda apuntado en el mismo registro que lo que se hace desde la web.
+
 ## 1.5.0
 - **Estadísticas** en la web (botón "Estadísticas"): horas jugadas por cada vikingo, partidas, la más larga, muertes, horas de los últimos 30 días y a qué hora se juega. Las ve cualquiera, sin datos de red.
 - **Avisos en Discord** con el bot del grupo: server encendido, apagado o caído; quién entra y sale y cuánto ha jugado; backups automáticos que fallen; mods con versión nueva. Nunca menciona a nadie. El token se guarda cifrado y solo sirve en el PC del server.
