@@ -1,5 +1,5 @@
 @echo off
-rem Compila las dos ediciones con el compilador que ya trae Windows (.NET Framework 4.8)
+rem Compila las dos ediciones y la consola (la edicion Server lleva dentro el panel web) con el compilador que ya trae Windows (.NET Framework 4.8)
 rem Mono.Cecil (para reparar el mod de cajones) es el que trae BepInEx; en ejecucion se usa el del perfil.
 setlocal
 cd /d "%~dp0"
@@ -7,13 +7,14 @@ set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 set CECIL=lib\Mono.Cecil.dll
 if not exist "%CECIL%" (echo Falta %CECIL%: copialo del BepInExPack (BepInExPack_Valheim/BepInEx/core) & exit /b 1)
 set REFS=/r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:System.Web.Extensions.dll /r:System.Management.dll /r:"%CECIL%"
+set WEBRES=/resource:web\index.html,index.html /resource:web\app.js,app.js /resource:web\estilo.css,estilo.css /resource:web\icono.svg,icono.svg
 set OPTS=/nologo /optimize+ /platform:anycpu /codepage:65001 /win32icon:icon.ico
 
 if not exist ..\distribucion mkdir ..\distribucion
 
-"%CSC%" %OPTS% /target:winexe /define:SERVER /out:..\MajinheimServer.exe %REFS% Core.cs Patch.cs Config.cs UI.cs ConfigPage.cs Program.cs || goto :err
+"%CSC%" %OPTS% /target:winexe /define:SERVER /out:..\MajinheimServer.exe %REFS% %WEBRES% Core.cs Patch.cs Web.cs Config.cs UI.cs ConfigPage.cs WebPage.cs Program.cs || goto :err
 "%CSC%" %OPTS% /target:winexe /out:..\distribucion\Majinheim.exe %REFS% Core.cs Patch.cs Config.cs UI.cs ConfigPage.cs Program.cs || goto :err
-"%CSC%" %OPTS% /target:exe /define:SERVER /out:..\MajinheimCli.exe %REFS% Core.cs Patch.cs Cli.cs || goto :err
+"%CSC%" %OPTS% /target:exe /define:SERVER /out:..\MajinheimCli.exe %REFS% Core.cs Patch.cs Web.cs Cli.cs || goto :err
 echo Compilado OK
 exit /b 0
 :err

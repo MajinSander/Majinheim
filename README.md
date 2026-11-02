@@ -13,6 +13,11 @@ Si Windows avisa (SmartScreen): *Más información → Ejecutar de todas formas*
 Abrir Valheim normal desde Steam = sin mods. Para jugar con mods, siempre desde Majinheim.exe.
 En el juego, **F1** abre el menú de ajustes de los mods.
 
+## Web del server
+
+En el launcher, el botón **Web del server** abre una página con el estado del server: si está encendido,
+quién está jugando y desde cuándo, las horas de la semana y los mods. Es solo para mirar: desde la web no se puede tocar nada.
+
 ## Cómo funciona
 
 - `modpack.json` (en este repositorio) es la lista de mods y versiones. La publica el launcher del server.
@@ -25,7 +30,9 @@ En el juego, **F1** abre el menú de ajustes de los mods.
 ## Código
 
 C# (.NET Framework 4.8, sin dependencias externas). `src/build.bat` compila las dos ediciones:
-`MajinheimServer.exe` (administra el server) y `Majinheim.exe` (jugadores).
+`MajinheimServer.exe` (administra el server y lleva dentro la web, `src/Web.cs` + `src/web/`) y `Majinheim.exe` (jugadores).
+La web solo escucha en el propio PC; desde internet se llega por HTTPS a través de [Caddy](https://caddyserver.com),
+que el launcher descarga de sus Releases oficiales comprobando la huella SHA-512.
 `src/lib/Mono.Cecil.dll` no se incluye: cópialo de `BepInExPack_Valheim/BepInEx/core`.
 
 Créditos de los mods a sus autores en Thunderstore. Mod de cajones: KGvalheim y Firehunter1980.

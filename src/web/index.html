@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Majinheim</title>
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/estilo.css">
+</head>
+<body>
+<header>
+  <div class="marca">
+    <img src="/icono.svg" alt="" width="40" height="40">
+    <div>
+      <h1 id="nombre">Majinheim</h1>
+      <p class="sub">Server de Valheim</p>
+    </div>
+  </div>
+  <span id="estado" class="pastilla gris">Cargando…</span>
+</header>
+
+<main>
+  <section class="tarjeta" id="t-jugadores">
+    <h2>Conectados ahora <span id="n-jugadores" class="cuenta">0</span></h2>
+    <ul id="jugadores" class="lista"></ul>
+    <p id="nadie" class="vacio">No hay nadie jugando.</p>
+  </section>
+
+  <section class="tarjeta">
+    <h2>El server</h2>
+    <dl class="datos">
+      <div><dt>Encendido desde</dt><dd id="desde">—</dd></div>
+      <div><dt>Versión de Valheim</dt><dd id="version">—</dd></div>
+      <div><dt>Último guardado del mundo</dt><dd id="guardado">—</dd></div>
+      <div><dt>Último backup</dt><dd id="backup">—</dd></div>
+      <div><dt>Procesador</dt><dd id="cpu">—</dd></div>
+      <div><dt>Memoria</dt><dd id="ram">—</dd></div>
+    </dl>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Esta semana</h2>
+    <ul id="semana" class="barras"></ul>
+    <p id="semana-vacia" class="vacio">Todavía no hay partidas esta semana.</p>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Últimas partidas</h2>
+    <ul id="sesiones" class="lista"></ul>
+    <p id="sesiones-vacia" class="vacio">Aún no hay partidas guardadas.</p>
+  </section>
+
+  <section class="tarjeta ancha">
+    <details>
+      <summary><h2>Mods <span id="n-mods" class="cuenta">0</span> <span id="rev" class="tenue"></span></h2></summary>
+      <ul id="mods" class="mods"></ul>
+    </details>
+  </section>
+</main>
+
+<footer>
+  <span id="aviso" class="aviso" hidden>Sin conexión con el panel. Reintentando…</span>
+  <span>Majinheim Web <span id="panel"></span> · se actualiza solo</span>
+</footer>
+<script src="/app.js"></script>
+</body>
+</html>
