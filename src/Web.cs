@@ -295,7 +295,8 @@ namespace Majinheim
         static int Port { get { return Settings.Current.MapPort > 0 ? Settings.Current.MapPort : 3000; } }
 
         // Las páginas del mod piden sus datos a la raíz ("/state", "/map.jpg"...). Con esto los piden a /mapa/...
-        const string SiteConfig = "window.XNV = { api: \"/mapa\", base: \"/mapa/map.jpg\", brand: \"Majinheim\", links: [{ label: \"Estado del server\", href: \"/\" }] };\n";
+        // "base" va relativo a "api" (el mod pide api + base), así que es "/map.jpg", no "/mapa/map.jpg".
+        const string SiteConfig = "window.XNV = { api: \"/mapa\", base: \"/map.jpg\", brand: \"Majinheim\", links: [{ label: \"Estado del server\", href: \"/\" }] };\n";
 
         static readonly string[] PassHeaders = { "Content-Type", "Cache-Control", "Last-Modified", "ETag", "Expires" };
 
