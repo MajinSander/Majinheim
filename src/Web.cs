@@ -395,7 +395,7 @@ namespace Majinheim
             status("Buscando la última versión de Caddy...");
             var rel = Json.ParseObj(Http.GetString("https://api.github.com/repos/caddyserver/caddy/releases/latest"));
             string zipUrl = null, zipName = null, sumUrl = null;
-            foreach (Dictionary<string, object> a in (System.Collections.ArrayList)rel["assets"])
+            foreach (Dictionary<string, object> a in (System.Collections.IEnumerable)rel["assets"])
             {
                 string n = (string)a["name"], u = (string)a["browser_download_url"];
                 if (Regex.IsMatch(n, @"^caddy_[\d.]+_windows_amd64\.zip$")) { zipUrl = u; zipName = n; }

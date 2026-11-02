@@ -7,6 +7,7 @@
   - Backup del mundo cada pocas horas con el server encendido, justo después de que Valheim guarde, y solo si alguien ha jugado.
   - Reinicio diario a la hora que elijas, solo si no hay nadie jugando.
   - Búsqueda de versiones nuevas de mods cada 12 horas.
+- Corregido: al activar "Acceso desde internet" salía el error "No se puede convertir un objeto de tipo System.Object[]..." y no se preparaba el HTTPS.
 - Panel de administración: últimos backups, mods con versión nueva y el estado de las tareas automáticas y de Discord.
 
 ## 1.4.2
