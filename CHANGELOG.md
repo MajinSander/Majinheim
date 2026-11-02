@@ -8,6 +8,8 @@
   - Reinicio diario a la hora que elijas, solo si no hay nadie jugando.
   - Búsqueda de versiones nuevas de mods cada 12 horas.
 - Corregido: al activar "Acceso desde internet" salía el error "No se puede convertir un objeto de tipo System.Object[]..." y no se preparaba el HTTPS.
+- Si el acceso desde internet está activado y falta el programa del HTTPS (por ejemplo, porque falló la descarga), se prepara solo al abrir el launcher.
+- **En casa**: muchos routers no dejan abrir la dirección pública desde dentro de la propia casa. Con el acceso desde internet activado, en la red de casa el estado, las estadísticas y el mapa también se abren en la dirección local del server (la pestaña **Web** la muestra), sin abrir nada más en el router. Para entrar con una cuenta hace falta la dirección segura: la pestaña **Web** da la línea para el archivo hosts de un PC de casa.
 - Panel de administración: últimos backups, mods con versión nueva y el estado de las tareas automáticas y de Discord.
 
 ## 1.4.2
