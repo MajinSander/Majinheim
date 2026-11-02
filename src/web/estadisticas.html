@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Majinheim · Estadísticas</title>
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/estilo.css">
+</head>
+<body>
+<header>
+  <div class="marca">
+    <a href="/"><img src="/icono.svg" alt="Volver al estado" width="40" height="40"></a>
+    <div>
+      <h1>Estadísticas</h1>
+      <p class="sub" id="sub">Todo lo jugado en el server</p>
+    </div>
+  </div>
+  <div class="acciones">
+    <a class="boton secundario" href="/">Estado</a>
+    <a id="btn-mapa" class="boton secundario" href="/mapa/">Mapa del mundo</a>
+  </div>
+</header>
+
+<main>
+  <section class="tarjeta ancha">
+    <div class="cifras">
+      <div><span class="cifra" id="t-horas">—</span><span class="etiqueta">horas jugadas</span></div>
+      <div><span class="cifra" id="t-sesiones">—</span><span class="etiqueta">partidas</span></div>
+      <div><span class="cifra" id="t-jugadores">—</span><span class="etiqueta">vikingos</span></div>
+      <div><span class="cifra" id="t-dia">—</span><span class="etiqueta">día en el mundo</span></div>
+    </div>
+    <p class="tenue" id="t-desde"></p>
+  </section>
+
+  <section class="tarjeta ancha">
+    <h2>Últimos 30 días</h2>
+    <div class="grafica" id="dias" role="img" aria-label="Horas jugadas cada día de los últimos 30 días"></div>
+    <div class="eje"><span id="dia-ini"></span><span>hoy</span></div>
+    <p class="tenue" id="dias-resumen"></p>
+  </section>
+
+  <section class="tarjeta ancha">
+    <h2>Vikingos</h2>
+    <div class="tabla-envoltura">
+      <table class="tabla">
+        <thead><tr><th>Jugador</th><th class="num">Total</th><th class="num">Esta semana</th><th class="num">Partidas</th><th class="num">La más larga</th><th class="num">Muertes</th><th class="num">Última vez</th></tr></thead>
+        <tbody id="jugadores"></tbody>
+      </table>
+    </div>
+    <p id="vacio" class="vacio" hidden>Aún no hay partidas guardadas.</p>
+  </section>
+
+  <section class="tarjeta ancha">
+    <h2>A qué hora se juega <span class="tenue">(últimos 60 días)</span></h2>
+    <div class="grafica horas" id="horas" role="img" aria-label="Minutos jugados por hora del día"></div>
+    <div class="eje horas-eje" id="horas-eje"></div>
+  </section>
+</main>
+
+<footer>
+  <span id="aviso" class="aviso" hidden>Sin conexión con el panel. Reintentando…</span>
+  <span>Majinheim Web · se actualiza cada minuto</span>
+</footer>
+<script src="/estadisticas.js"></script>
+</body>
+</html>

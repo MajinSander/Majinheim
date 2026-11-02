@@ -74,13 +74,34 @@
   </section>
 
   <section class="tarjeta">
+    <h2>Automático</h2>
+    <dl class="datos">
+      <div><dt>Backups del mundo</dt><dd id="a-tarea-backup">—</dd></div>
+      <div><dt>Reinicio diario</dt><dd id="a-tarea-reinicio">—</dd></div>
+      <div><dt>Avisos en Discord</dt><dd id="a-tarea-discord">—</dd></div>
+    </dl>
+    <p class="tenue">Se cambia en el launcher del server, pestaña Automático.</p>
+  </section>
+
+  <section class="tarjeta" id="t-actualizaciones">
+    <h2>Mods con versión nueva <span id="n-act" class="cuenta">0</span></h2>
+    <ul id="actualizaciones" class="lista"></ul>
+    <p class="tenue">No se instala nada solo: se actualiza desde el launcher del server, pestaña Mods, con el server apagado.</p>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Backups <span class="tenue">(los últimos)</span></h2>
+    <ul id="backups" class="lista"></ul>
+  </section>
+
+  <section class="tarjeta">
     <h2>Lo que se ha hecho desde la web</h2>
-    <ul id="acciones" class="lista"></ul>
+    <ul id="acciones" class="lista apilada"></ul>
   </section>
 
   <section class="tarjeta">
     <h2>Sesiones abiertas</h2>
-    <ul id="dispositivos" class="lista"></ul>
+    <ul id="dispositivos" class="lista apilada"></ul>
     <div class="botonera">
       <button id="salir-todos" class="boton secundario">Cerrar sesión en todos los dispositivos</button>
     </div>

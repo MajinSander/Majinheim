@@ -20,7 +20,7 @@ namespace Majinheim
 {
     public static class WebPanel
     {
-        public const string Version = "0.2.0";
+        public const string Version = "0.3.0";
         static MiniHttp http;
         public static string Error { get; private set; }
         public static bool Running { get { return http != null; } }
@@ -65,6 +65,8 @@ namespace Majinheim
             { "/icono.svg", new[] { "icono.svg", "image/svg+xml" } },
             { "/admin.html", new[] { "admin.html", "text/html; charset=utf-8" } },
             { "/admin.js", new[] { "admin.js", "application/javascript; charset=utf-8" } },
+            { "/estadisticas.html", new[] { "estadisticas.html", "text/html; charset=utf-8" } },
+            { "/estadisticas.js", new[] { "estadisticas.js", "application/javascript; charset=utf-8" } },
         };
 
         static MiniHttp.Response Route(MiniHttp.Request req)
@@ -74,7 +76,9 @@ namespace Majinheim
             if (req.Method == "POST") return MiniHttp.Response.Text(405, "Solo lectura");
             if (path == "/api/estado") return MiniHttp.Response.JsonOf(ServerWatch.Snapshot(), true);
             if (path == "/salud") return MiniHttp.Response.Text(200, "ok");
+            if (path == "/api/estadisticas") return MiniHttp.Response.JsonOf(ServerWatch.Stats(), true);
             if (path == "/admin") path = "/admin.html";
+            if (path == "/estadisticas") path = "/estadisticas.html";
             string[] f;
             if (Files.TryGetValue(path, out f))
             {
@@ -526,7 +530,7 @@ namespace Majinheim
 
     static class ServerWatch
     {
-        class Live { public string Steam, Name; public DateTime Since; public int Deaths; }
+        class Live { public string Steam, Name; public DateTime Since; public int Deaths; public bool Announced; }
 
         static readonly object lk = new object();
         static readonly Dictionary<string, Live> online = new Dictionary<string, Live>();
@@ -536,6 +540,7 @@ namespace Majinheim
         static bool ready;
         static string version = "";
         static DateTime? lastSave;
+        public static DateTime? LastSave { get { lock (lk) return lastSave; } }
         static volatile bool mapUp;
         public static bool MapUp { get { return mapUp; } }
         static double cpu;
@@ -560,11 +565,38 @@ namespace Majinheim
         static readonly Regex rxSaved = new Regex(@"World saved");
 
         static bool started;
+        static DateTime watchStart = DateTime.MaxValue;
+
+        // Avisos para el launcher (Discord): ("entra" | "sale", nombre, minutos de la sesión). Solo de lo que pasa
+        // desde que se abrió el launcher, nunca de líneas viejas del registro. Se llama con el cerrojo cogido: no bloquear.
+        public static event Action<string, string, int> PlayerEvent;
+        public static int OnlineCount { get { lock (lk) return online.Values.Count(l => l.Name != null); } }
+        // Última vez que hubo alguien jugando (ahora mismo, si hay alguien dentro).
+        public static DateTime LastActivity
+        {
+            get
+            {
+                lock (lk)
+                {
+                    if (online.Values.Any(l => l.Name != null)) return DateTime.Now;
+                    var h = history.LastOrDefault();
+                    return h == null ? DateTime.MinValue : ParseIso(h.End);
+                }
+            }
+        }
+
+        static void Fire(string what, string name, int minutes)
+        {
+            var h = PlayerEvent;
+            if (h == null) return;
+            try { h(what, name, minutes); } catch (Exception e) { Log.W("Web: aviso de jugador falló: {0}", e.Message); }
+        }
 
         public static void Start()
         {
             if (started) return;
             started = true;
+            watchStart = DateTime.Now.AddMinutes(-1);
             try { history = Json.Load<List<SessionRecord>>(HistoryFile); } catch (Exception e) { Log.W("Web: no pude leer sesiones.json: {0}", e.Message); }
             var t = new Thread(() =>
             {
@@ -676,7 +708,11 @@ namespace Majinheim
                 if (same != null) { if (dead) same.Deaths++; return; }
                 // El personaje llega justo después de su conexión: se lo damos al último que entró sin nombre.
                 var noName = online.Values.Where(l => l.Name == null).OrderByDescending(l => l.Since).FirstOrDefault();
-                if (noName != null) noName.Name = name;
+                if (noName != null)
+                {
+                    noName.Name = name;
+                    if (ts >= watchStart) { noName.Announced = true; Fire("entra", name, 0); }
+                }
                 return;
             }
             if ((m = rxClose.Match(line)).Success)
@@ -690,6 +726,7 @@ namespace Majinheim
         {
             online.Remove(l.Steam);
             if (l.Name == null) return;   // se conectó pero no llegó a entrar (contraseña mal, versión distinta...)
+            if (l.Announced) Fire("sale", l.Name, Minutes(l.Since, end));
             string key = l.Steam + "@" + l.Since.ToString("s");
             if (history.Any(h => h.Key == key)) return;
             history.Add(new SessionRecord { Name = l.Name, Start = Iso(l.Since), End = Iso(end), Deaths = l.Deaths, Key = key });
@@ -777,6 +814,67 @@ namespace Majinheim
             o["generado"] = Iso(now);
             o["panel"] = WebPanel.Version;
             return o;
+        }
+
+        // Estadísticas de todas las partidas guardadas (lo mismo que ve cualquiera: nombres y tiempos, nada de red).
+        public static Dictionary<string, object> Stats()
+        {
+            var now = DateTime.Now;
+            List<SessionRecord> hist;
+            List<Live> live;
+            lock (lk) { hist = history.ToList(); live = online.Values.Where(l => l.Name != null).ToList(); }
+            var all = hist.Select(h => new { h.Name, a = ParseIso(h.Start), b = ParseIso(h.End), h.Deaths, live = false })
+                .Concat(live.Select(l => new { l.Name, a = l.Since, b = now, Deaths = l.Deaths, live = true }))
+                .Where(x => x.a != DateTime.MinValue && x.b >= x.a).ToList();
+            var weekAgo = now.AddDays(-7);
+            var players = all.GroupBy(x => x.Name).Select(g => new Dictionary<string, object>
+            {
+                { "nombre", g.Key },
+                { "minutos", g.Sum(x => Minutes(x.a, x.b)) },
+                { "semana", g.Where(x => x.b > weekAgo).Sum(x => Minutes(x.a < weekAgo ? weekAgo : x.a, x.b)) },
+                { "sesiones", g.Count() },
+                { "masLarga", g.Max(x => Minutes(x.a, x.b)) },
+                { "muertes", g.Sum(x => x.Deaths) },
+                { "primera", Iso(g.Min(x => x.a)) },
+                { "ultima", g.Any(x => x.live) ? null : Iso(g.Max(x => x.b)) },
+                { "jugando", g.Any(x => x.live) },
+            }).OrderByDescending(d => (int)d["minutos"]).ToList();
+
+            // Últimos 30 días: cuánta gente distinta y cuánto se jugó (cada sesión repartida entre los días que toca).
+            var days = new List<Dictionary<string, object>>();
+            var hours = new int[24];
+            for (int i = 29; i >= 0; i--)
+            {
+                var d0 = now.Date.AddDays(-i); var d1 = d0.AddDays(1);
+                var on = all.Where(x => x.a < d1 && x.b > d0).ToList();
+                days.Add(new Dictionary<string, object>
+                {
+                    { "fecha", d0.ToString("yyyy-MM-dd") },
+                    { "jugadores", on.Select(x => x.Name).Distinct().Count() },
+                    { "minutos", on.Sum(x => Minutes(x.a < d0 ? d0 : x.a, x.b > d1 ? d1 : x.b)) },
+                });
+            }
+            // A qué horas se juega (últimos 60 días), en minutos por franja de una hora.
+            var since = now.AddDays(-60);
+            foreach (var x in all.Where(x => x.b > since))
+                for (var t = x.a < since ? since : x.a; t < x.b; t = t.AddMinutes(10)) hours[t.Hour] += (int)Math.Min(10, (x.b - t).TotalMinutes);
+
+            return new Dictionary<string, object>
+            {
+                { "jugadores", players },
+                { "dias", days },
+                { "horas", hours },
+                { "total", new Dictionary<string, object>
+                    {
+                        { "minutos", all.Sum(x => Minutes(x.a, x.b)) },
+                        { "sesiones", all.Count },
+                        { "jugadores", players.Count },
+                        { "desde", all.Count == 0 ? null : Iso(all.Min(x => x.a)) },
+                        { "dia", WorldDay() },
+                    }
+                },
+                { "generado", Iso(now) },
+            };
         }
 
         static DateTime ParseIso(string s)

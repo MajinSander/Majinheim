@@ -61,7 +61,7 @@
     document.querySelector('[data-accion="reiniciar"]').disabled = s.estado === 'apagado';
 
     var ul = $('acciones'); limpiar(ul);
-    (d.acciones || []).forEach(function (a) {
+    (d.acciones || []).slice(0, 12).forEach(function (a) {
       var li = document.createElement('li');
       var q = document.createElement('span'); q.className = 'quien'; q.textContent = a.que;
       var c = document.createElement('span'); c.className = 'cuanto'; c.textContent = a.fecha.slice(5, 16) + ' · ' + a.ip;
@@ -79,11 +79,44 @@
       li.appendChild(q); li.appendChild(c); ud.appendChild(li);
     });
 
+    pintarExtras(d);
+
     var pre = $('registro');
     var abajo = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
     pre.textContent = (d.registro || []).join('\n');
     if (abajo) pre.scrollTop = pre.scrollHeight;
     if (!timer) timer = setInterval(refrescar, 4000);
+  }
+
+  var tipos = { 'mundo-al-arrancar': 'al arrancar', 'programado': 'automático', 'web': 'desde la web', 'antes-de-restaurar': 'antes de restaurar' };
+  function pintarExtras(d) {
+    var t = d.tareas || {};
+    $('a-tarea-backup').textContent = t.backupHoras ? 'cada ' + t.backupHoras + ' h' + (t.ultimoBackupAuto ? ' · último ' + new Date(t.ultimoBackupAuto).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '') : (d.tareas ? 'solo al arrancar' : '—');
+    $('a-tarea-reinicio').textContent = t.reinicioDiario ? 'a las ' + t.reinicioDiario + ' si no hay nadie' : (d.tareas ? 'desactivado' : '—');
+    $('a-tarea-discord').textContent = t.discord === 'ok' ? 'funcionando' : t.discord === 'error' ? 'el último aviso falló' : (d.tareas ? 'sin configurar' : '—');
+    $('a-tarea-discord').className = t.discord === 'error' ? 'aviso' : '';
+
+    var act = d.actualizaciones || [];
+    $('n-act').textContent = act.length;
+    var ua = $('actualizaciones'); limpiar(ua);
+    act.forEach(function (u) {
+      var li = document.createElement('li');
+      var q = document.createElement('span'); q.className = 'quien'; q.textContent = u.nombre;
+      var c = document.createElement('span'); c.className = 'cuanto'; c.textContent = u.actual + ' → ' + u.nueva;
+      li.appendChild(q); li.appendChild(c); ua.appendChild(li);
+    });
+    if (!ua.firstChild) { var li0 = document.createElement('li'); li0.className = 'tenue'; li0.textContent = 'Todo al día.'; ua.appendChild(li0); }
+
+    var ub = $('backups'); limpiar(ub);
+    (d.backups || []).slice(0, 8).forEach(function (b) {
+      var li = document.createElement('li');
+      var q = document.createElement('span'); q.className = 'quien';
+      q.textContent = new Date(b.fecha).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      var c = document.createElement('span'); c.className = 'cuanto';
+      c.textContent = (tipos[b.nombre] || b.nombre.replace(/[-_]/g, ' ')) + ' · ' + String(b.mb).replace('.', ',') + ' MB';
+      li.appendChild(q); li.appendChild(c); ub.appendChild(li);
+    });
+    if (!ub.firstChild) { var li1 = document.createElement('li'); li1.className = 'tenue'; li1.textContent = 'Todavía no hay backups.'; ub.appendChild(li1); }
   }
 
   function refrescar() {

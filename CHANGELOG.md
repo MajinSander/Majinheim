@@ -1,5 +1,14 @@
 # Novedades
 
+## 1.5.0
+- **Estadísticas** en la web (botón "Estadísticas"): horas jugadas por cada vikingo, partidas, la más larga, muertes, horas de los últimos 30 días y a qué hora se juega. Las ve cualquiera, sin datos de red.
+- **Avisos en Discord** con el bot del grupo: server encendido, apagado o caído; quién entra y sale y cuánto ha jugado; backups automáticos que fallen; mods con versión nueva. Nunca menciona a nadie. El token se guarda cifrado y solo sirve en el PC del server.
+- **Tareas automáticas** (nueva pestaña **Automático** del launcher del server):
+  - Backup del mundo cada pocas horas con el server encendido, justo después de que Valheim guarde, y solo si alguien ha jugado.
+  - Reinicio diario a la hora que elijas, solo si no hay nadie jugando.
+  - Búsqueda de versiones nuevas de mods cada 12 horas.
+- Panel de administración: últimos backups, mods con versión nueva y el estado de las tareas automáticas y de Discord.
+
 ## 1.4.2
 - Corregido: el mapa del mundo de la web salía en negro (no cargaba el dibujo del mundo).
 

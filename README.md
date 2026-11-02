@@ -20,6 +20,9 @@ quién está jugando y desde cuándo, el día en el mundo, las horas de la seman
 Se puede entrar como invitado (solo mirar) o con una cuenta; solo las cuentas de administrador ven los controles del server.
 La opción **Recordarme en este dispositivo** evita tener que entrar cada vez.
 
+## Discord y tareas automáticas
+En el launcher del server, pestaña **Automático**: pega el token del bot y el ID del canal y pulsa "Guardar y probar". Ahí también se eligen los backups automáticos y el reinicio diario.
+
 ## Cómo funciona
 
 - `modpack.json` (en este repositorio) es la lista de mods y versiones. La publica el launcher del server.
