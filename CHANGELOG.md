@@ -1,5 +1,8 @@
 # Novedades
 
+## 1.4.2
+- Corregido: el mapa del mundo de la web salía en negro (no cargaba el dibujo del mundo).
+
 ## 1.4.1
 - **Cuentas en la web**: se entra con usuario y contraseña. Los administradores ven los controles del server; las cuentas de jugador y los invitados ven el estado, las estadísticas y el mapa, sin datos de red.
 - Botón **Entrar como invitado** para quien no tiene cuenta.
