@@ -63,19 +63,25 @@ namespace Majinheim
             { "/app.js", new[] { "app.js", "application/javascript; charset=utf-8" } },
             { "/estilo.css", new[] { "estilo.css", "text/css; charset=utf-8" } },
             { "/icono.svg", new[] { "icono.svg", "image/svg+xml" } },
+            { "/admin.html", new[] { "admin.html", "text/html; charset=utf-8" } },
+            { "/admin.js", new[] { "admin.js", "application/javascript; charset=utf-8" } },
         };
 
-        static MiniHttp.Response Route(string path)
+        static MiniHttp.Response Route(MiniHttp.Request req)
         {
+            string path = req.Path;
+            if (path.StartsWith("/api/admin/") || path == "/api/entrar" || path == "/api/salir") return WebAdmin.Handle(req);
+            if (req.Method == "POST") return MiniHttp.Response.Text(405, "Solo lectura");
             if (path == "/api/estado") return MiniHttp.Response.JsonOf(ServerWatch.Snapshot(), true);
-            if (path == "/salud") return new MiniHttp.Response(200, "text/plain; charset=utf-8", Encoding.UTF8.GetBytes("ok"), true);
+            if (path == "/salud") return MiniHttp.Response.Text(200, "ok");
+            if (path == "/admin") path = "/admin.html";
             string[] f;
             if (Files.TryGetValue(path, out f))
             {
                 byte[] body = Resource(f[0]);
                 if (body != null) return new MiniHttp.Response(200, f[1], body, false);
             }
-            return new MiniHttp.Response(404, "text/plain; charset=utf-8", Encoding.UTF8.GetBytes("No existe"), true);
+            return MiniHttp.Response.Text(404, "No existe");
         }
 
         // Las páginas van dentro del .exe (build.bat las mete con /resource). Si hay copia en web\ junto al .exe, manda esa (para retocarlas sin compilar).
@@ -112,24 +118,49 @@ namespace Majinheim
 
     // ---------------------------------------------------------------- servidor HTTP mínimo (solo GET, solo 127.0.0.1)
 
-    class MiniHttp
+    public class MiniHttp
     {
-        public class Response
+        public class Request
         {
-            public int Code; public string Type; public byte[] Body; public bool NoCache;
-            public Response(int code, string type, byte[] body, bool noCache) { Code = code; Type = type; Body = body; NoCache = noCache; }
-            public static Response JsonOf(object o, bool noCache)
+            public string Method, Path, Query = "";
+            public readonly Dictionary<string, string> Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            public byte[] Body = new byte[0];
+            public string Header(string name) { string v; return Headers.TryGetValue(name, out v) ? v : ""; }
+            public string BodyText { get { return Encoding.UTF8.GetString(Body); } }
+            // Detrás de Caddy, la IP real llega en X-Forwarded-For (Caddy la pone él; aquí solo entra lo que viene de este PC).
+            public string ClientIp { get { string f = Header("X-Forwarded-For"); return f != "" ? f.Split(',')[0].Trim() : "este PC"; } }
+            public bool Https { get { return Header("X-Forwarded-Proto") == "https"; } }
+            public string Cookie(string name)
             {
-                return new Response(200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(Json.Str(o)), noCache);
+                foreach (var part in Header("Cookie").Split(';'))
+                {
+                    int i = part.IndexOf('=');
+                    if (i > 0 && part.Substring(0, i).Trim() == name) return part.Substring(i + 1).Trim();
+                }
+                return null;
             }
         }
 
+        public class Response
+        {
+            public int Code; public string Type; public byte[] Body; public bool NoCache;
+            public readonly List<string> Extra = new List<string>();
+            public Response(int code, string type, byte[] body, bool noCache) { Code = code; Type = type; Body = body; NoCache = noCache; }
+            public static Response JsonOf(object o, bool noCache) { return JsonOf(200, o); }
+            public static Response JsonOf(int code, object o)
+            {
+                return new Response(code, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(Json.Str(o)), true);
+            }
+            public static Response Text(int code, string text) { return new Response(code, "text/plain; charset=utf-8", Encoding.UTF8.GetBytes(text), true); }
+        }
+
+        const int MaxBody = 4096;
         readonly int port;
-        readonly Func<string, Response> route;
+        readonly Func<Request, Response> route;
         TcpListener listener;
         volatile bool running;
 
-        public MiniHttp(int port, Func<string, Response> route) { this.port = port; this.route = route; }
+        public MiniHttp(int port, Func<Request, Response> route) { this.port = port; this.route = route; }
 
         public void Start()
         {
@@ -154,7 +185,7 @@ namespace Majinheim
 
         public void Stop() { running = false; try { listener.Stop(); } catch { } }
 
-        static readonly string[] Codes = { "200 OK", "400 Bad Request", "404 Not Found", "405 Method Not Allowed", "500 Internal Server Error" };
+        static readonly string[] Codes = { "200 OK", "400 Bad Request", "401 Unauthorized", "403 Forbidden", "404 Not Found", "405 Method Not Allowed", "409 Conflict", "413 Payload Too Large", "429 Too Many Requests", "500 Internal Server Error", "502 Bad Gateway", "503 Service Unavailable" };
 
         void Handle(TcpClient c)
         {
@@ -164,42 +195,67 @@ namespace Majinheim
                 {
                     c.ReceiveTimeout = 5000; c.SendTimeout = 5000;
                     var ns = c.GetStream();
-                    string head = ReadHead(ns);
-                    if (head == null) { Send(ns, new Response(400, "text/plain", Encoding.UTF8.GetBytes("Petición no válida"), true), false); return; }
-                    string first = head.Split('\n')[0].Trim();
-                    var parts = first.Split(' ');
-                    if (parts.Length != 3) { Send(ns, new Response(400, "text/plain", Encoding.UTF8.GetBytes("Petición no válida"), true), false); return; }
-                    bool isHead = parts[0] == "HEAD";
-                    if (parts[0] != "GET" && !isHead) { Send(ns, new Response(405, "text/plain", Encoding.UTF8.GetBytes("Solo lectura"), true), false); return; }
-                    string path = parts[1];
-                    if (!path.StartsWith("/")) { Send(ns, new Response(400, "text/plain", Encoding.UTF8.GetBytes("Petición no válida"), true), false); return; }
-                    if (path == MapProxy.Prefix || path.StartsWith(MapProxy.Prefix + "?")) { Redirect(ns, MapProxy.Prefix + "/"); return; }
-                    if (path.StartsWith(MapProxy.Prefix + "/")) { MapProxy.Forward(ns, path.Substring(MapProxy.Prefix.Length), isHead); return; }
-                    int q = path.IndexOf('?');
-                    if (q >= 0) path = path.Substring(0, q);
+                    var req = Read(ns);
+                    if (req == null) { Send(ns, Response.Text(400, "Petición no válida"), false); return; }
+                    bool isHead = req.Method == "HEAD";
+                    if (req.Method != "GET" && !isHead && req.Method != "POST") { Send(ns, Response.Text(405, "No permitido"), false); return; }
+                    string full = req.Path + (req.Query != "" ? "?" + req.Query : "");
+                    if (req.Path == MapProxy.Prefix) { Redirect(ns, MapProxy.Prefix + "/"); return; }
+                    if (req.Path.StartsWith(MapProxy.Prefix + "/"))
+                    {
+                        if (req.Method == "POST") { Send(ns, Response.Text(405, "El mapa es solo para mirar"), false); return; }
+                        MapProxy.Forward(ns, full.Substring(MapProxy.Prefix.Length), isHead);
+                        return;
+                    }
                     Response r;
-                    try { r = route(path); }
-                    catch (Exception e) { Log.W("Web: error en {0}: {1}", path, e.Message); r = new Response(500, "text/plain", Encoding.UTF8.GetBytes("Error interno"), true); }
+                    try { r = route(req); }
+                    catch (Exception e) { Log.W("Web: error en {0}: {1}", req.Path, e.Message); r = Response.Text(500, "Error interno"); }
                     Send(ns, r, isHead);
                 }
                 catch { }
             }
         }
 
-        // Lee hasta la línea en blanco. Máximo 8 KB: lo que sea más grande no es una petición nuestra.
-        static string ReadHead(NetworkStream ns)
+        // Cabeceras hasta la línea en blanco (máx. 8 KB) y cuerpo con Content-Length (máx. 4 KB).
+        static Request Read(NetworkStream ns)
         {
-            var buf = new byte[8192];
-            int n = 0;
-            while (n < buf.Length)
+            var buf = new byte[8192 + MaxBody];
+            int n = 0, end = -1;
+            while (end < 0)
             {
-                int r = ns.Read(buf, n, buf.Length - n);
+                if (n >= 8192) return null;
+                int r = ns.Read(buf, n, 8192 - n);
                 if (r <= 0) return null;
                 n += r;
-                string s = Encoding.ASCII.GetString(buf, 0, n);
-                if (s.Contains("\r\n\r\n") || s.Contains("\n\n")) return s;
+                for (int i = 3; i < n; i++) if (buf[i - 3] == 13 && buf[i - 2] == 10 && buf[i - 1] == 13 && buf[i] == 10) { end = i + 1; break; }
             }
-            return null;
+            var lines = Encoding.ASCII.GetString(buf, 0, end).Split(new[] { "\r\n" }, StringSplitOptions.None);
+            var parts = lines[0].Split(' ');
+            if (parts.Length != 3 || !parts[1].StartsWith("/")) return null;
+            var req = new Request { Method = parts[0] };
+            int q = parts[1].IndexOf('?');
+            req.Path = q >= 0 ? parts[1].Substring(0, q) : parts[1];
+            if (q >= 0) req.Query = parts[1].Substring(q + 1);
+            for (int i = 1; i < lines.Length; i++)
+            {
+                int k = lines[i].IndexOf(':');
+                if (k > 0) req.Headers[lines[i].Substring(0, k).Trim()] = lines[i].Substring(k + 1).Trim();
+            }
+            int len;
+            if (int.TryParse(req.Header("Content-Length"), out len) && len > 0)
+            {
+                if (len > MaxBody) return null;
+                int have = n - end;
+                while (have < len)
+                {
+                    int r = ns.Read(buf, end + have, len - have);
+                    if (r <= 0) return null;
+                    have += r;
+                }
+                req.Body = new byte[len];
+                Array.Copy(buf, end, req.Body, 0, len);
+            }
+            return req;
         }
 
         static void Redirect(NetworkStream ns, string to)
@@ -220,8 +276,9 @@ namespace Majinheim
             h.Append("Referrer-Policy: no-referrer\r\n");
             h.Append("X-Frame-Options: DENY\r\n");
             h.Append("Content-Security-Policy: default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'\r\n");
+            foreach (var x in r.Extra) h.Append(x).Append("\r\n");
             h.Append("Connection: close\r\n\r\n");
-            var hb = Encoding.ASCII.GetBytes(h.ToString());
+            var hb = Encoding.UTF8.GetBytes(h.ToString());
             ns.Write(hb, 0, hb.Length);
             if (!headOnly) ns.Write(r.Body, 0, r.Body.Length);
             ns.Flush();
@@ -260,7 +317,7 @@ namespace Majinheim
         public static void Forward(NetworkStream ns, string target, bool head)
         {
             string probe = Uri.UnescapeDataString(target);
-            if (probe.Contains("..") || probe.Contains("\\") || probe.Contains("\0")) { MiniHttp.Send(ns, new MiniHttp.Response(400, "text/plain", Encoding.UTF8.GetBytes("Petición no válida"), true), head); return; }
+            if (probe.Contains("..") || probe.Contains("\\") || probe.Contains("\0")) { MiniHttp.Send(ns, MiniHttp.Response.Text(400, "Petición no válida"), head); return; }
             if (target == "/site-config.js" || target.StartsWith("/site-config.js?"))
             {
                 MiniHttp.Send(ns, new MiniHttp.Response(200, "application/javascript; charset=utf-8", Encoding.UTF8.GetBytes(SiteConfig), true), head);
@@ -572,7 +629,7 @@ namespace Majinheim
             if (!File.Exists(file)) return;
             using (var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
             {
-                if (fs.Length < logPos) { lock (lk) { foreach (var l in online.Values.ToList()) Close(l, DateTime.Now); ready = false; version = ""; lastSave = null; } logPos = 0; partial = ""; }   // registro nuevo: el server se ha reiniciado
+                if (fs.Length < logPos) { lock (lk) { recent.Clear(); foreach (var l in online.Values.ToList()) Close(l, DateTime.Now); ready = false; version = ""; lastSave = null; } logPos = 0; partial = ""; }   // registro nuevo: el server se ha reiniciado
                 if (fs.Length == logPos) return;
                 fs.Seek(logPos, SeekOrigin.Begin);
                 var buf = new byte[Math.Min(fs.Length - logPos, 4 * 1024 * 1024)];
@@ -585,9 +642,14 @@ namespace Majinheim
             }
         }
 
+        static readonly Queue<string> recent = new Queue<string>();
+        public static List<string> RecentLines(int n) { lock (lk) return recent.Skip(Math.Max(0, recent.Count - n)).ToList(); }
+
         static void Parse(string line)
         {
             if (line.Length == 0) return;
+            recent.Enqueue(line.Length > 400 ? line.Substring(0, 400) : line);
+            while (recent.Count > 300) recent.Dequeue();
             DateTime ts = DateTime.Now;
             var mt = rxTime.Match(line);
             DateTime parsed;

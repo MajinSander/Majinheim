@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Majinheim · Administrar</title>
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/estilo.css">
+</head>
+<body>
+<header>
+  <div class="marca">
+    <a href="/"><img src="/icono.svg" alt="Volver al estado" width="40" height="40"></a>
+    <div>
+      <h1>Administrar</h1>
+      <p class="sub" id="sub">Server de Valheim</p>
+    </div>
+  </div>
+  <div class="acciones">
+    <a class="boton secundario" href="/">Estado</a>
+    <button id="salir" class="boton secundario" hidden>Salir</button>
+    <span id="estado" class="pastilla gris">…</span>
+  </div>
+</header>
+
+<main id="login" hidden>
+  <section class="tarjeta estrecha">
+    <h2>Entrar</h2>
+    <p id="login-info" class="vacio">Solo para el administrador del server.</p>
+    <form id="form-login" class="formulario">
+      <label for="clave">Contraseña</label>
+      <input id="clave" type="password" autocomplete="current-password" required minlength="10">
+      <button class="boton" type="submit">Entrar</button>
+      <p id="login-error" class="error" role="alert"></p>
+    </form>
+  </section>
+</main>
+
+<main id="panel" hidden>
+  <section class="tarjeta">
+    <h2>Server</h2>
+    <dl class="datos">
+      <div><dt>Estado</dt><dd id="a-estado">—</dd></div>
+      <div><dt>Jugando ahora</dt><dd id="a-jugadores">—</dd></div>
+      <div><dt>Último backup</dt><dd id="a-backup">—</dd></div>
+    </dl>
+    <div class="botonera">
+      <button class="boton" data-accion="iniciar">Encender</button>
+      <button class="boton" data-accion="reiniciar" data-confirmar="¿Reiniciar el server? Se guarda el mundo y los que estén jugando se desconectan un momento.">Reiniciar</button>
+      <button class="boton peligro" data-accion="parar" data-confirmar="¿Apagar el server? Se guarda el mundo y los que estén jugando se desconectan.">Apagar</button>
+      <button class="boton secundario" data-accion="backup">Hacer backup</button>
+    </div>
+    <p id="resultado" class="tenue" role="status"></p>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Lo que se ha hecho desde aquí</h2>
+    <ul id="acciones" class="lista"></ul>
+  </section>
+
+  <section class="tarjeta ancha">
+    <h2>Registro del server <span class="tenue">(últimas líneas)</span></h2>
+    <pre id="registro" class="registro"></pre>
+  </section>
+</main>
+
+<footer><span>Majinheim Web · tu sesión dura 12 horas</span></footer>
+<script src="/admin.js"></script>
+</body>
+</html>

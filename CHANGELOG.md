@@ -1,5 +1,10 @@
 # Novedades
 
+## 1.4.0
+- **Administrar desde la web** (móvil o PC): encender, apagar, reiniciar y hacer backups del server, y ver su registro. Solo con la contraseña de administrador.
+- La contraseña se pone en la pestaña **Web** del launcher del server. Sin contraseña, la administración web está desactivada.
+- Seguridad: la contraseña no se guarda en claro, tras varios intentos fallidos se bloquea un rato y queda apuntado todo lo que se hace desde la web.
+
 ## 1.3.0
 - **Mapa del mundo** en la web del server: lo que habéis explorado entre todos, quién está jugando y dónde (si se deja ver en el mapa), portales y construcciones. Lo pone el mod WebMap, que va solo en el server: no hay que instalar nada.
 - El mapa se ve dentro de la misma web, con su candado HTTPS, y es solo para mirar.
