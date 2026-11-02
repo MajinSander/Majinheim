@@ -48,6 +48,7 @@ namespace Majinheim
 
         // Lo pone la ventana del launcher: ejecuta "iniciar", "parar", "reiniciar" o "backup" y devuelve qué ha hecho.
         public static Func<string, string> Action;
+        public static Func<Dictionary<string, object>> AdminExtras;   // backups, mods con versión nueva y tareas (lo pone el launcher)
 
         static List<WebUser> Users { get { var s = Settings.Current; if (s.WebUsers == null) s.WebUsers = new List<WebUser>(); return s.WebUsers; } }
         static WebUser Find(string name)
@@ -242,6 +243,8 @@ namespace Majinheim
                 o["acciones"] = ReadAudit(30);
                 o["dispositivos"] = Devices(req);
                 o["estado"] = ServerWatch.Snapshot();
+                var ex = AdminExtras;
+                if (ex != null) try { foreach (var kv in ex()) o[kv.Key] = kv.Value; } catch (Exception e) { Log.W("Web: extras del panel: {0}", e.Message); }
                 res = MiniHttp.Response.JsonOf(200, o);
             }
             else if (req.Path == "/api/admin/salir-todos")

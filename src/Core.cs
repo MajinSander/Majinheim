@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "1.4.2";
+        public const string Version = "1.5.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -196,6 +196,14 @@ namespace Majinheim
         public int MapPort { get; set; }         // puerto del mod WebMap en este PC (server_port de su .cfg)
         public List<WebUser> WebUsers { get; set; } // cuentas de la web (contraseña solo como hash PBKDF2); sin administrador = controles desactivados
         public string WebAdminHash { get; set; } // 1.4.0 (contraseña sin usuario): ya no se usa
+        // Avisos y tareas automáticas (pestaña "Automático")
+        public string DiscordToken { get; set; }   // token del bot, cifrado con DPAPI para este usuario de Windows (nunca en claro)
+        public string DiscordChannel { get; set; } // ID del canal donde escribe el bot
+        public bool DiscordJoins { get; set; }     // avisar cuando alguien entra o sale
+        public bool DiscordUpdates { get; set; }   // avisar de mods con versión nueva
+        public int BackupEveryHours { get; set; }  // backup del mundo cada N horas con el server en marcha (0 = no)
+        public bool NightlyRestart { get; set; }   // reinicio diario si no hay nadie jugando
+        public int NightlyRestartHour { get; set; }
         // comunes: de dónde sale el modpack (GitHub)
         public string GitHubRepo { get; set; }
         // edicion cliente
@@ -209,6 +217,8 @@ namespace Majinheim
             StaleBefore = "2026-06-01";
             GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; WebEnabled = true; WebPublic = false; WebPort = 8456; MapPort = 3000; WebAdminHash = "";
             WebUsers = new List<WebUser>();
+            DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true;
+            BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5;
         }
         public static Settings Current = new Settings();
         public static void Load() { Current = Json.Load<Settings>(AppInfo.SettingsFile); if (Current.WebUsers == null) Current.WebUsers = new List<WebUser>(); }

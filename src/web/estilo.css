@@ -80,3 +80,26 @@ button.boton:disabled { opacity: .4; cursor: default; filter: none; }
 .boton.bloque { display: block; text-align: center; padding: 10px 14px; }
 .centrado { text-align: center; margin: 10px 0 0; }
 .quien-soy { color: var(--texto); font-weight: 600; font-size: 14px; white-space: nowrap; }
+/* estadísticas */
+.cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+.cifras div { display: flex; flex-direction: column; gap: 2px; }
+.cifra { font-size: 32px; font-weight: 700; color: var(--ambar); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.etiqueta { color: var(--tenue); font-size: 13px; }
+.cifras + .tenue { margin: 12px 0 0; }
+.grafica { display: flex; align-items: flex-end; gap: 3px; height: 120px; padding-top: 4px; }
+.grafica .barra { flex: 1; background: var(--ambar); border-radius: 3px 3px 0 0; min-width: 0; }
+.grafica .barra.cero { background: var(--borde); }
+.grafica .barra:hover { filter: brightness(1.2); }
+.eje { display: flex; justify-content: space-between; color: var(--tenue); font-size: 12px; margin-top: 6px; }
+.tabla-envoltura { overflow-x: auto; margin: 0 -4px; }
+.tabla { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tabla th { color: var(--tenue); font-weight: 400; font-size: 12px; text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--borde); white-space: nowrap; }
+.tabla td { padding: 9px 8px; border-top: 1px solid var(--borde); white-space: nowrap; }
+.tabla tr:first-child td { border-top: 0; }
+.tabla .num { text-align: right; font-variant-numeric: tabular-nums; }
+.tabla td.nombre { font-weight: 700; }
+.lista .etiqueta-mod { color: var(--ambar); }
+.lista.apilada li { flex-direction: column; gap: 2px; }
+.lista.apilada .cuanto { white-space: normal; font-size: 13px; }
+.horas-eje { justify-content: flex-start; gap: 3px; }
+.horas-eje span { flex: 1; min-width: 0; overflow: visible; white-space: nowrap; }

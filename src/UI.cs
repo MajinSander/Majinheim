@@ -355,6 +355,7 @@ namespace Majinheim
             AddPage("Amigos", "☺", BuildFriendsPage());
             AddPage("Backups", "↺", BuildBackupsPage());
             AddPage("Web", "◎", BuildWebPage());
+            AddPage("Automático", "⏱", BuildAutoPage());
 
             tray = new NotifyIcon { Icon = Icon, Text = "Majinheim Server", Visible = true };
             var menu = new ContextMenuStrip();
@@ -495,6 +496,7 @@ namespace Majinheim
             }
             else srvUptime.Text = "Tiempo en marcha: -";
             if (++webTicks % 8 == 0) UpdateWebState();
+            AutoTick();
             lock (runner.RecentJoins)
                 srvJoins.Text = "Últimos en entrar:\n" + (runner.RecentJoins.Count == 0 ? "-" : string.Join("\n", runner.RecentJoins.Take(6)));
         }
@@ -616,6 +618,7 @@ namespace Majinheim
                     PopulateMods();
                     int n = pack.Mods.Count(m => m.Enabled && latest.ContainsKey(m.Id) && Ver.Compare(latest[m.Id].Version, m.Version) > 0);
                     if (n > 0) { Status(n + " mods tienen versión nueva: míralo en la pestaña Mods."); Log.W("{0} mods tienen versión nueva en Thunderstore.", n); }
+                    AfterUpdateCheck();
                 }));
             });
         }
@@ -895,6 +898,7 @@ namespace Majinheim
             runner.TryAdopt();
             UpdateServerState();
             WebAdmin.Action = WebAction;
+            InitAuto();
             WebPanel.Apply();
             CheckUpdatesQuiet();
             if (!File.Exists(Doorstop.Preloader(AppInfo.Profile))) { ShowPage("Mods"); Status("Los mods no están instalados: pulsa APLICAR CAMBIOS."); }
