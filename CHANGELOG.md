@@ -1,5 +1,10 @@
 # Novedades
 
+## 1.2.0
+- Nueva **web del server**: si está encendido, quién está jugando y desde cuándo, horas de la semana, últimas partidas y lista de mods. Se ve bien en el móvil y se actualiza sola.
+- Launcher de jugador: botón **Web del server** para abrirla directamente.
+- Edición Server: nueva pestaña **Web** para encenderla y abrirla desde internet con HTTPS (el certificado se saca y se renueva solo).
+
 ## 1.1.3
 - La consola del juego (tecla **F5**) viene activada al jugar desde el launcher.
 

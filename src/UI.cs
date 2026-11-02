@@ -327,6 +327,7 @@ namespace Majinheim
         readonly ServerRunner runner = new ServerRunner();
         NotifyIcon tray;
         bool exiting;
+        int webTicks;
         Label srvState, srvPlayers, srvUptime, srvJoins, srvWarn;
         RichTextBox srvLog;
         Button bStart, bStop, bRestart;
@@ -352,6 +353,7 @@ namespace Majinheim
             AddPage("Ajustes de mods", "⚙", BuildConfigPage());
             AddPage("Amigos", "☺", BuildFriendsPage());
             AddPage("Backups", "↺", BuildBackupsPage());
+            AddPage("Web", "◎", BuildWebPage());
 
             tray = new NotifyIcon { Icon = Icon, Text = "Majinheim Server", Visible = true };
             var menu = new ContextMenuStrip();
@@ -491,6 +493,7 @@ namespace Majinheim
                 srvUptime.Text = "Tiempo en marcha: " + (int)up.TotalHours + " h " + up.Minutes + " min";
             }
             else srvUptime.Text = "Tiempo en marcha: -";
+            if (++webTicks % 8 == 0) UpdateWebState();
             lock (runner.RecentJoins)
                 srvJoins.Text = "Últimos en entrar:\n" + (runner.RecentJoins.Count == 0 ? "-" : string.Join("\n", runner.RecentJoins.Take(6)));
         }
@@ -890,6 +893,7 @@ namespace Majinheim
                 srvWarn.Text = "Falta distribucion\\" + AppInfo.ClientExeName + ": tus amigos no podran bajarse el launcher.";
             runner.TryAdopt();
             UpdateServerState();
+            WebPanel.Apply();
             CheckUpdatesQuiet();
             if (!File.Exists(Doorstop.Preloader(AppInfo.Profile))) { ShowPage("Mods"); Status("Los mods no están instalados: pulsa APLICAR CAMBIOS."); }
             else if (autostart && !runner.Running) StartServer();
@@ -912,6 +916,7 @@ namespace Majinheim
                 return;
             }
             if (tray != null) { tray.Visible = false; tray.Dispose(); }
+            WebPanel.Shutdown();
             base.OnFormClosing(e);
         }
 
@@ -920,7 +925,7 @@ namespace Majinheim
 
         Label plTitle, plMsg, plState;
         ListView plMods;
-        Button bPlay;
+        Button bPlay, bWeb;
         CheckBox cConnect;
         TextBox tGameDir, tRepoC, tLanC;
         bool online;
@@ -939,10 +944,11 @@ namespace Majinheim
             plState = Ui.Lbl("Conectando con el server...", 10, FontStyle.Regular, Th.Muted);
             bPlay = Ui.Btn("JUGAR", Play, true);
             bPlay.AutoSize = false; bPlay.Size = new Size(260, 64); bPlay.Font = Th.F(18, FontStyle.Bold);
+            bWeb = Ui.Btn("◎  Web del server", OpenServerWeb);
             cConnect = Ui.Chk("Entrar directamente al server", Settings.Current.AutoConnect);
             cConnect.CheckedChanged += (o, e) => { Settings.Current.AutoConnect = cConnect.Checked; Settings.Save(); };
             var hero = Ui.Col(plTitle, plMsg, plState,
-                Ui.Row(bPlay, Ui.Col(cConnect, Ui.Row(Ui.Btn("Jugar sin mods", () => Launch(false)), Ui.Btn("Buscar actualizaciones", () => Sync(false))))));
+                Ui.Row(bPlay, Ui.Col(cConnect, Ui.Row(Ui.Btn("Jugar sin mods", () => Launch(false)), Ui.Btn("Buscar actualizaciones", () => Sync(false)), bWeb))));
 
             plMods = Ui.List(false, "Mod|330", "Versión|90", "Para qué sirve|460");
             var t = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = Th.Bg };
@@ -995,6 +1001,7 @@ namespace Majinheim
         {
             plTitle.Text = pack.Name;
             plMsg.Text = pack.Message ?? "";
+            bWeb.Visible = SafeWebUrl(pack.WebUrl) != null;
             plMods.BeginUpdate();
             plMods.Items.Clear();
             foreach (var m in pack.Mods)
@@ -1034,6 +1041,20 @@ namespace Majinheim
         }
 
         void Play() { Sync(true); }
+
+        // Solo abre direcciones https:// (la lista de mods viene de internet: nada de programas ni carpetas).
+        static string SafeWebUrl(string u)
+        {
+            Uri uri;
+            if (string.IsNullOrWhiteSpace(u) || !Uri.TryCreate(u.Trim(), UriKind.Absolute, out uri) || uri.Scheme != Uri.UriSchemeHttps) return null;
+            return uri.AbsoluteUri;
+        }
+
+        void OpenServerWeb()
+        {
+            string u = SafeWebUrl(pack.WebUrl);
+            if (u != null) Ui.Open(u);
+        }
 
         void Launch(bool modded)
         {

@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "1.1.3";
+        public const string Version = "1.2.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -153,8 +153,9 @@ namespace Majinheim
         public string LanHost { get; set; }
         public string LauncherVersion { get; set; }
         public string Message { get; set; }
+        public string WebUrl { get; set; }       // web del server (panel de estado); vacío si no hay acceso desde internet
         public List<ModEntry> Mods { get; set; }
-        public Modpack() { Name = "Majinheim"; Mods = new List<ModEntry>(); Message = ""; GameAddress = ""; LanHost = ""; LauncherVersion = AppInfo.Version; }
+        public Modpack() { Name = "Majinheim"; Mods = new List<ModEntry>(); Message = ""; WebUrl = ""; GameAddress = ""; LanHost = ""; LauncherVersion = AppInfo.Version; }
         public ModEntry Find(string id) { return Mods.FirstOrDefault(m => string.Equals(m.Id, id, StringComparison.OrdinalIgnoreCase)); }
         public static Modpack Load() { return Json.Load<Modpack>(AppInfo.ModpackFile); }
         public void Save() { Json.Save(AppInfo.ModpackFile, this); }
@@ -189,6 +190,9 @@ namespace Majinheim
         public string GitHubToken { get; set; }
         public string StaleBefore { get; set; }
         public bool AutoStartServer { get; set; }
+        public bool WebEnabled { get; set; }     // panel web dentro del launcher del server (solo escucha en 127.0.0.1)
+        public bool WebPublic { get; set; }      // acceso desde internet por HTTPS (Caddy + DDNS)
+        public int WebPort { get; set; }
         // comunes: de dónde sale el modpack (GitHub)
         public string GitHubRepo { get; set; }
         // edicion cliente
@@ -200,7 +204,7 @@ namespace Majinheim
             Port = AppInfo.DefaultGamePort; Public = false; Crossplay = false; ExtraArgs = ""; AutoRestart = true;
             KeepAutoBackups = 40; PublicHost = AppInfo.DefaultHost; LanHost = ""; GitHubToken = "";
             StaleBefore = "2026-06-01";
-            GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true;
+            GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; WebEnabled = true; WebPublic = false; WebPort = 8456;
         }
         public static Settings Current = new Settings();
         public static void Load() { Current = Json.Load<Settings>(AppInfo.SettingsFile); }
@@ -923,7 +927,7 @@ namespace Majinheim
             return false;
         }
 
-        static string CommandLine(int pid)
+        public static string CommandLine(int pid)
         {
             using (var s = new System.Management.ManagementObjectSearcher("SELECT CommandLine FROM Win32_Process WHERE ProcessId = " + pid))
                 foreach (System.Management.ManagementObject o in s.Get()) return o["CommandLine"] as string;
@@ -1172,6 +1176,7 @@ namespace Majinheim
             var s = Settings.Current;
             var p = new Modpack { Name = src.Name, Revision = src.Revision, Message = src.Message, LauncherVersion = AppInfo.Version };
             p.GameAddress = (string.IsNullOrWhiteSpace(s.PublicHost) ? AppInfo.DefaultHost : s.PublicHost.Trim()) + ":" + s.Port;
+            p.WebUrl = s.WebEnabled && s.WebPublic ? WebPanel.PublicUrl : "";
             p.Mods = Installer.ModsFor(src, true);
             if (p.Mods.Any(m => m.Local)) throw new Exception("El modpack tiene mods propios (" + string.Join(", ", p.Mods.Where(m => m.Local).Select(m => m.Id)) + ") que no están en Thunderstore: los jugadores no podrían bajarlos.");
             return p;
@@ -1218,6 +1223,7 @@ namespace Majinheim
             foreach (var pat in new[] { "*.cs", "*.bat", "*.ico", "*.md" }) files.AddRange(Directory.GetFiles(src, pat));
             files.AddRange(Directory.GetFiles(Path.Combine(src, "patches"), "*.ps1"));
             files.AddRange(Directory.GetFiles(Path.Combine(src, "plugins"), "*.cs"));
+            if (Directory.Exists(Path.Combine(src, "web"))) files.AddRange(Directory.GetFiles(Path.Combine(src, "web")));
             string token = GitHub.Token(true);
             foreach (var f in files)
             {
