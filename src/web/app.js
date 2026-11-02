@@ -58,6 +58,7 @@
     est.textContent = textos[s.estado] || 'Desconocido';
 
     $('desde').textContent = s.desde ? fecha(s.desde) + ' (' + duracion(Math.round((Date.now() - new Date(s.desde).getTime()) / 60000)) + ')' : 'apagado';
+    $('dia').textContent = s.dia != null ? 'Día ' + s.dia : '—';
     $('version').textContent = s.version || '—';
     $('guardado').textContent = hace(s.ultimoGuardado);
     $('backup').textContent = d.ultimoBackup ? hace(d.ultimoBackup.fecha) : '—';
@@ -123,6 +124,26 @@
       .catch(function () { $('aviso').hidden = false; });
   }
 
+  // Quién soy: invitado (botón Entrar), jugador o administrador (botón Panel de control).
+  function sesion() {
+    fetch('/api/sesion', { cache: 'no-store', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (s) {
+        $('quien').hidden = !s.dentro;
+        if (s.dentro) $('quien').textContent = s.usuario + (s.rol === 'admin' ? ' · admin' : '');
+        $('btn-salir').hidden = !s.dentro;
+        $('btn-panel').hidden = !(s.dentro && s.rol === 'admin');
+        $('btn-entrar').hidden = s.dentro || !s.cuentas;
+      })
+      .catch(function () { });
+  }
+
+  $('btn-salir').addEventListener('click', function () {
+    fetch('/api/salir', { method: 'POST', cache: 'no-store', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Majinheim': '1' }, body: '{}' })
+      .then(sesion, sesion);
+  });
+
+  sesion();
   pedir();
   setInterval(pedir, 5000);
   setInterval(pintar, 30000);   // los minutos siguen contando aunque no cambie nada

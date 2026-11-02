@@ -18,6 +18,10 @@
   </div>
   <div class="acciones">
     <a id="btn-mapa" class="boton" href="/mapa/" hidden>Mapa del mundo</a>
+    <span id="quien" class="quien-soy" hidden></span>
+    <a id="btn-panel" class="boton secundario" href="/admin" hidden>Panel de control</a>
+    <a id="btn-entrar" class="boton secundario" href="/admin" hidden>Entrar</a>
+    <button id="btn-salir" class="boton secundario" hidden>Salir</button>
     <span id="estado" class="pastilla gris">Cargando…</span>
   </div>
 </header>
@@ -33,6 +37,7 @@
     <h2>El server</h2>
     <dl class="datos">
       <div><dt>Encendido desde</dt><dd id="desde">—</dd></div>
+      <div><dt>Día en el mundo</dt><dd id="dia">—</dd></div>
       <div><dt>Versión de Valheim</dt><dd id="version">—</dd></div>
       <div><dt>Último guardado del mundo</dt><dd id="guardado">—</dd></div>
       <div><dt>Último backup</dt><dd id="backup">—</dd></div>
@@ -63,7 +68,7 @@
 
 <footer>
   <span id="aviso" class="aviso" hidden>Sin conexión con el panel. Reintentando…</span>
-  <span>Majinheim Web <span id="panel"></span> · se actualiza solo · <a class="pie-admin" href="/admin">Administrar</a></span>
+  <span>Majinheim Web <span id="panel"></span> · se actualiza solo</span>
 </footer>
 <script src="/app.js"></script>
 </body>

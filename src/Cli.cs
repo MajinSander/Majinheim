@@ -66,8 +66,27 @@ namespace Majinheim
                     case "backup":
                         Backup.Create("manual", Backup.FullItems(), false);
                         return 0;
+                    case "usuarios":
+                        foreach (var u in WebAdmin.List()) Console.WriteLine("{0,-20} {1}", u.Name, u.Role);
+                        Console.WriteLine("{0} sesiones abiertas", WebAdmin.SessionCount());
+                        return 0;
+                    case "usuario":
+                        {
+                            // usuario <nombre> <admin|jugador>: la contraseña se lee de la entrada (una línea), nunca de los argumentos.
+                            if (args.Length < 3) { Console.WriteLine("Uso: MajinheimCli usuario <nombre> <admin|jugador>   (la contraseña por la entrada)"); return 1; }
+                            if (LauncherOpen()) return 1;
+                            string pw = Console.In.ReadLine();
+                            string err = WebAdmin.SetUser(args[1], args[2], string.IsNullOrEmpty(pw) ? null : pw);
+                            Console.WriteLine(err ?? "Cuenta guardada: " + args[1].Trim() + " (" + args[2] + ")");
+                            return err == null ? 0 : 1;
+                        }
+                    case "borrar-usuario":
+                        if (args.Length < 2) { Console.WriteLine("Uso: MajinheimCli borrar-usuario <nombre>"); return 1; }
+                        if (LauncherOpen()) return 1;
+                        Console.WriteLine(WebAdmin.RemoveUser(args[1]) ? "Cuenta borrada." : "No existe esa cuenta.");
+                        return 0;
                     default:
-                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source");
+                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre>");
                         return 1;
                 }
             }
@@ -76,6 +95,14 @@ namespace Majinheim
                 Console.WriteLine("ERROR: " + e);
                 return 2;
             }
+        }
+
+        // El launcher del server tiene los ajustes en memoria y al guardar pisaría lo que se cambie desde aquí.
+        static bool LauncherOpen()
+        {
+            if (System.Diagnostics.Process.GetProcessesByName("MajinheimServer").Length == 0) return false;
+            Console.WriteLine("Cierra antes el launcher del server (MajinheimServer.exe): si no, al guardar sus ajustes pisaría este cambio.");
+            return true;
         }
 
         // test: arranca, espera a que el mundo cargue (o falle) y cierra limpio. run: hasta que se cierre.

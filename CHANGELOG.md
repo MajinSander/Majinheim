@@ -1,5 +1,12 @@
 # Novedades
 
+## 1.4.1
+- **Cuentas en la web**: se entra con usuario y contraseña. Los administradores ven los controles del server; las cuentas de jugador y los invitados ven el estado, las estadísticas y el mapa, sin datos de red.
+- Botón **Entrar como invitado** para quien no tiene cuenta.
+- **Recordarme en este dispositivo**: no hace falta volver a entrar durante 30 días desde la última visita. El administrador ve las sesiones abiertas y puede cerrarlas todas de una vez.
+- Nuevo dato en la web: **día en el mundo**.
+- Las cuentas se crean y se cambian en la pestaña **Web** del launcher del server.
+
 ## 1.4.0
 - **Administrar desde la web** (móvil o PC): encender, apagar, reiniciar y hacer backups del server, y ver su registro. Solo con la contraseña de administrador.
 - La contraseña se pone en la pestaña **Web** del launcher del server. Sin contraseña, la administración web está desactivada.

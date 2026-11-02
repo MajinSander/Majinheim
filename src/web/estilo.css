@@ -71,3 +71,12 @@ button.boton:disabled { opacity: .4; cursor: default; filter: none; }
 .registro { background: #0d0b0a; border-radius: 8px; padding: 12px; margin: 0; max-height: 420px; overflow: auto; font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--tenue); white-space: pre-wrap; word-break: break-word; }
 .pie-admin { color: var(--tenue); text-decoration: none; }
 .pie-admin:hover { color: var(--ambar); }
+.formulario label { color: var(--tenue); font-size: 13px; margin-bottom: -4px; }
+.formulario .casilla { display: flex; align-items: center; gap: 10px; color: var(--texto); font-size: 14px; margin: 2px 0; cursor: pointer; user-select: none; }
+.formulario .casilla input { width: 18px; height: 18px; margin: 0; padding: 0; accent-color: var(--ambar); cursor: pointer; }
+.formulario button.boton { padding: 10px 14px; }
+.separador { display: flex; align-items: center; gap: 12px; color: var(--tenue); font-size: 13px; margin: 8px 0 14px; }
+.separador::before, .separador::after { content: ""; flex: 1; height: 1px; background: var(--borde); }
+.boton.bloque { display: block; text-align: center; padding: 10px 14px; }
+.centrado { text-align: center; margin: 10px 0 0; }
+.quien-soy { color: var(--texto); font-weight: 600; font-size: 14px; white-space: nowrap; }
