@@ -70,7 +70,7 @@ namespace Majinheim
         static MiniHttp.Response Route(MiniHttp.Request req)
         {
             string path = req.Path;
-            if (path.StartsWith("/api/admin/") || path == "/api/entrar" || path == "/api/salir") return WebAdmin.Handle(req);
+            if (path.StartsWith("/api/admin/") || path == "/api/entrar" || path == "/api/salir" || path == "/api/sesion") return WebAdmin.Handle(req);
             if (req.Method == "POST") return MiniHttp.Response.Text(405, "Solo lectura");
             if (path == "/api/estado") return MiniHttp.Response.JsonOf(ServerWatch.Snapshot(), true);
             if (path == "/salud") return MiniHttp.Response.Text(200, "ok");
@@ -699,12 +699,37 @@ namespace Majinheim
         static string Iso(DateTime d) { return d.ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture); }
         static int Minutes(DateTime from, DateTime to) { return Math.Max(0, (int)(to - from).TotalMinutes); }
 
+        // Día del mundo según el último guardado: el archivo principal del mundo empieza por int versión + double
+        // tiempo del mundo en segundos (igual en el formato 1.0 "_main.N.db2" y en el antiguo ".db"); un día de Valheim dura 1800 s.
+        static string dayFile; static DateTime dayStamp; static int? day;
+        static int? WorldDay()
+        {
+            try
+            {
+                string dir = Path.Combine(AppInfo.SavesDir, "worlds_local"), w = Settings.Current.WorldName;
+                FileInfo f = null;
+                if (Directory.Exists(Path.Combine(dir, w))) f = new DirectoryInfo(Path.Combine(dir, w)).GetFiles("_main.*.db2").OrderByDescending(x => x.LastWriteTimeUtc).FirstOrDefault();
+                if (f == null) { var old = new FileInfo(Path.Combine(dir, w + ".db")); if (old.Exists) f = old; }
+                if (f == null) return null;
+                if (f.FullName == dayFile && f.LastWriteTimeUtc == dayStamp) return day;
+                var buf = new byte[12];
+                using (var st = new FileStream(f.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                    if (st.Read(buf, 0, 12) < 12) return null;
+                double t = BitConverter.ToDouble(buf, 4);
+                day = t >= 0 && t < 1e10 ? (int?)(int)(t / 1800) : null;
+                dayFile = f.FullName; dayStamp = f.LastWriteTimeUtc;
+                return day;
+            }
+            catch { return null; }
+        }
+
         // Lo que ve cualquiera en la página. Sin SteamID, sin IPs, sin contraseñas.
         public static Dictionary<string, object> Snapshot()
         {
             var now = DateTime.Now;
             var s = Settings.Current;
             var o = new Dictionary<string, object>();
+            int? worldDay = WorldDay();
             lock (lk)
             {
                 bool run = Running;
@@ -716,6 +741,7 @@ namespace Majinheim
                     { "desde", run ? Iso(procStart) : null },
                     { "version", version },
                     { "ultimoGuardado", lastSave.HasValue ? Iso(lastSave.Value) : null },
+                    { "dia", worldDay },
                     { "cpu", cpu },
                     { "ramMb", ramMb },
                 };

@@ -41,16 +41,17 @@ namespace Majinheim
                        Ui.Btn("Mapa", () => Ui.Open((Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "mapa/"))),
                 webCheck,
                 Ui.Lbl("Administrar desde la web", 11, FontStyle.Bold), webAdmin,
-                Ui.Row(Ui.Btn("Poner o cambiar contraseña", SetAdminPassword),
-                       Ui.Btn("Desactivar", () => { if (WebAdmin.HasPassword && Confirm("¿Desactivar la administración web? Nadie podrá encender ni apagar el server desde la web.")) { WebAdmin.RemovePassword(); UpdateWebState(); } }),
-                       Ui.Btn("Abrir", () => Ui.Open((Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "admin")),
+                Ui.Row(Ui.Btn("Añadir o cambiar cuenta", EditWebUser),
+                       Ui.Btn("Borrar cuenta", RemoveWebUser),
+                       Ui.Btn("Cerrar sesiones", () => { if (Confirm("¿Cerrar la sesión en todos los dispositivos? Todos tendrán que volver a entrar.")) { WebAdmin.ForgetAllSessions(); Status("Sesiones cerradas en todos los dispositivos."); UpdateWebState(); } })),
+                Ui.Row(Ui.Btn("Abrir", () => Ui.Open((Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "admin")),
                        Ui.Btn("Registro", () => OpenIfExists(Path.Combine(AppInfo.LogDir, "web-admin.log")))));
 
             webRouter = Ui.Lbl("", 10, FontStyle.Regular, Th.Text);
             webRouter.MaximumSize = new Size(560, 0);
             var shows = Ui.Lbl("Qué ve la gente: si el server está encendido, quién está jugando y desde cuándo, las horas de la semana, " +
                 "las últimas partidas, la lista de mods y el mapa del mundo (lo explorado y quién se deja ver en el mapa). " +
-                "No hay botones: desde la web nadie puede tocar el server.", 9.5f, FontStyle.Regular, Th.Muted);
+                "Los botones del server, el registro y las IPs solo los ve quien entra con una cuenta de administrador.", 9.5f, FontStyle.Regular, Th.Muted);
             shows.MaximumSize = new Size(560, 0);
             var right = Ui.Col(Ui.Lbl("En el router (una sola vez)", 11, FontStyle.Bold), webRouter,
                 Ui.Lbl("Qué se ve", 11, FontStyle.Bold), shows,
@@ -78,16 +79,42 @@ namespace Majinheim
             return p;
         }
 
-        void SetAdminPassword()
+        // Cuenta nueva o cambio de una existente: usuario, papel y contraseña (vacía = dejar la que tenía).
+        void EditWebUser()
         {
-            string a = Ui.Ask(this, "Contraseña de administrador", "Contraseña para administrar desde la web (mínimo 10 caracteres, distinta de la del server). No se guarda en claro.", "", true);
+            string u = Ui.Ask(this, "Cuenta de la web", "Nombre de usuario (si ya existe, la cambias):", "");
+            if (u == null || u.Trim() == "") return;
+            var old = WebAdmin.List().FirstOrDefault(x => string.Equals(x.Name, u.Trim(), StringComparison.OrdinalIgnoreCase));
+            var ans = MessageBox.Show(this, "¿" + u.Trim() + " puede administrar el server (encender, apagar, reiniciar, backups, ver registro e IPs)?\n\n" +
+                "Sí = administrador.   No = jugador (ve el estado y el mapa, como un invitado).", "Cuenta de la web", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question,
+                old != null && old.Role == WebAdmin.RoleAdmin ? MessageBoxDefaultButton.Button1 : MessageBoxDefaultButton.Button2);
+            if (ans == DialogResult.Cancel) return;
+            string role = ans == DialogResult.Yes ? WebAdmin.RoleAdmin : WebAdmin.RolePlayer;
+            string hint = role == WebAdmin.RoleAdmin ? " (mínimo " + WebAdmin.MinAdminPassword + " caracteres, distinta de la del server)" : "";
+            string a = Ui.Ask(this, "Cuenta de la web", "Contraseña de " + u.Trim() + hint + "." + (old != null ? " Déjala vacía para no cambiarla." : "") + " No se guarda en claro.", "", true);
             if (a == null) return;
-            string b = Ui.Ask(this, "Contraseña de administrador", "Repite la contraseña.", "", true);
-            if (b == null) return;
-            if (a != b) { MessageBox.Show(this, "No coinciden.", "Majinheim"); return; }
-            string err = WebAdmin.SetPassword(a);
+            if (a == "" && old != null) a = null;
+            else
+            {
+                string b = Ui.Ask(this, "Cuenta de la web", "Repite la contraseña.", "", true);
+                if (b == null) return;
+                if (a != b) { MessageBox.Show(this, "No coinciden.", "Majinheim"); return; }
+            }
+            string err = WebAdmin.SetUser(u, role, a);
             if (err != null) { MessageBox.Show(this, err, "Majinheim"); return; }
-            Status("Contraseña de administración guardada.");
+            Status("Cuenta guardada: " + u.Trim() + (role == WebAdmin.RoleAdmin ? " (administrador)" : " (jugador)") + ".");
+            UpdateWebState();
+        }
+
+        void RemoveWebUser()
+        {
+            var all = WebAdmin.List();
+            if (all.Count == 0) { MessageBox.Show(this, "No hay cuentas.", "Majinheim"); return; }
+            string u = Ui.Ask(this, "Borrar cuenta", "¿Qué cuenta borro? Hay: " + string.Join(", ", all.Select(x => x.Name)), "");
+            if (u == null || u.Trim() == "") return;
+            if (!Confirm("¿Borrar la cuenta " + u.Trim() + "? Se cerrarán sus sesiones.")) return;
+            if (!WebAdmin.RemoveUser(u)) { MessageBox.Show(this, "No existe esa cuenta.", "Majinheim"); return; }
+            Status("Cuenta borrada: " + u.Trim() + ".");
             UpdateWebState();
         }
 
@@ -152,9 +179,12 @@ namespace Majinheim
             string mapTxt = !s.WebEnabled ? "" : ServerWatch.MapUp ? "Mapa del mundo: funcionando (botón \"Mapa del mundo\" en la web)"
                 : runner.Running ? "Mapa del mundo: no responde. ¿Está el mod WebMap en la lista de mods del server?" : "Mapa del mundo: se enciende con el server";
             if (webMap.Text != mapTxt) webMap.Text = mapTxt;
-            string admTxt = WebAdmin.HasPassword ? "Activada: entra en " + (s.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "admin con tu contraseña." : "Desactivada (sin contraseña). Nadie puede tocar el server desde la web.";
+            var users = WebAdmin.List();
+            string admTxt = (WebAdmin.HasAdmin ? "Controles activados. Se entra en " + (s.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "admin." : "Controles desactivados: no hay ningún administrador. Nadie puede tocar el server desde la web.") +
+                "\nCuentas: " + (users.Count == 0 ? "ninguna" : string.Join(", ", users.Select(x => x.Name + (x.Role == WebAdmin.RoleAdmin ? " (admin)" : "")))) +
+                ". Sin cuenta se entra como invitado (solo ver).";
             if (webAdmin.Text != admTxt) webAdmin.Text = admTxt;
-            webAdmin.ForeColor = WebAdmin.HasPassword ? Th.Good : Th.Muted;
+            webAdmin.ForeColor = WebAdmin.HasAdmin ? Th.Good : Th.Muted;
             webMap.ForeColor = ServerWatch.MapUp ? Th.Good : Th.Muted;
 
             string ip = (s.LanHost ?? "").Trim();

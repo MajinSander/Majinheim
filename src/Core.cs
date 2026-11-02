@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "1.4.0";
+        public const string Version = "1.4.1";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -193,8 +193,9 @@ namespace Majinheim
         public bool WebEnabled { get; set; }     // panel web dentro del launcher del server (solo escucha en 127.0.0.1)
         public bool WebPublic { get; set; }      // acceso desde internet por HTTPS (Caddy + DDNS)
         public int WebPort { get; set; }
-        public int MapPort { get; set; }
-        public string WebAdminHash { get; set; } // contraseña de administración web (hash PBKDF2, nunca en claro); vacía = desactivada         // puerto del mod WebMap en este PC (server_port de su .cfg)
+        public int MapPort { get; set; }         // puerto del mod WebMap en este PC (server_port de su .cfg)
+        public List<WebUser> WebUsers { get; set; } // cuentas de la web (contraseña solo como hash PBKDF2); sin administrador = controles desactivados
+        public string WebAdminHash { get; set; } // 1.4.0 (contraseña sin usuario): ya no se usa
         // comunes: de dónde sale el modpack (GitHub)
         public string GitHubRepo { get; set; }
         // edicion cliente
@@ -207,10 +208,20 @@ namespace Majinheim
             KeepAutoBackups = 40; PublicHost = AppInfo.DefaultHost; LanHost = ""; GitHubToken = "";
             StaleBefore = "2026-06-01";
             GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; WebEnabled = true; WebPublic = false; WebPort = 8456; MapPort = 3000; WebAdminHash = "";
+            WebUsers = new List<WebUser>();
         }
         public static Settings Current = new Settings();
-        public static void Load() { Current = Json.Load<Settings>(AppInfo.SettingsFile); }
+        public static void Load() { Current = Json.Load<Settings>(AppInfo.SettingsFile); if (Current.WebUsers == null) Current.WebUsers = new List<WebUser>(); }
         public static void Save() { Json.Save(AppInfo.SettingsFile, Current); }
+    }
+
+    // Cuenta de la web del server. Role: "admin" (controles del server) o "jugador" (ve lo mismo que un invitado).
+    public class WebUser
+    {
+        public string Name { get; set; }
+        public string Role { get; set; }
+        public string Hash { get; set; }         // pbkdf2-sha256$iteraciones$sal$hash
+        public WebUser() { Name = ""; Role = "jugador"; Hash = ""; }
     }
 
     public static class Ver
