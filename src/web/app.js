@@ -112,6 +112,7 @@
       um.appendChild(li);
     });
 
+    $('btn-mapa').hidden = d.mapa !== '/mapa/';
     $('panel').textContent = d.panel || '';
   }
 

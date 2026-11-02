@@ -20,7 +20,7 @@ namespace Majinheim
 {
     public static class WebPanel
     {
-        public const string Version = "0.1.0";
+        public const string Version = "0.2.0";
         static MiniHttp http;
         public static string Error { get; private set; }
         public static bool Running { get { return http != null; } }
@@ -172,6 +172,9 @@ namespace Majinheim
                     bool isHead = parts[0] == "HEAD";
                     if (parts[0] != "GET" && !isHead) { Send(ns, new Response(405, "text/plain", Encoding.UTF8.GetBytes("Solo lectura"), true), false); return; }
                     string path = parts[1];
+                    if (!path.StartsWith("/")) { Send(ns, new Response(400, "text/plain", Encoding.UTF8.GetBytes("Petición no válida"), true), false); return; }
+                    if (path == MapProxy.Prefix || path.StartsWith(MapProxy.Prefix + "?")) { Redirect(ns, MapProxy.Prefix + "/"); return; }
+                    if (path.StartsWith(MapProxy.Prefix + "/")) { MapProxy.Forward(ns, path.Substring(MapProxy.Prefix.Length), isHead); return; }
                     int q = path.IndexOf('?');
                     if (q >= 0) path = path.Substring(0, q);
                     Response r;
@@ -199,7 +202,13 @@ namespace Majinheim
             return null;
         }
 
-        static void Send(NetworkStream ns, Response r, bool headOnly)
+        static void Redirect(NetworkStream ns, string to)
+        {
+            var hb = Encoding.ASCII.GetBytes("HTTP/1.1 302 Found\r\nLocation: " + to + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            ns.Write(hb, 0, hb.Length);
+        }
+
+        public static void Send(NetworkStream ns, Response r, bool headOnly)
         {
             string status = Codes.FirstOrDefault(x => x.StartsWith(r.Code.ToString())) ?? (r.Code + " Error");
             var h = new StringBuilder();
@@ -217,6 +226,86 @@ namespace Majinheim
             if (!headOnly) ns.Write(r.Body, 0, r.Body.Length);
             ns.Flush();
         }
+    }
+
+    // ---------------------------------------------------------------- mapa (mod WebMap del server)
+
+    // El mod WebMap (Mubs/WebMap, solo en el server) sirve su mapa en 127.0.0.1:3000. Lo enseñamos bajo /mapa/
+    // de nuestra web, solo lectura: aquí no pasa ningún POST, así que nadie puede cambiar nada del mapa desde fuera.
+    static class MapProxy
+    {
+        public const string Prefix = "/mapa";
+        static int Port { get { return Settings.Current.MapPort > 0 ? Settings.Current.MapPort : 3000; } }
+
+        // Las páginas del mod piden sus datos a la raíz ("/state", "/map.jpg"...). Con esto los piden a /mapa/...
+        const string SiteConfig = "window.XNV = { api: \"/mapa\", base: \"/mapa/map.jpg\", brand: \"Majinheim\", links: [{ label: \"Estado del server\", href: \"/\" }] };\n";
+
+        static readonly string[] PassHeaders = { "Content-Type", "Cache-Control", "Last-Modified", "ETag", "Expires" };
+
+        public static bool Up()
+        {
+            try
+            {
+                using (var c = new TcpClient())
+                {
+                    var ar = c.BeginConnect(IPAddress.Loopback, Port, null, null);
+                    if (!ar.AsyncWaitHandle.WaitOne(300)) return false;
+                    c.EndConnect(ar);
+                    return true;
+                }
+            }
+            catch { return false; }
+        }
+
+        public static void Forward(NetworkStream ns, string target, bool head)
+        {
+            string probe = Uri.UnescapeDataString(target);
+            if (probe.Contains("..") || probe.Contains("\\") || probe.Contains("\0")) { MiniHttp.Send(ns, new MiniHttp.Response(400, "text/plain", Encoding.UTF8.GetBytes("Petición no válida"), true), head); return; }
+            if (target == "/site-config.js" || target.StartsWith("/site-config.js?"))
+            {
+                MiniHttp.Send(ns, new MiniHttp.Response(200, "application/javascript; charset=utf-8", Encoding.UTF8.GetBytes(SiteConfig), true), head);
+                return;
+            }
+            var req = (HttpWebRequest)WebRequest.Create("http://127.0.0.1:" + Port + target);
+            req.Method = head ? "HEAD" : "GET";
+            req.Proxy = null;
+            req.AllowAutoRedirect = false;
+            req.Timeout = 15000; req.ReadWriteTimeout = 60000;
+            req.UserAgent = "MajinheimWeb";
+            HttpWebResponse resp;
+            try { resp = (HttpWebResponse)req.GetResponse(); }
+            catch (WebException e)
+            {
+                resp = e.Response as HttpWebResponse;
+                if (resp == null)
+                {
+                    MiniHttp.Send(ns, new MiniHttp.Response(502, "text/html; charset=utf-8", Encoding.UTF8.GetBytes(Offline), true), head);
+                    return;
+                }
+            }
+            using (resp)
+            {
+                var h = new StringBuilder();
+                h.Append("HTTP/1.1 ").Append((int)resp.StatusCode).Append(' ').Append(Regex.Replace(resp.StatusDescription ?? "OK", @"[\r\n]", "")).Append("\r\n");
+                foreach (var name in PassHeaders)
+                {
+                    string v = resp.Headers[name];
+                    if (!string.IsNullOrEmpty(v)) h.Append(name).Append(": ").Append(Regex.Replace(v, @"[\r\n]", "")).Append("\r\n");
+                }
+                string loc = resp.Headers["Location"];
+                if (!string.IsNullOrEmpty(loc) && loc.StartsWith("/") && !loc.StartsWith("//")) h.Append("Location: ").Append(Prefix).Append(Regex.Replace(loc, @"[\r\n]", "")).Append("\r\n");
+                if (resp.ContentLength >= 0) h.Append("Content-Length: ").Append(resp.ContentLength).Append("\r\n");
+                h.Append("X-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nX-Frame-Options: SAMEORIGIN\r\nConnection: close\r\n\r\n");
+                var hb = Encoding.ASCII.GetBytes(h.ToString());
+                ns.Write(hb, 0, hb.Length);
+                if (!head) using (var body = resp.GetResponseStream()) body.CopyTo(ns);
+                ns.Flush();
+            }
+        }
+
+        const string Offline = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>" +
+            "<title>Mapa no disponible</title><body style='background:#14110f;color:#efe6da;font:16px system-ui;display:grid;place-items:center;min-height:90vh;text-align:center'>" +
+            "<div><h1 style='color:#e0a54a'>El mapa no está disponible</h1><p>El mapa solo funciona mientras el server está encendido.</p><p><a style='color:#e0a54a' href='/'>Volver al estado del server</a></p></div>";
     }
 
     // ---------------------------------------------------------------- Caddy (HTTPS hacia internet)
@@ -389,6 +478,8 @@ namespace Majinheim
         static bool ready;
         static string version = "";
         static DateTime? lastSave;
+        static volatile bool mapUp;
+        public static bool MapUp { get { return mapUp; } }
         static double cpu;
         static long ramMb;
         static long logPos;
@@ -448,6 +539,7 @@ namespace Majinheim
                 catch { }
             }
             ReadLog();
+            mapUp = Running && MapProxy.Up();
             if (!Running)
                 lock (lk)
                 {
@@ -592,6 +684,7 @@ namespace Majinheim
                 };
             }
             catch { o["mods"] = null; }
+            o["mapa"] = mapUp ? MapProxy.Prefix + "/" : null;
             o["generado"] = Iso(now);
             o["panel"] = WebPanel.Version;
             return o;
