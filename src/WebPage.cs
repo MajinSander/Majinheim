@@ -53,7 +53,20 @@ namespace Majinheim
                 "las últimas partidas, la lista de mods y el mapa del mundo (lo explorado y quién se deja ver en el mapa). " +
                 "Los botones del server, el registro y las IPs solo los ve quien entra con una cuenta de administrador.", 9.5f, FontStyle.Regular, Th.Muted);
             shows.MaximumSize = new Size(560, 0);
+            var home = Ui.Lbl("Muchos routers no dejan abrir la dirección pública desde dentro de casa. En casa, el estado, las estadísticas " +
+                "y el mapa se abren en la dirección local (arriba, \"En casa\"); para entrar con una cuenta hace falta la dirección segura. " +
+                "En un PC de casa se consigue con una línea en su archivo hosts (C:\\Windows\\System32\\drivers\\etc\\hosts, abriendo el Bloc de notas " +
+                "como administrador): cópiala con el botón y pégala al final.", 9.5f, FontStyle.Regular, Th.Muted);
+            home.MaximumSize = new Size(560, 0);
             var right = Ui.Col(Ui.Lbl("En el router (una sola vez)", 11, FontStyle.Bold), webRouter,
+                Ui.Lbl("En casa", 11, FontStyle.Bold), home,
+                Ui.Row(Ui.Btn("Copiar línea para el PC de casa", () =>
+                {
+                    string lan = Caddy.LanAddress();
+                    if (lan == null) { MessageBox.Show(this, "No encuentro la IP de este PC en la red de casa.", "Majinheim"); return; }
+                    Clipboard.SetText(lan + " " + WebPanel.PublicHost);
+                    Status("Copiado: " + lan + " " + WebPanel.PublicHost + " (pégalo al final del archivo hosts del PC de casa).");
+                })),
                 Ui.Lbl("Qué se ve", 11, FontStyle.Bold), shows,
                 Ui.Row(Ui.Btn("Registro de visitas", () => OpenIfExists(Path.Combine(AppInfo.LogDir, "caddy-visitas.log"))),
                        Ui.Btn("Registro de HTTPS", () => OpenIfExists(Path.Combine(AppInfo.LogDir, "caddy.log")))));
@@ -170,8 +183,14 @@ namespace Majinheim
 
             string pubTxt; Color pubColor;
             if (!s.WebEnabled || !s.WebPublic) { pubTxt = "Solo se ve en este PC: " + WebPanel.LocalUrl; pubColor = Th.Muted; }
-            else if (!Caddy.Installed) { pubTxt = "Falta preparar el HTTPS (vuelve a marcar la casilla)."; pubColor = Th.Warn; }
-            else if (Caddy.Running) { pubTxt = "Desde internet: " + WebPanel.PublicUrl + (Caddy.LastError != null ? "\nAviso de Caddy: " + Caddy.LastError : ""); pubColor = Caddy.LastError != null ? Th.Warn : Th.Good; }
+            else if (!Caddy.Installed) { pubTxt = Caddy.Installing ? "Preparando el HTTPS (descargando Caddy)..." : "Falta preparar el HTTPS" + (Caddy.LastError != null ? ": " + Caddy.LastError : "") + ". Se reintenta al abrir el launcher, o vuelve a marcar la casilla."; pubColor = Th.Warn; }
+            else if (Caddy.Running)
+            {
+                string lan = Caddy.LanAddress();
+                pubTxt = "Desde internet: " + WebPanel.PublicUrl + (lan != null ? "\nEn casa (solo ver): http://" + lan + ":" + WebPanel.Port + "/" : "") +
+                    (Caddy.LastError != null ? "\nAviso de Caddy: " + Caddy.LastError : "");
+                pubColor = Caddy.LastError != null ? Th.Warn : Th.Good;
+            }
             else { pubTxt = "El HTTPS no está en marcha" + (Caddy.LastError != null ? ": " + Caddy.LastError : " (reintentando).") ; pubColor = Th.Warn; }
             if (webPublicState.Text != pubTxt) webPublicState.Text = pubTxt;
             webPublicState.ForeColor = pubColor;
