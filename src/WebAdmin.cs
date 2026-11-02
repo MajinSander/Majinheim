@@ -15,36 +15,63 @@ namespace Majinheim
     public static class WebAdmin
     {
         const string CookieName = "mh_sesion";
-        const int SessionHours = 12, Iterations = 150000, MinPassword = 10;
+        const int SessionHours = 12, RememberDays = 30, Iterations = 150000, MinPassword = 8;
         const int MaxFailsPerIp = 5, MaxFailsTotal = 20;
         static readonly TimeSpan LockFor = TimeSpan.FromMinutes(15);
 
-        class Session { public DateTime Until; public string Ip; }
+        // Sesiones guardadas en disco (solo la huella SHA-256 del token, nunca el token): "recordarme" sobrevive a reinicios.
+        public class Session { public string Hash { get; set; } public DateTime Until { get; set; } public string Ip { get; set; } public string Device { get; set; } public DateTime Created { get; set; } }
         class Fails { public int Count; public DateTime First, LockedUntil; }
 
         static readonly object lk = new object();
-        static readonly Dictionary<string, Session> sessions = new Dictionary<string, Session>();
+        static Dictionary<string, Session> sessions;
+        static string SessionsFile { get { return AppInfo.P("web", "sesiones-admin.json"); } }
+
+        static void LoadSessions()
+        {
+            if (sessions != null) return;
+            sessions = new Dictionary<string, Session>();
+            try { foreach (var x in Json.Load<List<Session>>(SessionsFile)) if (x.Until > DateTime.Now && !string.IsNullOrEmpty(x.Hash)) sessions[x.Hash] = x; }
+            catch (Exception e) { Log.W("Web admin: no pude leer las sesiones guardadas: {0}", e.Message); }
+        }
+
+        static void SaveSessions()
+        {
+            try { Json.Save(SessionsFile, sessions.Values.Where(x => x.Until > DateTime.Now).ToList()); }
+            catch (Exception e) { Log.W("Web admin: no pude guardar las sesiones: {0}", e.Message); }
+        }
+
+        static string Sha(string t)
+        {
+            using (var h = SHA256.Create()) return BitConverter.ToString(h.ComputeHash(Encoding.UTF8.GetBytes(t ?? ""))).Replace("-", "").ToLowerInvariant();
+        }
+
+        public static void ForgetAllSessions() { lock (lk) { LoadSessions(); sessions.Clear(); SaveSessions(); } }
         static readonly Dictionary<string, Fails> fails = new Dictionary<string, Fails>();
         static Fails total = new Fails();
 
         // Lo pone la ventana del launcher: ejecuta "iniciar", "parar", "reiniciar" o "backup" y devuelve qué ha hecho.
         public static Func<string, string> Action;
 
-        public static bool HasPassword { get { return !string.IsNullOrEmpty(Settings.Current.WebAdminHash); } }
+        public static bool HasPassword { get { return !string.IsNullOrEmpty(Settings.Current.WebAdminHash) && !string.IsNullOrEmpty(Settings.Current.WebAdminUser); } }
+        public static string User { get { return Settings.Current.WebAdminUser ?? ""; } }
         static string AuditFile { get { return Path.Combine(AppInfo.LogDir, "web-admin.log"); } }
 
         // ------------------------------------------------------------ contraseña
 
-        public static string SetPassword(string pw)
+        public static string SetPassword(string user, string pw)
         {
+            user = (user ?? "").Trim();
+            if (user.Length < 3 || user.Length > 40) return "El usuario tiene que tener entre 3 y 40 caracteres.";
             if (pw == null || pw.Length < MinPassword) return "La contraseña tiene que tener al menos " + MinPassword + " caracteres.";
             if (pw == Settings.Current.Password) return "Usa una contraseña distinta a la del server de Valheim.";
             var salt = new byte[16];
             using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(salt);
+            Settings.Current.WebAdminUser = user;
             Settings.Current.WebAdminHash = "pbkdf2-sha256$" + Iterations + "$" + Convert.ToBase64String(salt) + "$" + Convert.ToBase64String(Derive(pw, salt, Iterations));
             Settings.Save();
-            lock (lk) sessions.Clear();   // al cambiar la contraseña, todo el mundo vuelve a entrar
-            Audit("este PC", "contraseña de administrador cambiada");
+            ForgetAllSessions();   // al cambiar la contraseña, todos los dispositivos vuelven a entrar
+            Audit("este PC", "usuario y contraseña de administrador cambiados (" + user + ")");
             return null;
         }
 
@@ -52,7 +79,7 @@ namespace Majinheim
         {
             Settings.Current.WebAdminHash = "";
             Settings.Save();
-            lock (lk) sessions.Clear();
+            ForgetAllSessions();
             Audit("este PC", "administración web desactivada");
         }
 
@@ -85,7 +112,7 @@ namespace Majinheim
             if (req.Path == "/api/salir")
             {
                 string t = req.Cookie(CookieName);
-                if (t != null) lock (lk) sessions.Remove(t);
+                if (t != null) lock (lk) { LoadSessions(); if (sessions.Remove(Sha(t))) SaveSessions(); }
                 var r = Ok("Has salido.");
                 r.Extra.Add(ClearCookie(req));
                 return r;
@@ -95,6 +122,7 @@ namespace Majinheim
             if (!Authed(req))
             {
                 if (req.Path == "/api/admin/estado") return MiniHttp.Response.JsonOf(200, new Dictionary<string, object> { { "dentro", false }, { "configurado", HasPassword } });
+                if (req.Path == "/api/admin/salir-todos") return Err(401, "Tienes que entrar otra vez.");
                 return Err(401, "Tienes que entrar otra vez.");
             }
 
@@ -103,11 +131,21 @@ namespace Majinheim
                 return MiniHttp.Response.JsonOf(200, new Dictionary<string, object>
                 {
                     { "dentro", true },
+                    { "usuario", User },
+                    { "dispositivos", Devices() },
                     { "configurado", true },
                     { "registro", ServerWatch.RecentLines(150) },
                     { "acciones", ReadAudit(30) },
                     { "estado", ServerWatch.Snapshot() },
                 });
+            }
+            if (req.Path == "/api/admin/salir-todos")
+            {
+                ForgetAllSessions();
+                Audit(ip, "cerró la sesión en todos los dispositivos");
+                var r = Ok("Sesión cerrada en todos los dispositivos.");
+                r.Extra.Add(ClearCookie(req));
+                return r;
             }
             if (req.Path == "/api/admin/accion")
             {
@@ -136,9 +174,16 @@ namespace Majinheim
                 Fails f;
                 if (fails.TryGetValue(ip, out f) && f.LockedUntil > now) return Err(429, "Demasiados intentos fallidos. Prueba dentro de " + Math.Ceiling((f.LockedUntil - now).TotalMinutes) + " min.");
             }
-            string pw = null;
-            try { var o = Json.ParseObj(req.BodyText); object v; if (o.TryGetValue("clave", out v)) pw = v as string; } catch { }
-            bool ok = Check(pw);
+            string pw = null, user = null; bool remember = false;
+            try
+            {
+                var o = Json.ParseObj(req.BodyText); object v;
+                if (o.TryGetValue("clave", out v)) pw = v as string;
+                if (o.TryGetValue("usuario", out v)) user = v as string;
+                if (o.TryGetValue("recordar", out v) && v is bool) remember = (bool)v;
+            }
+            catch { }
+            bool ok = Check(pw) & string.Equals((user ?? "").Trim(), User, StringComparison.OrdinalIgnoreCase);
             lock (lk)
             {
                 var now = DateTime.Now;
@@ -154,19 +199,22 @@ namespace Majinheim
                 }
                 else fails.Remove(ip);
             }
-            if (!ok) { Audit(ip, "contraseña incorrecta"); return Err(401, "Contraseña incorrecta."); }
+            if (!ok) { Audit(ip, "usuario o contraseña incorrectos"); return Err(401, "Usuario o contraseña incorrectos."); }
 
             var tb = new byte[32];
             using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(tb);
             string token = BitConverter.ToString(tb).Replace("-", "").ToLowerInvariant();
+            var life = remember ? TimeSpan.FromDays(RememberDays) : TimeSpan.FromHours(SessionHours);
             lock (lk)
             {
+                LoadSessions();
                 foreach (var k in sessions.Where(x => x.Value.Until < DateTime.Now).Select(x => x.Key).ToList()) sessions.Remove(k);
-                sessions[token] = new Session { Until = DateTime.Now.AddHours(SessionHours), Ip = ip };
+                sessions[Sha(token)] = new Session { Hash = Sha(token), Until = DateTime.Now + life, Ip = ip, Device = DeviceName(req.Header("User-Agent")), Created = DateTime.Now };
+                SaveSessions();
             }
-            Audit(ip, "ha entrado");
+            Audit(ip, "ha entrado" + (remember ? " (recordado " + RememberDays + " días)" : ""));
             var r = Ok("Dentro.");
-            r.Extra.Add("Set-Cookie: " + CookieName + "=" + token + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + SessionHours * 3600 + (req.Https ? "; Secure" : ""));
+            r.Extra.Add("Set-Cookie: " + CookieName + "=" + token + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + (int)life.TotalSeconds + (req.Https ? "; Secure" : ""));
             return r;
         }
 
@@ -177,10 +225,32 @@ namespace Majinheim
             if (string.IsNullOrEmpty(t)) return false;
             lock (lk)
             {
+                LoadSessions();
                 Session s;
-                if (!sessions.TryGetValue(t, out s)) return false;
-                if (s.Until < DateTime.Now) { sessions.Remove(t); return false; }
+                string h = Sha(t);
+                if (!sessions.TryGetValue(h, out s)) return false;
+                if (s.Until < DateTime.Now) { sessions.Remove(h); SaveSessions(); return false; }
                 return true;
+            }
+        }
+
+        static string DeviceName(string ua)
+        {
+            ua = ua ?? "";
+            string os = ua.Contains("Android") ? "Android" : ua.Contains("iPhone") ? "iPhone" : ua.Contains("iPad") ? "iPad" : ua.Contains("Windows") ? "Windows" : ua.Contains("Mac OS") ? "Mac" : ua.Contains("Linux") ? "Linux" : "otro";
+            string br = ua.Contains("Edg/") ? "Edge" : ua.Contains("OPR/") ? "Opera" : ua.Contains("Firefox/") ? "Firefox" : ua.Contains("Chrome/") ? "Chrome" : ua.Contains("Safari/") ? "Safari" : "navegador";
+            return br + " en " + os;
+        }
+
+        static List<Dictionary<string, object>> Devices()
+        {
+            lock (lk)
+            {
+                LoadSessions();
+                return sessions.Values.Where(x => x.Until > DateTime.Now).OrderByDescending(x => x.Created).Select(x => new Dictionary<string, object>
+                {
+                    { "dispositivo", x.Device ?? "" }, { "ip", x.Ip ?? "" }, { "desde", x.Created.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) }, { "hasta", x.Until.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) },
+                }).ToList();
             }
         }
 

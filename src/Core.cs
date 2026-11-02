@@ -194,6 +194,7 @@ namespace Majinheim
         public bool WebPublic { get; set; }      // acceso desde internet por HTTPS (Caddy + DDNS)
         public int WebPort { get; set; }
         public int MapPort { get; set; }
+        public string WebAdminUser { get; set; } // usuario de administración web
         public string WebAdminHash { get; set; } // contraseña de administración web (hash PBKDF2, nunca en claro); vacía = desactivada         // puerto del mod WebMap en este PC (server_port de su .cfg)
         // comunes: de dónde sale el modpack (GitHub)
         public string GitHubRepo { get; set; }
@@ -206,7 +207,7 @@ namespace Majinheim
             Port = AppInfo.DefaultGamePort; Public = false; Crossplay = false; ExtraArgs = ""; AutoRestart = true;
             KeepAutoBackups = 40; PublicHost = AppInfo.DefaultHost; LanHost = ""; GitHubToken = "";
             StaleBefore = "2026-06-01";
-            GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; WebEnabled = true; WebPublic = false; WebPort = 8456; MapPort = 3000; WebAdminHash = "";
+            GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; WebEnabled = true; WebPublic = false; WebPort = 8456; MapPort = 3000; WebAdminHash = ""; WebAdminUser = "";
         }
         public static Settings Current = new Settings();
         public static void Load() { Current = Json.Load<Settings>(AppInfo.SettingsFile); }
