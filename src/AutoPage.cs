@@ -291,9 +291,8 @@ namespace Majinheim
             if (!Settings.Current.DiscordUpdates) return;
             var news = UpdateList().Where(u => announcedUpdates.Add(u["id"] + "@" + u["nueva"])).ToList();
             if (news.Count == 0) return;
-            Discord.Send("🆕 " + (news.Count == 1 ? "Hay una versión nueva de un mod" : "Hay versiones nuevas de " + news.Count + " mods") + ":\n" +
-                string.Join("\n", news.Take(15).Select(u => "• " + Esc((string)u["nombre"]) + ": " + u["actual"] + " → " + u["nueva"])) +
-                "\nNo se instala nada solo: se actualiza desde el launcher del server, pestaña Mods.");
+            Discord.Send("🆕 **" + (news.Count == 1 ? "Versión nueva de un mod" : "Versiones nuevas de " + news.Count + " mods") + "**\n" +
+                string.Join("\n", news.Take(15).Select(u => "• " + Esc((string)u["nombre"]) + ": " + u["actual"] + " → " + u["nueva"])));
         }
 
         List<Dictionary<string, object>> UpdateList()
