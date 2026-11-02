@@ -16,6 +16,9 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 .marca { display: flex; align-items: center; gap: 12px; }
 h1 { margin: 0; font-size: 24px; letter-spacing: .5px; }
 .sub { margin: 0; color: var(--tenue); font-size: 13px; }
+.acciones { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.boton { background: var(--ambar); color: #1a1410; font-weight: 700; text-decoration: none; padding: 7px 14px; border-radius: 999px; font-size: 14px; white-space: nowrap; }
+.boton:hover { filter: brightness(1.1); }
 .pastilla { padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: 14px; white-space: nowrap; border: 1px solid currentColor; }
 .pastilla.verde { color: var(--verde); }
 .pastilla.ambar { color: var(--ambar); }

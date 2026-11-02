@@ -10,7 +10,7 @@ namespace Majinheim
 {
     public partial class MainForm
     {
-        Label webState, webPublicState, webCheck, webRouter;
+        Label webState, webPublicState, webCheck, webRouter, webMap;
         CheckBox cWebOn, cWebPublic;
         bool webPopulating;
 
@@ -21,6 +21,8 @@ namespace Majinheim
             webPublicState = Ui.Lbl("", 10, FontStyle.Regular, Th.Muted);
             webPublicState.MaximumSize = new Size(420, 0);
             webCheck = Ui.Lbl("", 9.5f, FontStyle.Regular, Th.Muted);
+            webMap = Ui.Lbl("", 10, FontStyle.Regular, Th.Muted);
+            webMap.MaximumSize = new Size(420, 0);
             webCheck.MaximumSize = new Size(420, 0);
             webPopulating = true;
             cWebOn = Ui.Chk("Panel web encendido", s.WebEnabled);
@@ -29,17 +31,19 @@ namespace Majinheim
             cWebOn.CheckedChanged += (o, e) => { if (!webPopulating) SetWeb(cWebOn.Checked, cWebPublic.Checked); };
             cWebPublic.CheckedChanged += (o, e) => { if (!webPopulating) SetWeb(cWebOn.Checked, cWebPublic.Checked); };
 
-            var left = Ui.Col(webState, webPublicState, cWebOn, cWebPublic,
+            var left = Ui.Col(webState, webPublicState, webMap, cWebOn, cWebPublic,
                 Ui.Row(Ui.Btn("Abrir la web", () => Ui.Open(Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl), true),
                        Ui.Btn("Copiar enlace para amigos", () => { Clipboard.SetText(WebPanel.PublicUrl); Status("Enlace copiado: " + WebPanel.PublicUrl); })),
                 Ui.Row(Ui.Btn("Comprobar desde internet", CheckWebPublic),
-                       Ui.Btn("Ver en este PC", () => Ui.Open(WebPanel.LocalUrl))),
+                       Ui.Btn("Ver en este PC", () => Ui.Open(WebPanel.LocalUrl)),
+                       Ui.Btn("Mapa", () => Ui.Open((Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "mapa/"))),
                 webCheck);
 
             webRouter = Ui.Lbl("", 10, FontStyle.Regular, Th.Text);
             webRouter.MaximumSize = new Size(560, 0);
             var shows = Ui.Lbl("Qué ve la gente: si el server está encendido, quién está jugando y desde cuándo, las horas de la semana, " +
-                "las últimas partidas y la lista de mods. No hay botones: desde la web nadie puede tocar el server.", 9.5f, FontStyle.Regular, Th.Muted);
+                "las últimas partidas, la lista de mods y el mapa del mundo (lo explorado y quién se deja ver en el mapa). " +
+                "No hay botones: desde la web nadie puede tocar el server.", 9.5f, FontStyle.Regular, Th.Muted);
             shows.MaximumSize = new Size(560, 0);
             var right = Ui.Col(Ui.Lbl("En el router (una sola vez)", 11, FontStyle.Bold), webRouter,
                 Ui.Lbl("Qué se ve", 11, FontStyle.Bold), shows,
@@ -124,6 +128,11 @@ namespace Majinheim
             else { pubTxt = "El HTTPS no está en marcha" + (Caddy.LastError != null ? ": " + Caddy.LastError : " (reintentando).") ; pubColor = Th.Warn; }
             if (webPublicState.Text != pubTxt) webPublicState.Text = pubTxt;
             webPublicState.ForeColor = pubColor;
+
+            string mapTxt = !s.WebEnabled ? "" : ServerWatch.MapUp ? "Mapa del mundo: funcionando (botón \"Mapa del mundo\" en la web)"
+                : runner.Running ? "Mapa del mundo: no responde. ¿Está el mod WebMap en la lista de mods del server?" : "Mapa del mundo: se enciende con el server";
+            if (webMap.Text != mapTxt) webMap.Text = mapTxt;
+            webMap.ForeColor = ServerWatch.MapUp ? Th.Good : Th.Muted;
 
             string ip = (s.LanHost ?? "").Trim();
             if (ip == "") ip = Net.LocalIPv4().FirstOrDefault() ?? "este PC";

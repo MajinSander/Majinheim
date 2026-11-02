@@ -1,5 +1,9 @@
 # Novedades
 
+## 1.3.0
+- **Mapa del mundo** en la web del server: lo que habéis explorado entre todos, quién está jugando y dónde (si se deja ver en el mapa), portales y construcciones. Lo pone el mod WebMap, que va solo en el server: no hay que instalar nada.
+- El mapa se ve dentro de la misma web, con su candado HTTPS, y es solo para mirar.
+
 ## 1.2.0
 - Nueva **web del server**: si está encendido, quién está jugando y desde cuándo, horas de la semana, últimas partidas y lista de mods. Se ve bien en el móvil y se actualiza sola.
 - Launcher de jugador: botón **Web del server** para abrirla directamente.
