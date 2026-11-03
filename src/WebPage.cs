@@ -164,11 +164,11 @@ namespace Majinheim
         void CheckWebPublic()
         {
             if (!Settings.Current.WebEnabled || !Settings.Current.WebPublic) { webCheck.Text = "Activa primero el acceso desde internet."; webCheck.ForeColor = Th.Warn; return; }
-            string err = null;
-            RunBg("Comprobando " + WebPanel.PublicUrl + " ...", () => { err = WebPanel.CheckPublic(); }, () =>
+            string msg = null; bool ok = false;
+            RunBg("Comprobando " + WebPanel.PublicUrl + " ...", () => { ok = WebPanel.CheckPublic(out msg); }, () =>
             {
-                webCheck.Text = err == null ? "✔ Funciona: " + WebPanel.PublicUrl + " responde por HTTPS." : "✖ Desde internet " + err + ".";
-                webCheck.ForeColor = err == null ? Th.Good : Th.Warn;
+                webCheck.Text = (ok ? "✔ " : "✖ ") + msg;
+                webCheck.ForeColor = ok ? Th.Good : Th.Warn;
             });
         }
 

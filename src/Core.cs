@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "1.8.1";
+        public const string Version = "1.8.2";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";

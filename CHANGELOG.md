@@ -1,5 +1,8 @@
 # Novedades
 
+## 1.8.2
+- "Comprobar desde internet" (pestaña **Web**) ya no dice que falla cuando el router simplemente no deja abrir la dirección pública desde dentro de casa: comprueba el HTTPS del propio PC, que la DDNS apunte a casa y las visitas que han llegado de internet.
+
 ## 1.8.1
 - **Actualizaciones de Valheim**: Steam actualiza el server solo, cuando está apagado. El launcher avisa en Discord, en la pestaña **Automático** y en la web cuando hay una actualización esperando y cuando ya se ha instalado (con una versión nueva del juego, algún mod puede necesitar actualizarse).
 - La web pide a los buscadores (Google y demás) que no la guarden ni la enseñen: salen nombres de jugadores.
