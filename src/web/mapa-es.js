@@ -4,6 +4,12 @@
 (function () {
   'use strict';
   var T = {
+    'Show or hide the sidebar': 'Mostrar u ocultar la barra lateral', 'Sidebar': 'Barra lateral', 'state-as-code': 'estado en código', 'live': 'en vivo',
+    'Switch to Atlas (L)': 'Cambiar a Atlas (L)', 'Switch to Terrain (L)': 'Cambiar a Relieve (L)', 'night': 'noche', 'cooked': 'cocinado', 'boats': 'barcos', 'places': 'lugares',
+    'continent': 'continente', 'island': 'isla', 'holm': 'islote', 'No walking tallied yet.': 'Todavía no se ha contado ningún paseo.', 'Hub': 'Nudo', 'linked': 'enlazado',
+    'Elsewhere': 'En otra parte', 'Close up': 'De cerca', 'close up': 'de cerca', 'See this gate on the map': 'Ver este portal en el mapa', 'per death': 'por muerte',
+    'Copy link puts the whole plan in the URL.': 'Copiar enlace mete todo el plano en la dirección.', 'Layers are live reference, not part of your plan.': 'Las capas son referencia en vivo, no parte de tu plano.',
+    'thin': 'fino', 'thick': 'grueso',
     'Online:': 'Conectados:', 'nothing yet': 'nada todavía',
     'not shown on map — enable “visible to other players” on the in-game map (M)': 'no salen en el mapa: activa “visible para otros jugadores” en el mapa del juego (M)',
     'nobody has said anything yet': 'nadie ha dicho nada todavía',
@@ -221,7 +227,21 @@
     'The sacrificial stones': 'Las piedras del sacrificio', 'the centre of the world': 'el centro del mundo', 'of the world walked since': 'del mundo pisado desde entonces', 'Stop the tour': 'Parar el recorrido'
   };
   // Textos que el mapa compone con números o nombres.
+  var DIR = { 'north': 'norte', 'south': 'sur', 'east': 'este', 'west': 'oeste', 'north-east': 'noreste', 'north-west': 'noroeste', 'south-east': 'sureste', 'south-west': 'suroeste' };
   var R = [
+    [/^updated (.+)$/, 'actualizado $1'], [/^read (\d\d?:\d\d)$/, 'leído $1'], [/^build (.+)$/, 'versión $1'],
+    [/^(\d[\d.,]*) players?$/, function (m, n) { return n + (n === '1' ? ' jugador' : ' jugadores'); }], [/^tallied since (.+)$/, 'contado desde $1'],
+    [/^(\d[\d.,]*) pairs?$/, function (m, n) { return n + (n === '1' ? ' pareja' : ' parejas'); }], [/^(\d[\d.,]*) portals?$/, function (m, n) { return n + (n === '1' ? ' portal' : ' portales'); }],
+    [/^(\d[\d.,]*) hubs?$/, function (m, n) { return n + (n === '1' ? ' nudo' : ' nudos'); }], [/^(\d[\d.,]*) loose$/, '$1 sueltos'], [/^(\d[\d.,]*) gates?$/, function (m, n) { return n + (n === '1' ? ' portal' : ' portales'); }],
+    [/^(\d[\d.,]*) meals cooked, (\d[\d.,]*) burnt$/, '$1 comidas cocinadas, $2 quemadas'], [/^(\d[\d.,]*) meads brewed$/, '$1 hidromieles'], [/^(\d[\d.,]*) honey taken$/, '$1 de miel recogida'],
+    [/^(\d[\d.,]*) bars smelted$/, '$1 lingotes fundidos'], [/^([\d.,]+)% walked$/, '$1 % pisado'], [/^([\d.,]+)% walked, and someone has set foot there$/, '$1 % pisado, y alguien ha estado allí'],
+    [/^([\d.,]+) m above the sea$/, '$1 m sobre el mar'], [/^([\d.,]+) pieces standing$/, '$1 piezas en pie'], [/^([\d.,]+) km out$/, 'a $1 km'],
+    [/^(north|south|east|west|north-east|north-west|south-east|south-west), (.+)$/, function (m, d, r) { return DIR[d] + ', ' + tr(r); }],
+    [/^(north|south|east|west|north-east|north-west|south-east|south-west)$/, function (m, d) { return DIR[d]; }],
+    [/^([\d.,]+) m (north|south|east|west) of the centre$/, function (m, n, d) { return n + ' m al ' + DIR[d] + ' del centro'; }],
+    [/^(.+) ago and still holding gear$/, function (m, a) { return tr(a + ' ago') + ' y aún con equipo'; }],
+    [/^(.+): fell (\d+)(st|nd|rd|th)$/, function (m, a, n) { return tr(a) + ': cayó en ' + n + 'º lugar'; }], [/^(.+): still standing$/, function (m, a) { return tr(a) + ': sigue en pie'; }],
+    [/^Through to (.+)$/, 'Hacia $1'], [/^colour (\d+)$/, 'color $1'], [/^(\d[\d.,]*) portals, (\d[\d.,]*) pins\.$/, '$1 portales, $2 marcadores.'],
     [/^player _(.+)_ joined$/, '$1 ha entrado'], [/^player _(.+)_ left$/, '$1 ha salido'], [/^player _(.+)_ died$/, '$1 ha muerto'],
     [/^(\d[\d.,]*) online$/, '$1 conectados'],
     [/^last seen (.+)$/, function (m, a) { return 'visto ' + tr(a); }],
@@ -239,6 +259,7 @@
     var t = s.replace(/\s+/g, ' ').trim();
     if (t === '\\u2014') return lead(s) + '—' + trail(s);   // el mod escribe "\u2014" tal cual mientras no hay datos
     if (!t || !/[A-Za-z]/.test(t)) return s;
+    if (t.indexOf('· ') === 0) { var r0 = tr(t.slice(2)); return r0 === t.slice(2) ? s : lead(s) + '· ' + r0 + trail(s); }
     var sep = t.lastIndexOf(' · ');   // títulos "Majinheim · Players"
     if (sep > 0 && !T.hasOwnProperty(t)) { var a = tr(t.slice(0, sep)), b = tr(t.slice(sep + 3)); if (a + ' · ' + b !== t) return lead(s) + a + ' · ' + b + trail(s); }
     var o = Object.prototype.hasOwnProperty.call(T, t) ? T[t] : null;
@@ -260,8 +281,8 @@
     if (!root) return;
     if (root.nodeType === 3) { if (!(root.parentNode && SKIP[root.parentNode.nodeName])) { var n = tr(root.nodeValue); if (n !== root.nodeValue) root.nodeValue = n; } return; }
     if (root.nodeType !== 1 && root.nodeType !== 9 && root.nodeType !== 11) return;
-    if (SKIP[root.nodeName] || root.isContentEditable) return;
     if (root.nodeType === 1) el(root);
+    if (SKIP[root.nodeName] || root.isContentEditable) return;
     for (var c = root.firstChild; c; c = c.nextSibling) walk(c);
   }
 
