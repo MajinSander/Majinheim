@@ -1,5 +1,8 @@
 # Novedades
 
+## 1.7.1
+- Corregido: en la web, "Último backup" podía enseñar uno antiguo en vez del más reciente.
+
 ## 1.7.0
 - **Avisos en el juego**: si hay alguien jugando, antes de apagar o reiniciar desde la web, desde Discord o con el reinicio diario, sale un aviso en el chat del juego 1 minuto antes y otro 10 segundos antes.
 - El aviso de Discord de mods con versión nueva queda solo con la lista de mods y su cambio de versión.

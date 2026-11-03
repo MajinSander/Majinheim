@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "1.7.0";
+        public const string Version = "1.7.1";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -684,7 +684,7 @@ namespace Majinheim
         public static List<Info> List()
         {
             if (!Directory.Exists(AppInfo.BackupDir)) return new List<Info>();
-            return new DirectoryInfo(AppInfo.BackupDir).GetFiles("*.zip").OrderByDescending(f => f.Name).Select(f =>
+            return new DirectoryInfo(AppInfo.BackupDir).GetFiles("*.zip").OrderByDescending(f => f.LastWriteTimeUtc).ThenByDescending(f => f.Name).Select(f =>   // por fecha: hay zips cuyo nombre no empieza por la fecha
             {
                 var i = new Info { Path = f.FullName, Size = f.Length, Date = f.LastWriteTime, Kind = f.Name.EndsWith(".auto.zip") ? "auto" : "manual" };
                 string n = f.Name.Replace(".auto.zip", "").Replace(".zip", "");
