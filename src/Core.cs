@@ -55,6 +55,7 @@ namespace Majinheim
     {
         public static event Action<string> Line;
         static readonly object lk = new object();
+        static bool rolled;
         public static void W(string fmt, params object[] a)
         {
             string s = a.Length > 0 ? string.Format(fmt, a) : fmt;
@@ -64,12 +65,21 @@ namespace Majinheim
                 try
                 {
                     Directory.CreateDirectory(AppInfo.LogDir);
-                    File.AppendAllText(Path.Combine(AppInfo.LogDir, "launcher.log"), DateTime.Now.ToString("yyyy-MM-dd ") + line + Environment.NewLine);
+                    string f = Path.Combine(AppInfo.LogDir, "launcher.log");
+                    if (!rolled) { rolled = true; Roll(f); }
+                    File.AppendAllText(f, DateTime.Now.ToString("yyyy-MM-dd ") + line + Environment.NewLine);
                 }
                 catch { }
             }
             var h = Line;
             if (h != null) h(line);
+        }
+
+        // Para que un registro no crezca sin fin: si pasa de 5 MB, queda como <nombre>.1 (se pisa el anterior) y se empieza otro.
+        public static void Roll(string file)
+        {
+            try { if (File.Exists(file) && new FileInfo(file).Length > 5 * 1024 * 1024) { File.Copy(file, file + ".1", true); File.Delete(file); } }
+            catch { }
         }
     }
 

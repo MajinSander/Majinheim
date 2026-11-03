@@ -593,6 +593,7 @@ namespace Majinheim
             psi.RedirectStandardOutput = true;
             psi.RedirectStandardError = true;
             Directory.CreateDirectory(AppInfo.LogDir);
+            Log.Roll(Path.Combine(AppInfo.LogDir, "caddy.log"));
             using (var log = new StreamWriter(Path.Combine(AppInfo.LogDir, "caddy.log"), true, new UTF8Encoding(false)))
             {
                 log.AutoFlush = true;

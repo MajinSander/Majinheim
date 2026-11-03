@@ -4,6 +4,7 @@
 - "Comprobar desde internet" (pestaña **Web**) ya no dice que falla cuando el router simplemente no deja abrir la dirección pública desde dentro de casa: comprueba el HTTPS del propio PC, que la DDNS apunte a casa y las visitas que han llegado de internet.
 - `/estado` en Discord dice también si hay una actualización de Valheim esperando.
 - Si el server se cae 3 veces seguidas nada más arrancar (por ejemplo, un mod que no funciona tras una actualización de Valheim), el launcher deja de reintentarlo y avisa en Discord, en vez de reintentar sin fin (cada arranque hace un backup y acabaría borrando los buenos más antiguos).
+- Los registros del launcher y del HTTPS ya no crecen sin fin: al pasar de 5 MB se guarda el anterior y se empieza otro.
 
 ## 1.8.1
 - **Actualizaciones de Valheim**: Steam actualiza el server solo, cuando está apagado. El launcher avisa en Discord, en la pestaña **Automático** y en la web cuando hay una actualización esperando y cuando ya se ha instalado (con una versión nueva del juego, algún mod puede necesitar actualizarse).
