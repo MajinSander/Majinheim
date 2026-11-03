@@ -433,7 +433,7 @@ namespace Majinheim
         {
             string line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + "\t" + ip.Replace("\t", " ") + "\t" + what.Replace("\t", " ").Replace("\n", " ");
             lock (auditLk)
-                try { Directory.CreateDirectory(AppInfo.LogDir); File.AppendAllText(AuditFile, line + Environment.NewLine, new UTF8Encoding(false)); } catch { }
+                try { Directory.CreateDirectory(AppInfo.LogDir); Log.Roll(AuditFile); File.AppendAllText(AuditFile, line + Environment.NewLine, new UTF8Encoding(false)); } catch { }
             Log.W("Web: {0} ({1})", what, ip);
         }
 
