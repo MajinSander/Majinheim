@@ -229,7 +229,7 @@
   // Textos que el mapa compone con números o nombres.
   var DIR = { 'north': 'norte', 'south': 'sur', 'east': 'este', 'west': 'oeste', 'north-east': 'noreste', 'north-west': 'noroeste', 'south-east': 'sureste', 'south-west': 'suroeste' };
   var R = [
-    [/^updated (.+)$/, 'actualizado $1'], [/^read (\d\d?:\d\d)$/, 'leído $1'], [/^build (.+)$/, 'versión $1'],
+    [/^updated (.+)$/, 'actualizado $1'], [/^read (\d.*)$/, 'leído $1'], [/^(\d[\d.,]*) pairs? linked$/, '$1 parejas enlazadas'], [/^(\d[\d.,]*) waiting for a twin$/, '$1 esperando pareja'], [/^build (.+)$/, 'versión $1'],
     [/^(\d[\d.,]*) players?$/, function (m, n) { return n + (n === '1' ? ' jugador' : ' jugadores'); }], [/^tallied since (.+)$/, 'contado desde $1'],
     [/^(\d[\d.,]*) pairs?$/, function (m, n) { return n + (n === '1' ? ' pareja' : ' parejas'); }], [/^(\d[\d.,]*) portals?$/, function (m, n) { return n + (n === '1' ? ' portal' : ' portales'); }],
     [/^(\d[\d.,]*) hubs?$/, function (m, n) { return n + (n === '1' ? ' nudo' : ' nudos'); }], [/^(\d[\d.,]*) loose$/, '$1 sueltos'], [/^(\d[\d.,]*) gates?$/, function (m, n) { return n + (n === '1' ? ' portal' : ' portales'); }],
@@ -259,6 +259,8 @@
     var t = s.replace(/\s+/g, ' ').trim();
     if (t === '\\u2014') return lead(s) + '—' + trail(s);   // el mod escribe "\u2014" tal cual mientras no hay datos
     if (!t || !/[A-Za-z]/.test(t)) return s;
+    if (T.hasOwnProperty(t)) return lead(s) + T[t] + trail(s);
+    if (t.length > 2 && t.slice(-2) === ' ·') { var r1 = tr(t.slice(0, -2)); return r1 === t.slice(0, -2) ? s : lead(s) + r1 + ' ·' + trail(s); }
     if (t.indexOf('· ') === 0) { var r0 = tr(t.slice(2)); return r0 === t.slice(2) ? s : lead(s) + '· ' + r0 + trail(s); }
     var sep = t.lastIndexOf(' · ');   // títulos "Majinheim · Players"
     if (sep > 0 && !T.hasOwnProperty(t)) { var a = tr(t.slice(0, sep)), b = tr(t.slice(sep + 3)); if (a + ' · ' + b !== t) return lead(s) + a + ' · ' + b + trail(s); }
