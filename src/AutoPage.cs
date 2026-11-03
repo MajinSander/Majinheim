@@ -21,7 +21,8 @@ namespace Majinheim
 
         // Estado de las tareas (solo en memoria; al abrir el launcher se recalcula).
         DateTime lastSchedBackup = DateTime.MinValue, lastUpdateCheck = DateTime.MinValue, nextAutoTick = DateTime.MinValue;
-        DateTime lastNightly = DateTime.MinValue;
+        DateTime lastNightly = DateTime.MinValue, lastSteamCheck = DateTime.MinValue;
+        string announcedBuild;   // actualización de Valheim pendiente de la que ya se ha avisado
         bool schedBackupRunning;
         string lastRunnerStatus = "";
         bool wasUp;
@@ -169,6 +170,8 @@ namespace Majinheim
             parts.Add(s.BackupEveryHours <= 0 ? "Backups automáticos: desactivados (sigue habiendo uno cada vez que arranca el server)."
                 : "Backups: cada " + s.BackupEveryHours + " h con el server encendido" + (lastSchedBackup != DateTime.MinValue ? "; el último, " + lastSchedBackup.ToString("dd/MM HH:mm") : "") + ".");
             parts.Add(s.NightlyRestart ? "Reinicio diario a las " + s.NightlyRestartHour.ToString("00") + ":00 si no hay nadie." : "Reinicio diario: desactivado.");
+            var vst = Steam.Server();
+            if (vst != null && vst.UpdatePending) parts.Add("Hay una actualización de Valheim esperando: Steam la instala cuando el server está apagado.");
             autoState.Text = string.Join("\n", parts);
             rconState.Text = !Rcon.Installed ? "Hace falta el mod ValheimRcon en la lista de mods del server (solo server: los amigos no instalan nada). Después, con el server apagado, pulsa Preparar."
                 : !Rcon.Ready ? "El mod está instalado. Con el server apagado, pulsa Preparar: le pone una contraseña larga al azar y solo acepta órdenes desde este PC."
@@ -316,6 +319,31 @@ namespace Majinheim
 
             // Versiones nuevas de mods: cada 12 h
             if ((now - lastUpdateCheck).TotalHours >= 12) { lastUpdateCheck = now; CheckUpdatesQuiet(); }
+
+            // Actualizaciones de Valheim: cada 10 min
+            if ((now - lastSteamCheck).TotalMinutes >= 10) { lastSteamCheck = now; CheckValheimBuild(); }
+        }
+
+        // Steam actualiza el server de Valheim solo, y solo con el server apagado. Avisa (una vez) de que hay una actualización
+        // esperando y de que ya se ha instalado: con una versión nueva del juego, algún mod puede necesitar actualizarse.
+        void CheckValheimBuild()
+        {
+            var st = Steam.Server();
+            if (st == null || string.IsNullOrEmpty(st.BuildId)) return;
+            var s = Settings.Current;
+            if (string.IsNullOrEmpty(s.ValheimBuild)) { s.ValheimBuild = st.BuildId; Settings.Save(); }
+            else if (s.ValheimBuild != st.BuildId)
+            {
+                Log.W("Steam ha actualizado Valheim en el server (build {0} -> {1}).", s.ValheimBuild, st.BuildId);
+                Discord.Send("⬆️ Steam ha actualizado Valheim en el server. Si algún mod falla al arrancar, hará falta su versión nueva.");
+                s.ValheimBuild = st.BuildId; Settings.Save();
+            }
+            if (st.UpdatePending && announcedBuild != st.TargetBuildId)
+            {
+                announcedBuild = st.TargetBuildId;
+                Log.W("Hay una actualización de Valheim para el server (build {0}): Steam la instala con el server apagado.", st.TargetBuildId);
+                Discord.Send("🆕 Hay una actualización de Valheim. Steam la instalará en el server la próxima vez que esté apagado; hasta entonces, quien ya tenga el juego actualizado puede no poder entrar.");
+            }
         }
 
         void PollBosses()

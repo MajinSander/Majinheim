@@ -59,7 +59,7 @@
 
     $('desde').textContent = s.desde ? fecha(s.desde) + ' (' + duracion(Math.round((Date.now() - new Date(s.desde).getTime()) / 60000)) + ')' : 'apagado';
     $('dia').textContent = s.dia != null ? 'Día ' + s.dia : '—';
-    $('version').textContent = s.version || '—';
+    $('version').textContent = (s.version || '—') + (s.actualizacionPendiente ? ' · hay actualización (se instala al apagar el server)' : '');
     $('guardado').textContent = hace(s.ultimoGuardado);
     $('backup').textContent = d.ultimoBackup ? hace(d.ultimoBackup.fecha) : '—';
     $('cpu').textContent = s.estado === 'apagado' ? '—' : String(s.cpu).replace('.', ',') + ' %';

@@ -830,6 +830,7 @@ namespace Majinheim
                     { "estado", !run ? "apagado" : (ready ? "en marcha" : "arrancando") },
                     { "desde", run ? Iso(procStart) : null },
                     { "version", version },
+                    { "actualizacionPendiente", Steam.Server() != null && Steam.Server().UpdatePending },
                     { "ultimoGuardado", lastSave.HasValue ? Iso(lastSave.Value) : null },
                     { "dia", worldDay },
                     { "cpu", cpu },

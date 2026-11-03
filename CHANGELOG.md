@@ -1,5 +1,8 @@
 # Novedades
 
+## 1.8.1
+- **Actualizaciones de Valheim**: Steam actualiza el server solo, cuando está apagado. El launcher avisa en Discord, en la pestaña **Automático** y en la web cuando hay una actualización esperando y cuando ya se ha instalado (con una versión nueva del juego, algún mod puede necesitar actualizarse).
+
 ## 1.8.0
 - **Consola del server** en el panel de administración de la web: órdenes como `players`, `banlist`, `unban`, `save` o `serverStats`, con botones rápidos. Solo se permiten órdenes seguras (nada que borre cosas del mundo) y todo queda apuntado en el registro.
 - **Expulsar o banear** a un jugador conectado desde el panel, con confirmación.
