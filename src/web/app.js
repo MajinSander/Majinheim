@@ -65,6 +65,18 @@
     $('cpu').textContent = s.estado === 'apagado' ? '—' : String(s.cpu).replace('.', ',') + ' %';
     $('ram').textContent = s.estado === 'apagado' ? '—' : (s.ramMb >= 1024 ? (s.ramMb / 1024).toFixed(1).replace('.', ',') + ' GB' : s.ramMb + ' MB');
 
+    var jf = d.jefes || [];
+    $('t-jefes').hidden = !jf.length;
+    $('n-jefes').textContent = jf.filter(function (j) { return j.derrotado; }).length + '/' + jf.length;
+    var uj = $('jefes'); limpiar(uj);
+    jf.forEach(function (j) {
+      var li = el('li', j.derrotado ? 'hecho' : null);
+      li.appendChild(el('span', 'nombre', (j.derrotado ? '⚔️ ' : '') + j.nombre));
+      li.appendChild(el('span', 'bioma', j.bioma));
+      li.appendChild(el('span', 'fecha', j.derrotado ? (j.fecha ? fecha(j.fecha) : 'derrotado') : 'pendiente'));
+      uj.appendChild(li);
+    });
+
     var js = d.jugadores || [];
     $('n-jugadores').textContent = js.length;
     $('nadie').hidden = js.length > 0;

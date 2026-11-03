@@ -1,5 +1,11 @@
 # Novedades
 
+## 1.8.0
+- **Consola del server** en el panel de administración de la web: órdenes como `players`, `banlist`, `unban`, `save` o `serverStats`, con botones rápidos. Solo se permiten órdenes seguras (nada que borre cosas del mundo) y todo queda apuntado en el registro.
+- **Expulsar o banear** a un jugador conectado desde el panel, con confirmación.
+- **Jefes derrotados**: la web enseña qué jefes ha vencido el grupo y cuándo, `/estado` en Discord lo resume, y al caer uno nuevo sale un aviso en Discord y en el chat del juego.
+- **Copia fuera del PC**: en la pestaña Automático se elige una carpeta en otro disco, un USB u OneDrive, y cada backup del mundo se copia también allí (se guardan los 10 últimos).
+
 ## 1.7.2
 - Las copias del mundo guardan también lo explorado del mapa de la web.
 - En la web, "Último backup" enseña la última copia del mundo (no las de ajustes que se hacen al instalar mods).

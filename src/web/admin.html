@@ -82,11 +82,19 @@
   </section>
 
   <section class="tarjeta">
+    <h2>Jugadores conectados <span id="n-con" class="cuenta">0</span></h2>
+    <ul id="conectados" class="lista"></ul>
+    <p id="jug-resultado" class="tenue" role="status"></p>
+    <p class="tenue">Expulsar lo saca del server (puede volver a entrar). Banear le impide volver hasta que lo quites con <code>unban</code> en la consola.</p>
+  </section>
+
+  <section class="tarjeta">
     <h2>Automático</h2>
     <dl class="datos">
       <div><dt>Backups del mundo</dt><dd id="a-tarea-backup">—</dd></div>
       <div><dt>Reinicio diario</dt><dd id="a-tarea-reinicio">—</dd></div>
       <div><dt>Avisos en Discord</dt><dd id="a-tarea-discord">—</dd></div>
+      <div><dt>Copia fuera del PC</dt><dd id="a-tarea-externa">—</dd></div>
     </dl>
     <p class="tenue">Se cambia en el launcher del server, pestaña Automático.</p>
   </section>
@@ -113,6 +121,25 @@
     <div class="botonera">
       <button id="salir-todos" class="boton secundario">Cerrar sesión en todos los dispositivos</button>
     </div>
+  </section>
+
+  <section class="tarjeta ancha">
+    <h2>Consola del server</h2>
+    <form id="form-consola" class="formulario">
+      <div class="en-linea">
+        <input id="consola-orden" type="text" maxlength="200" placeholder="Ej.: players, banlist, unban NOMBRE, save" autocomplete="off" spellcheck="false" autocapitalize="none" aria-label="Orden">
+        <button class="boton secundario" type="submit">Ejecutar</button>
+      </div>
+    </form>
+    <div class="botonera rapidas">
+      <button class="boton secundario chico" data-orden="players">Jugadores</button>
+      <button class="boton secundario chico" data-orden="banlist">Baneados</button>
+      <button class="boton secundario chico" data-orden="serverStats">Rendimiento</button>
+      <button class="boton secundario chico" data-orden="save">Guardar mundo</button>
+      <button class="boton secundario chico" data-orden="globalKeys">Progreso</button>
+    </div>
+    <pre id="consola-salida" class="registro consola" aria-live="polite"></pre>
+    <p class="tenue">Solo órdenes seguras: nada que borre cosas del mundo. Todo queda apuntado en «Lo que se ha hecho desde la web».</p>
   </section>
 
   <section class="tarjeta ancha">

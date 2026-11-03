@@ -92,7 +92,7 @@ namespace Majinheim
             offsiteState.MaximumSize = new Size(480, 0);
             var offBtns = Ui.Row(Ui.Btn("Elegir carpeta...", ChooseOffsite), Ui.Btn("Copiar el último ahora", () =>
                 {
-                    var last = Backup.List().FirstOrDefault(b => b.Label == "programado" || b.Label == "mundo-al-arrancar" || b.Label == "manual" || b.Label == "web");
+                    var last = Backup.LastWorld();
                     if (Backup.OffsiteFolder == null) { MessageBox.Show(this, "Elige antes una carpeta.", "Majinheim"); return; }
                     if (last == null) { MessageBox.Show(this, "Todavía no hay ningún backup del mundo.", "Majinheim"); return; }
                     Backup.CopyOffsite(last.Path);

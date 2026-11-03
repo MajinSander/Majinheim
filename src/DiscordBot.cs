@@ -277,6 +277,12 @@ namespace Majinheim
                     if (srv["dia"] != null) sb.Append(" · día " + srv["dia"] + " en el mundo");
                     sb.Append(".\n");
                     if (estado != "apagado") sb.Append(players.Count == 0 ? "No hay nadie jugando." : "Jugando: " + string.Join(", ", players.Select(p => "**" + Esc((string)p["nombre"]) + "** (" + Dur(Convert.ToInt32(p["minutos"])) + ")")) + ".");
+                    var jefes = Bosses.Public();
+                    if (jefes.Count > 0)
+                    {
+                        var hechos = jefes.Where(j => (bool)j["derrotado"]).Select(j => (string)j["nombre"]).ToList();
+                        sb.Append("\n⚔️ Jefes: " + hechos.Count + "/" + jefes.Count + (hechos.Count > 0 ? " (" + string.Join(", ", hechos) + ")" : ""));
+                    }
                     if (web != null) sb.Append("\n" + web);
                     return sb.ToString().TrimEnd();
                 }

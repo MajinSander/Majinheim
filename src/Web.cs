@@ -20,7 +20,7 @@ namespace Majinheim
 {
     public static class WebPanel
     {
-        public const string Version = "0.3.0";
+        public const string Version = "0.4.0";
         static MiniHttp http;
         public static string Error { get; private set; }
         public static bool Running { get { return http != null; } }
@@ -991,6 +991,7 @@ namespace Majinheim
 
         public static List<Dictionary<string, object>> Public()
         {
+            if (!System.IO.File.Exists(File)) return new List<Dictionary<string, object>>();   // aún no se ha podido mirar el mundo
             var got = Load();
             return All.Select(b =>
             {
