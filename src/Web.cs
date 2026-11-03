@@ -103,21 +103,91 @@ namespace Majinheim
             }
         }
 
-        // Comprueba desde este PC si la web responde por internet (HTTPS). Devuelve null si va bien, o el motivo.
-        public static string CheckPublic()
+        // Comprueba si la web responde por internet (HTTPS). Devuelve true si va bien; msg explica el resultado.
+        // Desde casa muchos routers no dejan abrir la dirección pública (no hacen "NAT loopback"): si eso falla, se comprueba
+        // por partes: el HTTPS de este PC con su certificado, que la DDNS apunte a la IP de casa y las visitas que han
+        // llegado de internet según el registro de Caddy.
+        public static bool CheckPublic(out string msg)
         {
             try
             {
                 string r = Http.GetString(PublicUrl + "salud", 15000);
-                return r.Trim() == "ok" ? null : "responde algo raro";
+                msg = r.Trim() == "ok" ? "Funciona: " + PublicUrl + " responde por HTTPS." : "Desde internet responde algo raro.";
+                return r.Trim() == "ok";
             }
             catch (WebException e)
             {
-                if (e.Status == WebExceptionStatus.TrustFailure || e.Status == WebExceptionStatus.SecureChannelFailure) return "el certificado HTTPS aún no está listo (Caddy lo pide la primera vez; espera un minuto)";
-                if (e.Status == WebExceptionStatus.ConnectFailure || e.Status == WebExceptionStatus.Timeout) return "no llega: revisa que el router abra TCP 443 y 80 hacia este PC";
-                return e.Message;
+                if (e.Status == WebExceptionStatus.TrustFailure || e.Status == WebExceptionStatus.SecureChannelFailure)
+                { msg = "El certificado HTTPS aún no está listo (Caddy lo pide la primera vez; espera un minuto)."; return false; }
             }
-            catch (Exception e) { return e.Message; }
+            catch (Exception) { }
+
+            string local = LocalHttps();
+            if (local != null) { msg = "El HTTPS de este PC no funciona: " + local + "."; return false; }
+            if (!Net.SamePublicIp(PublicHost)) { msg = PublicHost + " no apunta a la IP de casa: revisa la DDNS en el router."; return false; }
+            DateTime last;
+            int n = ExternalVisits(TimeSpan.FromHours(24), out last);
+            const string inside = "\nDesde este PC no se puede abrir la dirección pública porque el router no lo permite dentro de casa (es normal).";
+            if (n > 0)
+            {
+                msg = "Funciona: el HTTPS y la DDNS están bien, y en las últimas 24 h han llegado " + n + (n == 1 ? " visita" : " visitas") +
+                    " desde internet (la última, a las " + last.ToString("HH:mm") + ")." + inside;
+                return true;
+            }
+            msg = "El HTTPS y la DDNS están bien, pero hoy no ha llegado ninguna visita de internet. Ábrela desde el móvil con datos (sin wifi): " +
+                PublicUrl + ". Si no carga, revisa que el router abra TCP 443 y 80 hacia este PC." + inside;
+            return false;
+        }
+
+        // Pide /salud al Caddy de este PC con el nombre público, comprobando su certificado. null si va bien, o el problema.
+        static string LocalHttps()
+        {
+            try
+            {
+                using (var c = new TcpClient())
+                {
+                    var ar = c.BeginConnect(IPAddress.Loopback, 443, null, null);
+                    if (!ar.AsyncWaitHandle.WaitOne(5000)) return "no responde en el puerto 443";
+                    c.EndConnect(ar);
+                    c.ReceiveTimeout = 10000; c.SendTimeout = 10000;
+                    using (var ssl = new System.Net.Security.SslStream(c.GetStream(), false))
+                    {
+                        ssl.AuthenticateAsClient(PublicHost, null, System.Security.Authentication.SslProtocols.Tls12, true);   // falla si el certificado no vale para ese nombre
+                        var req = Encoding.ASCII.GetBytes("GET /salud HTTP/1.1\r\nHost: " + PublicHost + "\r\nConnection: close\r\n\r\n");
+                        ssl.Write(req, 0, req.Length);
+                        string resp = new StreamReader(ssl, Encoding.UTF8).ReadToEnd();
+                        return resp.StartsWith("HTTP/1.1 200") && resp.TrimEnd().EndsWith("ok") ? null : "responde algo raro";
+                    }
+                }
+            }
+            catch (System.Security.Authentication.AuthenticationException) { return "el certificado aún no está listo (espera un minuto)"; }
+            catch (Exception e) { return e.GetBaseException().Message; }
+        }
+
+        // Visitas desde internet (no desde la red de casa) que han recibido una página, según caddy-visitas.log.
+        static int ExternalVisits(TimeSpan window, out DateTime last)
+        {
+            last = DateTime.MinValue;
+            string f = Path.Combine(AppInfo.LogDir, "caddy-visitas.log");
+            if (!File.Exists(f)) return 0;
+            int n = 0;
+            var from = DateTime.UtcNow - window;
+            string[] lines;
+            using (var fs = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var sr = new StreamReader(fs)) lines = sr.ReadToEnd().Split('\n');
+            foreach (var line in lines)
+            {
+                var ip = Regex.Match(line, "\"remote_ip\":\"([^\"]+)\"");
+                var ts = Regex.Match(line, "\"ts\":([0-9.]+)");
+                if (!ip.Success || !ts.Success || !line.Contains("\"status\":200")) continue;
+                string a = ip.Groups[1].Value.ToLowerInvariant();
+                if (Net.IsPrivate(a) || a == "::1" || a.StartsWith("fe80") || a.StartsWith("fc") || a.StartsWith("fd")) continue;   // red de casa o este PC
+                var t = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(double.Parse(ts.Groups[1].Value, CultureInfo.InvariantCulture));
+                if (t < from) continue;
+                n++;
+                if (t.ToLocalTime() > last) last = t.ToLocalTime();
+            }
+            return n;
         }
     }
 
@@ -523,6 +593,7 @@ namespace Majinheim
             psi.RedirectStandardOutput = true;
             psi.RedirectStandardError = true;
             Directory.CreateDirectory(AppInfo.LogDir);
+            Log.Roll(Path.Combine(AppInfo.LogDir, "caddy.log"));
             using (var log = new StreamWriter(Path.Combine(AppInfo.LogDir, "caddy.log"), true, new UTF8Encoding(false)))
             {
                 log.AutoFlush = true;

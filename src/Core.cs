@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "1.8.1";
+        public const string Version = "1.8.2";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -55,6 +55,7 @@ namespace Majinheim
     {
         public static event Action<string> Line;
         static readonly object lk = new object();
+        static bool rolled;
         public static void W(string fmt, params object[] a)
         {
             string s = a.Length > 0 ? string.Format(fmt, a) : fmt;
@@ -64,12 +65,21 @@ namespace Majinheim
                 try
                 {
                     Directory.CreateDirectory(AppInfo.LogDir);
-                    File.AppendAllText(Path.Combine(AppInfo.LogDir, "launcher.log"), DateTime.Now.ToString("yyyy-MM-dd ") + line + Environment.NewLine);
+                    string f = Path.Combine(AppInfo.LogDir, "launcher.log");
+                    if (!rolled) { rolled = true; Roll(f); }
+                    File.AppendAllText(f, DateTime.Now.ToString("yyyy-MM-dd ") + line + Environment.NewLine);
                 }
                 catch { }
             }
             var h = Line;
             if (h != null) h(line);
+        }
+
+        // Para que un registro no crezca sin fin: si pasa de 5 MB, queda como <nombre>.1 (se pisa el anterior) y se empieza otro.
+        public static void Roll(string file)
+        {
+            try { if (File.Exists(file) && new FileInfo(file).Length > 5 * 1024 * 1024) { File.Copy(file, file + ".1", true); File.Delete(file); } }
+            catch { }
         }
     }
 
@@ -978,6 +988,8 @@ namespace Majinheim
         Process proc;
         volatile bool stopRequested;
         volatile int tailGen;
+        int quickCrashes;   // caídas seguidas a menos de 5 min de arrancar
+        public const string GaveUpStatus = "Caído: no arranca (3 intentos)";
         public event Action<string> GameLog;
         public event Action StateChanged;
         public int Players { get; private set; }
@@ -1055,6 +1067,16 @@ namespace Majinheim
             Log.W("El server se ha cerrado (codigo {0}).", code);
             if (!stopRequested && Settings.Current.AutoRestart)
             {
+                // Si se cae una y otra vez al poco de arrancar (un mod roto tras una actualización de Valheim...), no insistir:
+                // cada arranque hace un backup del mundo y en un rato se llevaría por delante los buenos más antiguos.
+                if ((DateTime.Now - StartedAt).TotalMinutes < 5) quickCrashes++; else quickCrashes = 0;
+                if (quickCrashes >= 3)
+                {
+                    quickCrashes = 0;
+                    Log.W("El server se ha caído 3 veces seguidas al poco de arrancar: lo dejo apagado. Mira BepInEx\\LogOutput.log del perfil del server.");
+                    SetStatus(GaveUpStatus);
+                    return;
+                }
                 SetStatus("Crasheo: reiniciando en 10 s");
                 Thread.Sleep(10000);
                 if (stopRequested) { SetStatus("Detenido"); return; }

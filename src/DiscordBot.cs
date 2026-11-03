@@ -283,6 +283,8 @@ namespace Majinheim
                         var hechos = jefes.Where(j => (bool)j["derrotado"]).Select(j => (string)j["nombre"]).ToList();
                         sb.Append("\n⚔️ Jefes: " + hechos.Count + "/" + jefes.Count + (hechos.Count > 0 ? " (" + string.Join(", ", hechos) + ")" : ""));
                     }
+                    var vst = Steam.Server();
+                    if (vst != null && vst.UpdatePending) sb.Append("\n🆕 Hay una actualización de Valheim esperando: Steam la instala cuando el server está apagado.");
                     if (web != null) sb.Append("\n" + web);
                     return sb.ToString().TrimEnd();
                 }
