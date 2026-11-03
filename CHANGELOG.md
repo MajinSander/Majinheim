@@ -5,6 +5,7 @@
 - El aviso de Discord de mods con versión nueva queda solo con la lista de mods y su cambio de versión.
 - **Mensajes al chat del juego** desde el panel de administración de la web, con `/avisar` en Discord (solo administradores) y desde el launcher.
 - Usa el mod ValheimRcon (solo en el server). El launcher le pone una contraseña larga al azar y hace que solo acepte órdenes desde el propio PC. Se prepara en la pestaña **Automático**.
+- Corregido: al instalar o actualizar mods se borraba el mapa de la web (lo explorado y el dibujo del mundo). Ahora se conserva.
 
 ## 1.6.0
 - **Comandos del bot de Discord**: `/estado`, `/jugadores`, `/estadisticas` y `/web` para todos; `/encender`, `/apagar`, `/reiniciar` y `/backup` solo para los administradores del Discord. El bot no lee mensajes ni ve a nadie: solo recibe los comandos. Se activa o desactiva en la pestaña **Automático**.
