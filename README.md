@@ -16,12 +16,21 @@ En el juego, **F1** abre el menú de ajustes de los mods.
 ## Web del server
 
 En el launcher, el botón **Web del server** abre una página con el estado del server: si está encendido,
-quién está jugando y desde cuándo, el día en el mundo, las horas de la semana, los mods y el mapa del mundo.
+quién está jugando y desde cuándo, el día en el mundo, las horas de la semana, los mods, las estadísticas de cada vikingo
+y el mapa del mundo (lo explorado, que se guarda también en los backups).
 Se puede entrar como invitado (solo mirar) o con una cuenta; solo las cuentas de administrador ven los controles del server.
 La opción **Recordarme en este dispositivo** evita tener que entrar cada vez.
 
 ## Discord y tareas automáticas
 En el launcher del server, pestaña **Automático**: pega el token del bot y el ID del canal y pulsa "Guardar y probar". Ahí también se eligen los backups automáticos y el reinicio diario.
+
+- El bot avisa cuando el server se enciende, se apaga o se cae, quién entra y sale, y si hay mods con versión nueva.
+- Comandos: `/estado`, `/jugadores`, `/estadisticas` y `/web` para todos; `/encender`, `/apagar`, `/reiniciar`, `/backup` y `/avisar` solo para los administradores del Discord.
+
+## Avisos en el juego
+Antes de apagar o reiniciar el server con gente dentro, sale un aviso en el chat del juego 1 minuto y 10 segundos antes.
+Usa el mod [ValheimRcon](https://thunderstore.io/c/valheim/p/Tristan/ValheimRcon/), que va **solo en el server** (los jugadores no instalan nada).
+El launcher le pone una contraseña larga al azar y hace que solo acepte órdenes desde el propio PC del server: pestaña **Automático** → "Preparar".
 
 ## Cómo funciona
 

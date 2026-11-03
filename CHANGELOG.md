@@ -1,5 +1,10 @@
 # Novedades
 
+## 1.7.2
+- Las copias del mundo guardan también lo explorado del mapa de la web.
+- En la web, "Último backup" enseña la última copia del mundo (no las de ajustes que se hacen al instalar mods).
+- Corregido: una copia de ajustes reciente podía retrasar la siguiente copia programada del mundo.
+
 ## 1.7.1
 - Corregido: en la web, "Último backup" podía enseñar uno antiguo en vez del más reciente.
 

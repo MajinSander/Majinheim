@@ -198,7 +198,7 @@ namespace Majinheim
         void InitAuto()
         {
             ServerWatch.Start();   // también hace falta con la web apagada: de aquí salen quién entra y quién sale
-            var last = Backup.List().FirstOrDefault(b => b.Kind == "auto");
+            var last = Backup.List().FirstOrDefault(b => b.Kind == "auto" && Backup.HasWorld(b));
             if (last != null) lastSchedBackup = last.Date;
             wasUp = runner.Running;
             runner.StateChanged += OnRunnerState;

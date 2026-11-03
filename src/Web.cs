@@ -848,7 +848,7 @@ namespace Majinheim
                     .Select(g => new Dictionary<string, object> { { "nombre", g.Key }, { "minutos", g.Sum(h => Minutes(h.a < weekAgo ? weekAgo : h.a, h.b)) } })
                     .OrderByDescending(d => (int)d["minutos"]).ToList();
             }
-            var b = Backup.List().FirstOrDefault();
+            var b = Backup.LastWorld();
             o["ultimoBackup"] = b == null ? null : new Dictionary<string, object> { { "fecha", Iso(b.Date) }, { "tipo", b.Kind }, { "nombre", b.Label } };
             try
             {
