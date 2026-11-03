@@ -12,9 +12,9 @@ namespace Majinheim
     public partial class MainForm
     {
         TextBox tDiscToken, tDiscChannel;
-        CheckBox cDiscJoins, cDiscUpdates, cDiscCommands, cNightly;
+        CheckBox cDiscJoins, cDiscUpdates, cDiscCommands, cNightly, cWarn;
         ComboBox cbBackupHours, cbNightlyHour;
-        Label discState, autoState;
+        Label discState, autoState, rconState;
         bool autoPopulating;
 
         // Estado de las tareas (solo en memoria; al abrir el launcher se recalcula).
@@ -81,9 +81,22 @@ namespace Majinheim
                 "Se guardan los " + Math.Max(5, s.KeepAutoBackups) + " últimos; los más viejos se borran solos.\n\n" +
                 "El reinicio diario limpia la memoria del server. Si a esa hora hay alguien dentro, ese día no se reinicia.", 9f, FontStyle.Regular, Th.Muted);
             why.MaximumSize = new Size(480, 0);
+            cWarn = Ui.Chk("Avisar en el chat del juego 1 minuto antes de apagar o reiniciar (web, Discord y reinicio diario)", s.WarnBeforeStop);
+            cWarn.MaximumSize = new Size(480, 0);
+            cWarn.CheckedChanged += (o, e) => { if (autoPopulating) return; s.WarnBeforeStop = cWarn.Checked; Settings.Save(); };
+            rconState = Ui.Lbl("", 10, FontStyle.Regular, Th.Muted);
+            rconState.MaximumSize = new Size(480, 0);
             var tasks = Ui.Col(Ui.Lbl("Tareas automáticas", 11, FontStyle.Bold), autoState,
                 Ui.Lbl("Backup del mundo mientras el server está encendido", 9.5f), cbBackupHours,
-                cNightly, cbNightlyHour, why);
+                cNightly, cbNightlyHour, why,
+                Ui.Lbl("Mensajes en el juego", 11, FontStyle.Bold), rconState, cWarn,
+                Ui.Row(Ui.Btn("Preparar", PrepareRcon), Ui.Btn("Mandar un mensaje", () =>
+                {
+                    string msg = Ui.Ask(this, "Mensaje al juego", "Lo verán todos los que estén jugando, en el chat.", "");
+                    if (msg == null) return;
+                    string err = SayInGame(msg);
+                    if (err == null) Status("Mensaje enviado al chat del juego."); else MessageBox.Show(this, "No se pudo: " + err, "Majinheim");
+                })));
             autoPopulating = false;
 
             var top = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Th.Bg };
@@ -144,6 +157,40 @@ namespace Majinheim
                 : "Backups: cada " + s.BackupEveryHours + " h con el server encendido" + (lastSchedBackup != DateTime.MinValue ? "; el último, " + lastSchedBackup.ToString("dd/MM HH:mm") : "") + ".");
             parts.Add(s.NightlyRestart ? "Reinicio diario a las " + s.NightlyRestartHour.ToString("00") + ":00 si no hay nadie." : "Reinicio diario: desactivado.");
             autoState.Text = string.Join("\n", parts);
+            rconState.Text = !Rcon.Installed ? "Hace falta el mod ValheimRcon en la lista de mods del server (solo server: los amigos no instalan nada). Después, con el server apagado, pulsa Preparar."
+                : !Rcon.Ready ? "El mod está instalado. Con el server apagado, pulsa Preparar: le pone una contraseña larga al azar y solo acepta órdenes desde este PC."
+                : "Listo: solo acepta órdenes desde este PC (puerto " + Rcon.Port + ", que no se abre en el router).";
+            rconState.ForeColor = Rcon.Ready ? Th.Good : Th.Muted;
+        }
+
+        void PrepareRcon()
+        {
+            if (runner.Running) { MessageBox.Show(this, "Apaga el server primero: el mod lee su ajuste al arrancar.", "Majinheim"); return; }
+            string err = Rcon.Configure();
+            if (err != null) MessageBox.Show(this, err, "Majinheim");
+            else Status("Mensajes en el juego preparados. Funcionan desde el próximo arranque del server.");
+            UpdateAutoState();
+        }
+
+        // Mensaje al chat del juego. Devuelve null si ha llegado.
+        string SayInGame(string text)
+        {
+            if (!Rcon.Ready) return "los mensajes en el juego no están preparados (pestaña Automático del launcher)";
+            if (!runner.Running) return "el server está apagado";
+            return Rcon.Say("[Majinheim] " + text);
+        }
+
+        bool WillWarn() { return Settings.Current.WarnBeforeStop && Rcon.Ready && runner.Running && (runner.Players > 0 || ServerWatch.OnlineCount > 0); }
+
+        // Se llama en segundo plano antes de apagar o reiniciar: avisa y espera un minuto si hay alguien jugando.
+        void WarnPlayers(string what)
+        {
+            if (!WillWarn()) return;
+            if (Rcon.Say("[Majinheim] El server " + what + " en 1 minuto. Se guarda el mundo; buscad un sitio seguro.") != null) return;
+            Status("Avisando a los jugadores: el server " + what + " en 1 minuto...");
+            System.Threading.Thread.Sleep(50000);
+            Rcon.Say("[Majinheim] El server " + what + " en 10 segundos.");
+            System.Threading.Thread.Sleep(10000);
         }
 
         // ------------------------------------------------------------ enganches (se llama una vez al abrir)
@@ -244,9 +291,8 @@ namespace Majinheim
             if (!Settings.Current.DiscordUpdates) return;
             var news = UpdateList().Where(u => announcedUpdates.Add(u["id"] + "@" + u["nueva"])).ToList();
             if (news.Count == 0) return;
-            Discord.Send("🆕 " + (news.Count == 1 ? "Hay una versión nueva de un mod" : "Hay versiones nuevas de " + news.Count + " mods") + ":\n" +
-                string.Join("\n", news.Take(15).Select(u => "• " + Esc((string)u["nombre"]) + ": " + u["actual"] + " → " + u["nueva"])) +
-                "\nNo se instala nada solo: se actualiza desde el launcher del server, pestaña Mods.");
+            Discord.Send("🆕 **" + (news.Count == 1 ? "Versión nueva de un mod" : "Versiones nuevas de " + news.Count + " mods") + "**\n" +
+                string.Join("\n", news.Take(15).Select(u => "• " + Esc((string)u["nombre"]) + ": " + u["actual"] + " → " + u["nueva"])));
         }
 
         List<Dictionary<string, object>> UpdateList()

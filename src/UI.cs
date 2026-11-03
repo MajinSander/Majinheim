@@ -898,6 +898,7 @@ namespace Majinheim
             runner.TryAdopt();
             UpdateServerState();
             WebAdmin.Action = WebAction;
+            WebAdmin.Say = SayInGame;
             InitAuto();
             WebPanel.Apply();
             CheckUpdatesQuiet();
@@ -918,12 +919,14 @@ namespace Majinheim
                     return "Arrancando. El mundo tarda un minuto en cargar.";
                 case "parar":
                     if (!runner.Running) return "El server ya está apagado.";
-                    RunBg("Guardando el mundo y apagando (desde la web)...", () => runner.Stop(true), null);
-                    return "Guardando el mundo y apagando.";
+                    bool warnP = WillWarn();
+                    RunBg("Guardando el mundo y apagando (desde la web)...", () => { WarnPlayers("se apaga"); runner.Stop(true); }, null);
+                    return warnP ? "Aviso a los jugadores en el chat y apago dentro de 1 minuto (se guarda el mundo)." : "Guardando el mundo y apagando.";
                 case "reiniciar":
                     if (!runner.Running) return "El server está apagado: usa Encender.";
-                    RunBg("Reiniciando el server (desde la web)...", () => { runner.Stop(true); System.Threading.Thread.Sleep(3000); runner.Start(); }, null);
-                    return "Reiniciando: se guarda el mundo, se apaga y vuelve a arrancar.";
+                    bool warnR = WillWarn();
+                    RunBg("Reiniciando el server (desde la web)...", () => { WarnPlayers("se reinicia"); runner.Stop(true); System.Threading.Thread.Sleep(3000); runner.Start(); }, null);
+                    return warnR ? "Aviso a los jugadores en el chat y reinicio dentro de 1 minuto." : "Reiniciando: se guarda el mundo, se apaga y vuelve a arrancar.";
                 case "backup":
                     RunBg("Creando backup (desde la web)...", () => Backup.Create("web", Backup.FullItems(), false), () => { if (pages.ContainsKey("Backups") && pages["Backups"].Visible) RefreshBackups(); });
                     return "Haciendo backup completo (mundo, personajes y ajustes).";

@@ -103,3 +103,6 @@ button.boton:disabled { opacity: .4; cursor: default; filter: none; }
 .lista.apilada .cuanto { white-space: normal; font-size: 13px; }
 .horas-eje { justify-content: flex-start; gap: 3px; }
 .horas-eje span { flex: 1; min-width: 0; overflow: visible; white-space: nowrap; }
+.fila-aviso { margin-top: 18px; }
+.en-linea { display: flex; gap: 8px; }
+.en-linea input { flex: 1; min-width: 0; }

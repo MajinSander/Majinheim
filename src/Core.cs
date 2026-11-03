@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "1.6.0";
+        public const string Version = "1.7.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -202,6 +202,8 @@ namespace Majinheim
         public bool DiscordJoins { get; set; }     // avisar cuando alguien entra o sale
         public bool DiscordUpdates { get; set; }   // avisar de mods con versión nueva
         public bool DiscordCommands { get; set; }  // comandos del bot (/estado, /encender...)
+        public string RconPassword { get; set; }   // contraseña de ValheimRcon (cifrada con DPAPI); solo escucha en 127.0.0.1
+        public bool WarnBeforeStop { get; set; }   // avisar en el chat del juego 1 minuto antes de apagar o reiniciar
         public int BackupEveryHours { get; set; }  // backup del mundo cada N horas con el server en marcha (0 = no)
         public bool NightlyRestart { get; set; }   // reinicio diario si no hay nadie jugando
         public int NightlyRestartHour { get; set; }
@@ -218,7 +220,7 @@ namespace Majinheim
             StaleBefore = "2026-06-01";
             GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; WebEnabled = true; WebPublic = false; WebPort = 8456; MapPort = 3000; WebAdminHash = "";
             WebUsers = new List<WebUser>();
-            DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true;
+            DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true; RconPassword = ""; WarnBeforeStop = true;
             BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5;
         }
         public static Settings Current = new Settings();
@@ -437,12 +439,14 @@ namespace Majinheim
                 Backup.Create("config-antes-de-instalar", new[] { new Backup.Item(cfg, "config") }, true);
 
             if (status != null) status("Instalando...");
+            string plugins = Path.Combine(bep, "plugins"), aside = Path.Combine(bep, "datos-de-mods");
+            SetAsideModData(plugins, aside);
             foreach (var d in new[] { "plugins", "patchers", "core" }) DeleteDir(Path.Combine(bep, d));
             try { DeleteDir(Path.Combine(bep, "cache")); } catch (IOException) { }   // caché de BepInEx: se regenera sola
             DeleteDir(Path.Combine(profile, "doorstop_libs"));
             foreach (var f in PackRootFiles) { var fp = Path.Combine(profile, f); if (File.Exists(fp)) File.Delete(fp); }
             Directory.CreateDirectory(cfg);
-            Directory.CreateDirectory(Path.Combine(bep, "plugins"));
+            Directory.CreateDirectory(plugins);
 
             try
             {
@@ -454,6 +458,7 @@ namespace Majinheim
                 throw new Exception("La carpeta del launcher está demasiado escondida y Windows no admite rutas tan largas:\n" + AppInfo.Root +
                     "\n\nMueve Majinheim.exe a una carpeta más corta, por ejemplo C:\\Majinheim o Documentos\\Majinheim, y vuelve a abrirlo.");
             }
+            finally { RestoreModData(aside, plugins); }
 
             foreach (var m in mods.Where(x => !string.IsNullOrEmpty(x.Patch)))
             {
@@ -568,6 +573,43 @@ namespace Majinheim
         public static void DeleteDir(string d)
         {
             if (Directory.Exists(d)) Directory.Delete(d, true);
+        }
+
+        // Datos que algunos mods crean dentro de su carpeta de plugins y que no vienen en su zip (WebMap: el dibujo del mundo y lo explorado).
+        // Se apartan antes de borrar los plugins y se devuelven después; nunca se borran.
+        static readonly string[] ModDataDirs = { "map_data" };
+
+        static void SetAsideModData(string plugins, string aside)
+        {
+            if (!Directory.Exists(plugins)) return;
+            foreach (var mod in Directory.GetDirectories(plugins))
+                foreach (var name in ModDataDirs)
+                {
+                    string src = Path.Combine(mod, name);
+                    if (!Directory.Exists(src)) continue;
+                    string dst = Path.Combine(aside, Path.GetFileName(mod), name);
+                    if (Directory.Exists(dst)) Directory.Move(dst, dst + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"));   // resto de una instalación cortada
+                    Directory.CreateDirectory(Path.GetDirectoryName(dst));
+                    Directory.Move(src, dst);
+                }
+        }
+
+        static void RestoreModData(string aside, string plugins)
+        {
+            if (!Directory.Exists(aside)) return;
+            foreach (var mod in Directory.GetDirectories(aside))
+            {
+                foreach (var name in ModDataDirs)
+                {
+                    string src = Path.Combine(mod, name), modDir = Path.Combine(plugins, Path.GetFileName(mod)), dst = Path.Combine(modDir, name);
+                    if (!Directory.Exists(src)) continue;
+                    if (!Directory.Exists(modDir) || Directory.Exists(dst)) { Log.W("Datos de {0} guardados aparte en {1}.", Path.GetFileName(mod), src); continue; }
+                    Directory.Move(src, dst);
+                    Log.W("Conservados los datos de {0} ({1}).", Path.GetFileName(mod), name);
+                }
+                if (!Directory.EnumerateFileSystemEntries(mod).Any()) Directory.Delete(mod);
+            }
+            if (!Directory.EnumerateFileSystemEntries(aside).Any()) Directory.Delete(aside);
         }
 
         public static void CopyDir(string src, string dst, bool overwrite)
