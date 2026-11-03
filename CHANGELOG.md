@@ -1,5 +1,8 @@
 # Novedades
 
+## 1.8.1
+- **Actualizaciones de Valheim**: Steam actualiza el server solo, cuando está apagado. El launcher avisa en Discord, en la pestaña **Automático** y en la web cuando hay una actualización esperando y cuando ya se ha instalado (con una versión nueva del juego, algún mod puede necesitar actualizarse).
+
 ## 1.7.2
 - Las copias del mundo guardan también lo explorado del mapa de la web.
 - En la web, "Último backup" enseña la última copia del mundo (no las de ajustes que se hacen al instalar mods).
