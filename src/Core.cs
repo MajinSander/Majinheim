@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "1.7.2";
+        public const string Version = "1.8.1";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -34,6 +34,7 @@ namespace Majinheim
         public const string GitHubRepo = "MajinSander/Majinheim";   // donde se publica el modpack y el launcher de jugador
         public const string Author = "Majin";
         public const string GameAppId = "892970";
+        public const string ServerAppId = "896660";   // Valheim Dedicated Server
         public const string BepInExId = "denikson-BepInExPack_Valheim";
         public const string ClientExeName = "Majinheim.exe";
 
@@ -207,6 +208,8 @@ namespace Majinheim
         public int BackupEveryHours { get; set; }  // backup del mundo cada N horas con el server en marcha (0 = no)
         public bool NightlyRestart { get; set; }   // reinicio diario si no hay nadie jugando
         public int NightlyRestartHour { get; set; }
+        public string OffsiteDir { get; set; }     // copia extra de los backups del mundo en otra carpeta (otro disco, OneDrive...); vacío = no
+        public string ValheimBuild { get; set; }   // versión de Steam (buildid) del server de Valheim la última vez que se miró
         // comunes: de dónde sale el modpack (GitHub)
         public string GitHubRepo { get; set; }
         // edicion cliente
@@ -221,7 +224,7 @@ namespace Majinheim
             GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; WebEnabled = true; WebPublic = false; WebPort = 8456; MapPort = 3000; WebAdminHash = "";
             WebUsers = new List<WebUser>();
             DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true; RconPassword = ""; WarnBeforeStop = true;
-            BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5;
+            BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5; OffsiteDir = "";
         }
         public static Settings Current = new Settings();
         public static void Load() { Current = Json.Load<Settings>(AppInfo.SettingsFile); if (Current.WebUsers == null) Current.WebUsers = new List<WebUser>(); }
@@ -670,7 +673,38 @@ namespace Majinheim
             File.Move(tmp, path);
             Log.W("Backup creado: {0}", name);
             if (auto) Prune();
+            if (Array.IndexOf(OffsiteLabels, label) >= 0) CopyOffsite(path);
             return path;
+        }
+
+        // ---- Copia fuera del PC: los backups con el mundo se copian también a otra carpeta (en segundo plano).
+        static readonly string[] OffsiteLabels = { "programado", "mundo-al-arrancar", "manual", "web" };
+        public const int OffsiteKeep = 10;
+        public static string OffsiteFolder { get { var d = (Settings.Current.OffsiteDir ?? "").Trim(); return d.Length == 0 ? null : System.IO.Path.Combine(d, "Majinheim-backups"); } }
+        public static DateTime OffsiteLast { get; private set; }
+        public static string OffsiteError { get; private set; }
+
+        public static void CopyOffsite(string zip)
+        {
+            string dir = OffsiteFolder;
+            if (dir == null) return;
+            var th = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    Directory.CreateDirectory(dir);
+                    string dst = System.IO.Path.Combine(dir, System.IO.Path.GetFileName(zip)), tmp = dst + ".part";
+                    File.Copy(zip, tmp, true);
+                    if (File.Exists(dst)) File.Delete(dst);
+                    File.Move(tmp, dst);
+                    foreach (var old in new DirectoryInfo(dir).GetFiles("*.zip").OrderByDescending(f => f.LastWriteTimeUtc).Skip(OffsiteKeep))
+                        try { old.Delete(); } catch { }
+                    OffsiteLast = DateTime.Now; OffsiteError = null;
+                    Log.W("Copia fuera del PC: {0}", dst);
+                }
+                catch (Exception e) { OffsiteError = e.Message; Log.W("Copia fuera del PC falló: {0}", e.Message); }
+            }) { IsBackground = true, Name = "Copia externa" };
+            th.Start();
         }
 
         static void AddFile(ZipArchive z, string f, string name)
@@ -810,6 +844,42 @@ namespace Majinheim
         }
 
         public static string SteamExe() { return Path.Combine(SteamPath(), "steam.exe"); }
+
+        // Lo que dice el appmanifest de Steam de una app instalada. Flags 2 = Steam tiene una actualización y no ha podido
+        // instalarla todavía (con el server de Valheim, porque está encendido: lo actualiza solo cuando se apaga).
+        public class AppState
+        {
+            public string BuildId, TargetBuildId;
+            public int Flags;
+            public bool UpdatePending { get { return (Flags & 2) != 0 || (!string.IsNullOrEmpty(TargetBuildId) && TargetBuildId != "0" && TargetBuildId != BuildId); } }
+        }
+
+        // installDir = ...\steamapps\common\<juego>  ->  ...\steamapps\appmanifest_<id>.acf
+        public static AppState ReadManifest(string installDir, string appId)
+        {
+            if (string.IsNullOrEmpty(installDir)) return null;
+            var common = Directory.GetParent(installDir.TrimEnd('\\'));
+            if (common == null || common.Parent == null) return null;
+            string acf = Path.Combine(common.Parent.FullName, "appmanifest_" + appId + ".acf");
+            if (!File.Exists(acf)) return null;
+            string t = File.ReadAllText(acf);
+            Func<string, string> get = k => { var m = Regex.Match(t, "\"" + k + "\"\\s+\"([^\"]*)\""); return m.Success ? m.Groups[1].Value : null; };
+            int flags; int.TryParse(get("StateFlags"), out flags);
+            return new AppState { BuildId = get("buildid"), TargetBuildId = get("TargetBuildID"), Flags = flags };
+        }
+
+        static AppState serverState; static DateTime serverStateAt;
+
+        // El server de Valheim según Steam (se lee como mucho una vez por minuto). null si no se sabe.
+        public static AppState Server()
+        {
+            if ((DateTime.Now - serverStateAt).TotalSeconds >= 60)
+            {
+                try { serverState = ReadManifest(Settings.Current.ServerDir, AppInfo.ServerAppId); } catch { serverState = null; }
+                serverStateAt = DateTime.Now;
+            }
+            return serverState;
+        }
 
         public static List<string> Libraries()
         {

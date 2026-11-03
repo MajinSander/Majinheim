@@ -20,7 +20,7 @@ namespace Majinheim
 {
     public static class WebPanel
     {
-        public const string Version = "0.3.0";
+        public const string Version = "0.4.0";
         static MiniHttp http;
         public static string Error { get; private set; }
         public static bool Running { get { return http != null; } }
@@ -76,6 +76,7 @@ namespace Majinheim
             if (req.Method == "POST") return MiniHttp.Response.Text(405, "Solo lectura");
             if (path == "/api/estado") return MiniHttp.Response.JsonOf(ServerWatch.Snapshot(), true);
             if (path == "/salud") return MiniHttp.Response.Text(200, "ok");
+            if (path == "/robots.txt") return MiniHttp.Response.Text(200, "User-agent: *\nDisallow: /\n");   // que los buscadores no guarden la página (salen nombres de jugadores)
             if (path == "/api/estadisticas") return MiniHttp.Response.JsonOf(ServerWatch.Stats(), true);
             if (path == "/admin") path = "/admin.html";
             if (path == "/estadisticas") path = "/estadisticas.html";
@@ -279,6 +280,7 @@ namespace Majinheim
             h.Append("X-Content-Type-Options: nosniff\r\n");
             h.Append("Referrer-Policy: no-referrer\r\n");
             h.Append("X-Frame-Options: DENY\r\n");
+            h.Append("X-Robots-Tag: noindex, nofollow\r\n");
             h.Append("Content-Security-Policy: default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'\r\n");
             foreach (var x in r.Extra) h.Append(x).Append("\r\n");
             h.Append("Connection: close\r\n\r\n");
@@ -357,7 +359,7 @@ namespace Majinheim
                 string loc = resp.Headers["Location"];
                 if (!string.IsNullOrEmpty(loc) && loc.StartsWith("/") && !loc.StartsWith("//")) h.Append("Location: ").Append(Prefix).Append(Regex.Replace(loc, @"[\r\n]", "")).Append("\r\n");
                 if (resp.ContentLength >= 0) h.Append("Content-Length: ").Append(resp.ContentLength).Append("\r\n");
-                h.Append("X-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nX-Frame-Options: SAMEORIGIN\r\nConnection: close\r\n\r\n");
+                h.Append("X-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nX-Frame-Options: SAMEORIGIN\r\nX-Robots-Tag: noindex, nofollow\r\nConnection: close\r\n\r\n");
                 var hb = Encoding.ASCII.GetBytes(h.ToString());
                 ns.Write(hb, 0, hb.Length);
                 if (!head) using (var body = resp.GetResponseStream()) body.CopyTo(ns);
@@ -621,6 +623,8 @@ namespace Majinheim
         // desde que se abrió el launcher, nunca de líneas viejas del registro. Se llama con el cerrojo cogido: no bloquear.
         public static event Action<string, string, int> PlayerEvent;
         public static int OnlineCount { get { lock (lk) return online.Values.Count(l => l.Name != null); } }
+        // SteamID de quien está jugando con ese nombre (para expulsar o banear sin equivocarse de persona). Nunca sale a la web.
+        public static string SteamIdOf(string name) { lock (lk) { var l = online.Values.FirstOrDefault(x => x.Name != null && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)); return l == null ? null : l.Steam; } }
         // Última vez que hubo alguien jugando (ahora mismo, si hay alguien dentro).
         public static DateTime LastActivity
         {
@@ -828,6 +832,7 @@ namespace Majinheim
                     { "estado", !run ? "apagado" : (ready ? "en marcha" : "arrancando") },
                     { "desde", run ? Iso(procStart) : null },
                     { "version", version },
+                    { "actualizacionPendiente", Steam.Server() != null && Steam.Server().UpdatePending },
                     { "ultimoGuardado", lastSave.HasValue ? Iso(lastSave.Value) : null },
                     { "dia", worldDay },
                     { "cpu", cpu },
@@ -861,6 +866,7 @@ namespace Majinheim
             }
             catch { o["mods"] = null; }
             o["mapa"] = mapUp ? MapProxy.Prefix + "/" : null;
+            o["jefes"] = Bosses.Public();
             o["generado"] = Iso(now);
             o["panel"] = WebPanel.Version;
             return o;
@@ -927,10 +933,78 @@ namespace Majinheim
             };
         }
 
+        public static DateTime ParseIsoPublic(string s) { return ParseIso(s); }
+
         static DateTime ParseIso(string s)
         {
             DateTime d;
             return DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out d) ? d : DateTime.MinValue;
+        }
+    }
+
+    // Jefes derrotados del mundo. El launcher los lee del server (orden globalKeys de ValheimRcon) y los guarda en logs\jefes.json
+    // con la fecha en que los vio por primera vez. Aquí solo se leen para la web.
+    public static class Bosses
+    {
+        public class Entry { public string Key { get; set; } public string Since { get; set; } public bool Before { get; set; } }
+        public static readonly string[][] All =
+        {
+            new[] { "defeated_eikthyr", "Eikthyr", "Pradera" },
+            new[] { "defeated_gdking", "El Anciano", "Selva Negra" },
+            new[] { "defeated_bonemass", "Bonemass", "Pantano" },
+            new[] { "defeated_dragon", "Moder", "Montañas" },
+            new[] { "defeated_goblinking", "Yagluth", "Llanuras" },
+            new[] { "defeated_queen", "La Reina", "Tierras Brumosas" },
+            new[] { "defeated_fader", "Fader", "Tierras de Ceniza" },
+        };
+        public static string File { get { return Path.Combine(AppInfo.LogDir, "jefes.json"); } }
+        static readonly object lk = new object();
+
+        public static List<Entry> Load()
+        {
+            lock (lk)
+            {
+                try { if (System.IO.File.Exists(File)) return Json.Load<List<Entry>>(File) ?? new List<Entry>(); } catch { }
+                return new List<Entry>();
+            }
+        }
+
+        // Apunta los jefes que ve ahora en el mundo. Devuelve los nuevos (para avisar). La primera vez, los que ya estaban
+        // se apuntan como "antes" y no se avisan.
+        public static List<string> Update(IEnumerable<string> keysNow)
+        {
+            lock (lk)
+            {
+                var list = Load();
+                bool first = !System.IO.File.Exists(File);
+                var news = new List<string>();
+                foreach (var k in keysNow.Select(x => x.ToLowerInvariant()).Distinct())
+                {
+                    if (!All.Any(b => b[0] == k) || list.Any(e => e.Key == k)) continue;
+                    list.Add(new Entry { Key = k, Since = DateTime.Now.ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture), Before = first });
+                    if (!first) news.Add(k);
+                }
+                Directory.CreateDirectory(AppInfo.LogDir);
+                Json.Save(File, list);
+                return news;
+            }
+        }
+
+        public static string Name(string key) { var b = All.FirstOrDefault(x => x[0] == key); return b == null ? key : b[1]; }
+
+        public static List<Dictionary<string, object>> Public()
+        {
+            if (!System.IO.File.Exists(File)) return new List<Dictionary<string, object>>();   // aún no se ha podido mirar el mundo
+            var got = Load();
+            return All.Select(b =>
+            {
+                var e = got.FirstOrDefault(x => x.Key == b[0]);
+                return new Dictionary<string, object>
+                {
+                    { "nombre", b[1] }, { "bioma", b[2] }, { "derrotado", e != null },
+                    { "fecha", e != null && !e.Before ? e.Since : null },
+                };
+            }).ToList();
         }
     }
 }

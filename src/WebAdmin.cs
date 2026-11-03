@@ -49,7 +49,11 @@ namespace Majinheim
         // Lo pone la ventana del launcher: ejecuta "iniciar", "parar", "reiniciar" o "backup" y devuelve qué ha hecho.
         public static Func<string, string> Action;
         public static Func<string, string> Say;   // mensaje al chat del juego; devuelve null si ha llegado (lo pone el launcher)
-        public static Func<Dictionary<string, object>> AdminExtras;   // backups, mods con versión nueva y tareas (lo pone el launcher)
+        public static Func<Dictionary<string, object>> AdminExtras;
+        public static Func<string, string> RconExec;   // orden al server por RCON; devuelve la respuesta o lanza excepción (lo pone el launcher)
+
+        // Órdenes que se pueden mandar desde la consola web. Nada que borre cosas del mundo o toque inventarios.
+        public static readonly string[] ConsoleAllowed = { "players", "banlist", "kick", "ban", "unban", "save", "time", "globalkeys", "serverstats", "logs", "say", "showmessage", "findobjects" };   // backups, mods con versión nueva y tareas (lo pone el launcher)
 
         static List<WebUser> Users { get { var s = Settings.Current; if (s.WebUsers == null) s.WebUsers = new List<WebUser>(); return s.WebUsers; } }
         static WebUser Find(string name)
@@ -266,6 +270,42 @@ namespace Majinheim
                 string err = say == null ? "El launcher del server no está listo." : say(text);
                 Audit(ip, user.Name + " · aviso en el juego: " + (err == null ? text : "no llegó (" + err + ")"));
                 res = err == null ? Ok("Mensaje enviado al chat del juego.") : Err(409, "No se pudo: " + err);
+            }
+            else if (req.Path == "/api/admin/consola")
+            {
+                string cmd = null;
+                try { var o = Json.ParseObj(req.BodyText); object v; if (o.TryGetValue("orden", out v)) cmd = v as string; } catch { }
+                cmd = System.Text.RegularExpressions.Regex.Replace(cmd ?? "", @"[\x00-\x1f]+", " ").Trim();
+                if (cmd.Length == 0) return Err(400, "Escribe una orden.");
+                if (cmd.Length > 200) return Err(400, "Máximo 200 caracteres.");
+                string verb = cmd.Split(' ')[0].ToLowerInvariant();
+                if (Array.IndexOf(ConsoleAllowed, verb) < 0) return Err(400, "Esa orden no se puede usar desde la web. Permitidas: " + string.Join(", ", ConsoleAllowed) + ".");
+                var exec = RconExec;
+                if (exec == null) return Err(503, "La consola no está lista (falta ValheimRcon o el launcher del server).");
+                string output, err = null;
+                try { output = exec(cmd) ?? ""; }
+                catch (Exception e) { output = null; err = e.Message; }
+                Audit(ip, user.Name + " · consola: " + cmd + (err != null ? " (falló: " + err + ")" : ""));
+                if (err != null) return Err(409, "No se pudo: " + err);
+                if (output.Length > 8000) output = output.Substring(0, 8000) + "\n…";
+                res = MiniHttp.Response.JsonOf(200, new Dictionary<string, object> { { "ok", true }, { "salida", output } });
+            }
+            else if (req.Path == "/api/admin/jugador")
+            {
+                string name = null, what = null;
+                try { var o = Json.ParseObj(req.BodyText); object v; if (o.TryGetValue("nombre", out v)) name = v as string; if (o.TryGetValue("accion", out v)) what = v as string; } catch { }
+                if (what != "expulsar" && what != "banear") return Err(400, "Acción desconocida.");
+                if (string.IsNullOrWhiteSpace(name)) return Err(400, "Falta el jugador.");
+                string id = ServerWatch.SteamIdOf(name);
+                if (id == null) return Err(409, "No encuentro a " + name + " entre los conectados.");
+                var exec = RconExec;
+                if (exec == null) return Err(503, "La consola no está lista (falta ValheimRcon o el launcher del server).");
+                string err = null;
+                try { exec((what == "banear" ? "ban " : "kick ") + id); }
+                catch (Exception e) { err = e.Message; }
+                Audit(ip, user.Name + " · " + (what == "banear" ? "baneó" : "expulsó") + " a " + name + (err != null ? " (falló: " + err + ")" : ""));
+                if (err != null) return Err(409, "No se pudo: " + err);
+                res = Ok(what == "banear" ? name + " está baneado. Para quitarlo: unban " + name + " en la consola." : name + " ha sido expulsado.");
             }
             else if (req.Path == "/api/admin/accion")
             {

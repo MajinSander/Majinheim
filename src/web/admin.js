@@ -79,6 +79,7 @@
       li.appendChild(q); li.appendChild(c); ud.appendChild(li);
     });
 
+    pintarConectados(js, s.estado);
     pintarExtras(d);
 
     var pre = $('registro');
@@ -88,6 +89,53 @@
     if (!timer) timer = setInterval(refrescar, 4000);
   }
 
+  function pintarConectados(js, estado) {
+    $('n-con').textContent = js.length;
+    var ul = $('conectados');
+    var clave = js.map(function (j) { return j.nombre; }).join('|') + '#' + estado;
+    if (ul.getAttribute('data-clave') === clave) return;   // no repintar (y no perder el foco) si nada ha cambiado
+    ul.setAttribute('data-clave', clave);
+    limpiar(ul);
+    js.forEach(function (j) {
+      var li = document.createElement('li');
+      var q = document.createElement('span'); q.className = 'quien'; q.textContent = j.nombre;
+      var c = document.createElement('span'); c.className = 'botones-fila';
+      [['expulsar', 'Expulsar', 'secundario'], ['banear', 'Banear', 'peligro']].forEach(function (a) {
+        var b = document.createElement('button');
+        b.className = 'boton chico ' + a[2]; b.textContent = a[1]; b.type = 'button';
+        b.addEventListener('click', function () { accionJugador(j.nombre, a[0]); });
+        c.appendChild(b);
+      });
+      li.appendChild(q); li.appendChild(c); ul.appendChild(li);
+    });
+    if (!ul.firstChild) { var li = document.createElement('li'); li.className = 'tenue'; li.textContent = estado === 'apagado' ? 'El server está apagado.' : 'No hay nadie jugando.'; ul.appendChild(li); }
+  }
+
+  function accionJugador(nombre, accion) {
+    var msg = accion === 'banear'
+      ? '¿Banear a ' + nombre + '? Lo saca del server y no podrá volver a entrar hasta que lo quites.'
+      : '¿Expulsar a ' + nombre + ' del server? Podrá volver a entrar.';
+    if (!window.confirm(msg)) return;
+    $('jug-resultado').textContent = 'Un momento…';
+    api('/api/admin/jugador', { nombre: nombre, accion: accion }).then(function (r) {
+      if (r._code === 401) { verLogin('Tu sesión ha caducado. Entra otra vez.'); return; }
+      $('jug-resultado').textContent = r.mensaje || '';
+      refrescar();
+    });
+  }
+
+  function consola(orden) {
+    orden = (orden || '').trim();
+    if (!orden) return;
+    var pre = $('consola-salida');
+    pre.textContent = '> ' + orden + '\n…';
+    api('/api/admin/consola', { orden: orden }).then(function (r) {
+      if (r._code === 401) { verLogin('Tu sesión ha caducado. Entra otra vez.'); return; }
+      pre.textContent = '> ' + orden + '\n' + (r.ok ? (r.salida || '(sin respuesta)') : (r.mensaje || 'No se pudo.'));
+      pre.className = 'registro consola' + (r.ok ? '' : ' fallo');
+    }).catch(function () { pre.textContent = '> ' + orden + '\nSin conexión con el server.'; });
+  }
+
   var tipos = { 'mundo-al-arrancar': 'al arrancar', 'programado': 'automático', 'web': 'desde la web', 'antes-de-restaurar': 'antes de restaurar' };
   function pintarExtras(d) {
     var t = d.tareas || {};
@@ -95,6 +143,8 @@
     $('a-tarea-reinicio').textContent = t.reinicioDiario ? 'a las ' + t.reinicioDiario + ' si no hay nadie' : (d.tareas ? 'desactivado' : '—');
     $('a-tarea-discord').textContent = t.discord === 'ok' ? 'funcionando' : t.discord === 'error' ? 'el último aviso falló' : (d.tareas ? 'sin configurar' : '—');
     $('a-tarea-discord').className = t.discord === 'error' ? 'aviso' : '';
+    $('a-tarea-externa').textContent = t.copiaExterna === 'ok' ? (t.copiaExternaUltima ? 'última ' + new Date(t.copiaExternaUltima).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'activada') : t.copiaExterna === 'error' ? 'la última copia falló' : (d.tareas ? 'desactivada' : '—');
+    $('a-tarea-externa').className = t.copiaExterna === 'error' ? 'aviso' : '';
 
     var act = d.actualizaciones || [];
     $('n-act').textContent = act.length;
@@ -157,6 +207,14 @@
       $('aviso-resultado').textContent = r.mensaje || '';
       if (r.ok) $('aviso-texto').value = '';
     });
+  });
+
+  $('form-consola').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    consola($('consola-orden').value);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-orden]'), function (b) {
+    b.addEventListener('click', function () { consola(b.getAttribute('data-orden')); });
   });
 
   Array.prototype.forEach.call(document.querySelectorAll('[data-accion]'), function (b) {

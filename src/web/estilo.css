@@ -106,3 +106,16 @@ button.boton:disabled { opacity: .4; cursor: default; filter: none; }
 .fila-aviso { margin-top: 18px; }
 .en-linea { display: flex; gap: 8px; }
 .en-linea input { flex: 1; min-width: 0; }
+/* 1.8.0: jugadores conectados, consola y jefes */
+.boton.chico { padding: 6px 12px; font-size: 13px; }
+.botones-fila { display: flex; gap: 6px; flex-shrink: 0; }
+.lista li .botones-fila { align-items: center; }
+.botonera.rapidas { margin-top: 10px; }
+.registro.consola { margin-top: 12px; min-height: 64px; max-height: 300px; color: var(--texto); }
+.registro.consola.fallo { color: var(--rojo); }
+code { font: 12px ui-monospace, Consolas, monospace; background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 4px; }
+.jefes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.jefes li { border: 1px solid var(--borde); border-radius: 10px; padding: 10px 12px; opacity: .45; }
+.jefes li.hecho { opacity: 1; border-color: var(--ambar); }
+.jefes .nombre { display: block; font-weight: 600; }
+.jefes .bioma, .jefes .fecha { display: block; font-size: 12px; color: var(--tenue); }
