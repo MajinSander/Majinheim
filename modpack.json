@@ -1,11 +1,11 @@
 {
   "Name": "Majinheim",
-  "Revision": 3,
+  "Revision": 4,
   "GameAddress": "majinrouter.asuscomm.com:2456",
   "LanHost": "",
-  "LauncherVersion": "1.4.2",
+  "LauncherVersion": "1.8.2",
   "Message": "Bienvenido a Majinheim 1.0",
-  "WebUrl": "",
+  "WebUrl": "https://majinrouter.asuscomm.com/",
   "Mods": [
     {
       "Id": "denikson-BepInExPack_Valheim",
@@ -36,7 +36,7 @@
     },
     {
       "Id": "RandyKnapp-EpicLoot",
-      "Version": "0.15.5",
+      "Version": "0.15.6",
       "Enabled": true,
       "Side": "both",
       "Note": "Botín mágico y encantamientos",
@@ -171,7 +171,7 @@
     },
     {
       "Id": "TastyChickenLegs-AutomaticFuel",
-      "Version": "1.6.1",
+      "Version": "1.6.2",
       "Enabled": true,
       "Side": "both",
       "Note": "Combustible automático",
@@ -180,7 +180,7 @@
     },
     {
       "Id": "Cartur-Carturs_Map_Pins",
-      "Version": "2.1.0",
+      "Version": "2.1.2",
       "Enabled": true,
       "Side": "client",
       "Note": "Pines automáticos en el mapa (solo jugadores)",
