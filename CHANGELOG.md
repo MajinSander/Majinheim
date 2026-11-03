@@ -1,5 +1,9 @@
 # Novedades
 
+## 1.8.3
+- **El mapa de la web, en español**: menús, botones, ayudas, estadísticas de jugadores, portales, mundo, plano y la visita guiada. Los nombres del juego van como en Valheim en español (Prados, Selva Negra, El Anciano, Masa Ósea…), y los comandos del chat (`!pin`…) no cambian. Se traduce en la propia web, sin tocar el mod, así que sigue en español aunque el mod se actualice.
+- Jefes derrotados: Eikthyr sale en los Prados y Bonemass como Masa Ósea, como en el juego.
+
 ## 1.8.2
 - "Comprobar desde internet" (pestaña **Web**) ya no dice que falla cuando el router simplemente no deja abrir la dirección pública desde dentro de casa: comprueba el HTTPS del propio PC, que la DDNS apunte a casa y las visitas que han llegado de internet.
 - `/estado` en Discord dice también si hay una actualización de Valheim esperando.

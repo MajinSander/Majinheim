@@ -90,7 +90,7 @@ namespace Majinheim
         }
 
         // Las páginas van dentro del .exe (build.bat las mete con /resource). Si hay copia en web\ junto al .exe, manda esa (para retocarlas sin compilar).
-        static byte[] Resource(string name)
+        internal static byte[] Resource(string name)
         {
             string local = AppInfo.P("web", name);
             if (File.Exists(local)) return File.ReadAllBytes(local);
@@ -397,7 +397,10 @@ namespace Majinheim
             if (probe.Contains("..") || probe.Contains("\\") || probe.Contains("\0")) { MiniHttp.Send(ns, MiniHttp.Response.Text(400, "Petición no válida"), head); return; }
             if (target == "/site-config.js" || target.StartsWith("/site-config.js?"))
             {
-                MiniHttp.Send(ns, new MiniHttp.Response(200, "application/javascript; charset=utf-8", Encoding.UTF8.GetBytes(SiteConfig), true), head);
+                // Junto a la configuración va la traducción al español (mapa-es.js): todas las páginas del mapa cargan este archivo.
+                var es = WebPanel.Resource("mapa-es.js");
+                var cfg = Encoding.UTF8.GetBytes(SiteConfig + (es != null ? "\n" + Encoding.UTF8.GetString(es) : ""));
+                MiniHttp.Send(ns, new MiniHttp.Response(200, "application/javascript; charset=utf-8", cfg, true), head);
                 return;
             }
             var req = (HttpWebRequest)WebRequest.Create("http://127.0.0.1:" + Port + target);
@@ -1020,9 +1023,9 @@ namespace Majinheim
         public class Entry { public string Key { get; set; } public string Since { get; set; } public bool Before { get; set; } }
         public static readonly string[][] All =
         {
-            new[] { "defeated_eikthyr", "Eikthyr", "Pradera" },
+            new[] { "defeated_eikthyr", "Eikthyr", "Prados" },
             new[] { "defeated_gdking", "El Anciano", "Selva Negra" },
-            new[] { "defeated_bonemass", "Bonemass", "Pantano" },
+            new[] { "defeated_bonemass", "Masa Ósea", "Pantano" },
             new[] { "defeated_dragon", "Moder", "Montañas" },
             new[] { "defeated_goblinking", "Yagluth", "Llanuras" },
             new[] { "defeated_queen", "La Reina", "Tierras Brumosas" },
