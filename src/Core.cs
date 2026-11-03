@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "1.7.1";
+        public const string Version = "1.7.2";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -745,8 +745,37 @@ namespace Majinheim
             var list = new List<Item> { w, c };
             foreach (var f in new[] { "adminlist.txt", "bannedlist.txt", "permittedlist.txt" })
                 if (File.Exists(Path.Combine(AppInfo.SavesDir, f))) list.Add(new Item(Path.Combine(AppInfo.SavesDir, f), "saves_" + f.Replace(".txt", "")));
+            // Mapa de la web: WebMap guarda lo explorado dentro de su carpeta de plugins. Sin map.png: pesa mucho y el mod lo vuelve a dibujar.
+            string plugins = Path.Combine(AppInfo.Profile, @"BepInEx\plugins");
+            if (Directory.Exists(plugins))
+                foreach (var d in Directory.GetDirectories(plugins))
+                {
+                    string md = Path.Combine(d, "map_data", world);
+                    if (!Directory.Exists(md)) continue;
+                    var m = new Item(md, "mapa_" + Path.GetFileName(d));
+                    m.Filter = rel => !rel.Equals("map.png", StringComparison.OrdinalIgnoreCase);
+                    list.Add(m);
+                }
             return list;
         }
+
+        static readonly Dictionary<string, bool> worldCache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        // ¿Lleva el mundo? Hay backups solo de ajustes (los de antes de instalar mods...). Un zip no cambia, así que se recuerda.
+        public static bool HasWorld(Info b)
+        {
+            lock (worldCache)
+            {
+                bool r;
+                if (worldCache.TryGetValue(b.Path, out r)) return r;
+                try { using (var z = ZipFile.OpenRead(b.Path)) r = z.Entries.Any(e => e.FullName.StartsWith("saves_worlds_local/", StringComparison.OrdinalIgnoreCase)); }
+                catch { r = false; }
+                worldCache[b.Path] = r;
+                return r;
+            }
+        }
+
+        public static Info LastWorld() { return List().FirstOrDefault(HasWorld); }
 
         public static IEnumerable<Item> FullItems()
         {
