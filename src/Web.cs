@@ -76,6 +76,7 @@ namespace Majinheim
             if (req.Method == "POST") return MiniHttp.Response.Text(405, "Solo lectura");
             if (path == "/api/estado") return MiniHttp.Response.JsonOf(ServerWatch.Snapshot(), true);
             if (path == "/salud") return MiniHttp.Response.Text(200, "ok");
+            if (path == "/robots.txt") return MiniHttp.Response.Text(200, "User-agent: *\nDisallow: /\n");   // que los buscadores no guarden la página (salen nombres de jugadores)
             if (path == "/api/estadisticas") return MiniHttp.Response.JsonOf(ServerWatch.Stats(), true);
             if (path == "/admin") path = "/admin.html";
             if (path == "/estadisticas") path = "/estadisticas.html";
@@ -279,6 +280,7 @@ namespace Majinheim
             h.Append("X-Content-Type-Options: nosniff\r\n");
             h.Append("Referrer-Policy: no-referrer\r\n");
             h.Append("X-Frame-Options: DENY\r\n");
+            h.Append("X-Robots-Tag: noindex, nofollow\r\n");
             h.Append("Content-Security-Policy: default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'\r\n");
             foreach (var x in r.Extra) h.Append(x).Append("\r\n");
             h.Append("Connection: close\r\n\r\n");
@@ -357,7 +359,7 @@ namespace Majinheim
                 string loc = resp.Headers["Location"];
                 if (!string.IsNullOrEmpty(loc) && loc.StartsWith("/") && !loc.StartsWith("//")) h.Append("Location: ").Append(Prefix).Append(Regex.Replace(loc, @"[\r\n]", "")).Append("\r\n");
                 if (resp.ContentLength >= 0) h.Append("Content-Length: ").Append(resp.ContentLength).Append("\r\n");
-                h.Append("X-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nX-Frame-Options: SAMEORIGIN\r\nConnection: close\r\n\r\n");
+                h.Append("X-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nX-Frame-Options: SAMEORIGIN\r\nX-Robots-Tag: noindex, nofollow\r\nConnection: close\r\n\r\n");
                 var hb = Encoding.ASCII.GetBytes(h.ToString());
                 ns.Write(hb, 0, hb.Length);
                 if (!head) using (var body = resp.GetResponseStream()) body.CopyTo(ns);
