@@ -978,6 +978,8 @@ namespace Majinheim
         Process proc;
         volatile bool stopRequested;
         volatile int tailGen;
+        int quickCrashes;   // caídas seguidas a menos de 5 min de arrancar
+        public const string GaveUpStatus = "Caído: no arranca (3 intentos)";
         public event Action<string> GameLog;
         public event Action StateChanged;
         public int Players { get; private set; }
@@ -1055,6 +1057,16 @@ namespace Majinheim
             Log.W("El server se ha cerrado (codigo {0}).", code);
             if (!stopRequested && Settings.Current.AutoRestart)
             {
+                // Si se cae una y otra vez al poco de arrancar (un mod roto tras una actualización de Valheim...), no insistir:
+                // cada arranque hace un backup del mundo y en un rato se llevaría por delante los buenos más antiguos.
+                if ((DateTime.Now - StartedAt).TotalMinutes < 5) quickCrashes++; else quickCrashes = 0;
+                if (quickCrashes >= 3)
+                {
+                    quickCrashes = 0;
+                    Log.W("El server se ha caído 3 veces seguidas al poco de arrancar: lo dejo apagado. Mira BepInEx\\LogOutput.log del perfil del server.");
+                    SetStatus(GaveUpStatus);
+                    return;
+                }
                 SetStatus("Crasheo: reiniciando en 10 s");
                 Thread.Sleep(10000);
                 if (stopRequested) { SetStatus("Detenido"); return; }

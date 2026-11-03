@@ -271,6 +271,7 @@ namespace Majinheim
                 if (st == lastRunnerStatus) return;
                 if (st == "En marcha" && !wasUp) { wasUp = true; msg = "🟢 **" + Esc(Settings.Current.ServerName) + "** está encendido. ¡A jugar!"; }
                 else if (st.StartsWith("Crasheo")) { wasUp = false; msg = "🔴 El server se ha caído. Lo vuelvo a arrancar solo en unos segundos."; }
+                else if (st == ServerRunner.GaveUpStatus) { wasUp = false; msg = "🔴 El server se ha caído 3 veces seguidas nada más arrancar y lo he dejado apagado para no estropear nada. Hay que mirarlo (¿algún mod que no funciona tras una actualización?)."; }
                 else if (st == "Detenido" && (wasUp || lastRunnerStatus.StartsWith("Guardando"))) { wasUp = false; msg = "⚫ Server apagado (el mundo está guardado)."; }
                 lastRunnerStatus = st;
             }
