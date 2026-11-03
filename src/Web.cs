@@ -621,6 +621,8 @@ namespace Majinheim
         // desde que se abrió el launcher, nunca de líneas viejas del registro. Se llama con el cerrojo cogido: no bloquear.
         public static event Action<string, string, int> PlayerEvent;
         public static int OnlineCount { get { lock (lk) return online.Values.Count(l => l.Name != null); } }
+        // SteamID de quien está jugando con ese nombre (para expulsar o banear sin equivocarse de persona). Nunca sale a la web.
+        public static string SteamIdOf(string name) { lock (lk) { var l = online.Values.FirstOrDefault(x => x.Name != null && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)); return l == null ? null : l.Steam; } }
         // Última vez que hubo alguien jugando (ahora mismo, si hay alguien dentro).
         public static DateTime LastActivity
         {
@@ -861,6 +863,7 @@ namespace Majinheim
             }
             catch { o["mods"] = null; }
             o["mapa"] = mapUp ? MapProxy.Prefix + "/" : null;
+            o["jefes"] = Bosses.Public();
             o["generado"] = Iso(now);
             o["panel"] = WebPanel.Version;
             return o;
@@ -927,10 +930,77 @@ namespace Majinheim
             };
         }
 
+        public static DateTime ParseIsoPublic(string s) { return ParseIso(s); }
+
         static DateTime ParseIso(string s)
         {
             DateTime d;
             return DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out d) ? d : DateTime.MinValue;
+        }
+    }
+
+    // Jefes derrotados del mundo. El launcher los lee del server (orden globalKeys de ValheimRcon) y los guarda en logs\jefes.json
+    // con la fecha en que los vio por primera vez. Aquí solo se leen para la web.
+    public static class Bosses
+    {
+        public class Entry { public string Key { get; set; } public string Since { get; set; } public bool Before { get; set; } }
+        public static readonly string[][] All =
+        {
+            new[] { "defeated_eikthyr", "Eikthyr", "Pradera" },
+            new[] { "defeated_gdking", "El Anciano", "Selva Negra" },
+            new[] { "defeated_bonemass", "Bonemass", "Pantano" },
+            new[] { "defeated_dragon", "Moder", "Montañas" },
+            new[] { "defeated_goblinking", "Yagluth", "Llanuras" },
+            new[] { "defeated_queen", "La Reina", "Tierras Brumosas" },
+            new[] { "defeated_fader", "Fader", "Tierras de Ceniza" },
+        };
+        public static string File { get { return Path.Combine(AppInfo.LogDir, "jefes.json"); } }
+        static readonly object lk = new object();
+
+        public static List<Entry> Load()
+        {
+            lock (lk)
+            {
+                try { if (System.IO.File.Exists(File)) return Json.Load<List<Entry>>(File) ?? new List<Entry>(); } catch { }
+                return new List<Entry>();
+            }
+        }
+
+        // Apunta los jefes que ve ahora en el mundo. Devuelve los nuevos (para avisar). La primera vez, los que ya estaban
+        // se apuntan como "antes" y no se avisan.
+        public static List<string> Update(IEnumerable<string> keysNow)
+        {
+            lock (lk)
+            {
+                var list = Load();
+                bool first = !System.IO.File.Exists(File);
+                var news = new List<string>();
+                foreach (var k in keysNow.Select(x => x.ToLowerInvariant()).Distinct())
+                {
+                    if (!All.Any(b => b[0] == k) || list.Any(e => e.Key == k)) continue;
+                    list.Add(new Entry { Key = k, Since = DateTime.Now.ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture), Before = first });
+                    if (!first) news.Add(k);
+                }
+                Directory.CreateDirectory(AppInfo.LogDir);
+                Json.Save(File, list);
+                return news;
+            }
+        }
+
+        public static string Name(string key) { var b = All.FirstOrDefault(x => x[0] == key); return b == null ? key : b[1]; }
+
+        public static List<Dictionary<string, object>> Public()
+        {
+            var got = Load();
+            return All.Select(b =>
+            {
+                var e = got.FirstOrDefault(x => x.Key == b[0]);
+                return new Dictionary<string, object>
+                {
+                    { "nombre", b[1] }, { "bioma", b[2] }, { "derrotado", e != null },
+                    { "fecha", e != null && !e.Before ? e.Since : null },
+                };
+            }).ToList();
         }
     }
 }

@@ -207,6 +207,7 @@ namespace Majinheim
         public int BackupEveryHours { get; set; }  // backup del mundo cada N horas con el server en marcha (0 = no)
         public bool NightlyRestart { get; set; }   // reinicio diario si no hay nadie jugando
         public int NightlyRestartHour { get; set; }
+        public string OffsiteDir { get; set; }     // copia extra de los backups del mundo en otra carpeta (otro disco, OneDrive...); vacío = no
         // comunes: de dónde sale el modpack (GitHub)
         public string GitHubRepo { get; set; }
         // edicion cliente
@@ -221,7 +222,7 @@ namespace Majinheim
             GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; WebEnabled = true; WebPublic = false; WebPort = 8456; MapPort = 3000; WebAdminHash = "";
             WebUsers = new List<WebUser>();
             DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true; RconPassword = ""; WarnBeforeStop = true;
-            BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5;
+            BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5; OffsiteDir = "";
         }
         public static Settings Current = new Settings();
         public static void Load() { Current = Json.Load<Settings>(AppInfo.SettingsFile); if (Current.WebUsers == null) Current.WebUsers = new List<WebUser>(); }
@@ -670,7 +671,38 @@ namespace Majinheim
             File.Move(tmp, path);
             Log.W("Backup creado: {0}", name);
             if (auto) Prune();
+            if (Array.IndexOf(OffsiteLabels, label) >= 0) CopyOffsite(path);
             return path;
+        }
+
+        // ---- Copia fuera del PC: los backups con el mundo se copian también a otra carpeta (en segundo plano).
+        static readonly string[] OffsiteLabels = { "programado", "mundo-al-arrancar", "manual", "web" };
+        public const int OffsiteKeep = 10;
+        public static string OffsiteFolder { get { var d = (Settings.Current.OffsiteDir ?? "").Trim(); return d.Length == 0 ? null : System.IO.Path.Combine(d, "Majinheim-backups"); } }
+        public static DateTime OffsiteLast { get; private set; }
+        public static string OffsiteError { get; private set; }
+
+        public static void CopyOffsite(string zip)
+        {
+            string dir = OffsiteFolder;
+            if (dir == null) return;
+            var th = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    Directory.CreateDirectory(dir);
+                    string dst = System.IO.Path.Combine(dir, System.IO.Path.GetFileName(zip)), tmp = dst + ".part";
+                    File.Copy(zip, tmp, true);
+                    if (File.Exists(dst)) File.Delete(dst);
+                    File.Move(tmp, dst);
+                    foreach (var old in new DirectoryInfo(dir).GetFiles("*.zip").OrderByDescending(f => f.LastWriteTimeUtc).Skip(OffsiteKeep))
+                        try { old.Delete(); } catch { }
+                    OffsiteLast = DateTime.Now; OffsiteError = null;
+                    Log.W("Copia fuera del PC: {0}", dst);
+                }
+                catch (Exception e) { OffsiteError = e.Message; Log.W("Copia fuera del PC falló: {0}", e.Message); }
+            }) { IsBackground = true, Name = "Copia externa" };
+            th.Start();
         }
 
         static void AddFile(ZipArchive z, string f, string name)

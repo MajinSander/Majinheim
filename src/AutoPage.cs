@@ -14,7 +14,9 @@ namespace Majinheim
         TextBox tDiscToken, tDiscChannel;
         CheckBox cDiscJoins, cDiscUpdates, cDiscCommands, cNightly, cWarn;
         ComboBox cbBackupHours, cbNightlyHour;
-        Label discState, autoState, rconState;
+        Label discState, autoState, rconState, offsiteState;
+        DateTime nextBossPoll = DateTime.MinValue;
+        bool bossPollRunning;
         bool autoPopulating;
 
         // Estado de las tareas (solo en memoria; al abrir el launcher se recalcula).
@@ -86,6 +88,16 @@ namespace Majinheim
             cWarn.CheckedChanged += (o, e) => { if (autoPopulating) return; s.WarnBeforeStop = cWarn.Checked; Settings.Save(); };
             rconState = Ui.Lbl("", 10, FontStyle.Regular, Th.Muted);
             rconState.MaximumSize = new Size(480, 0);
+            offsiteState = Ui.Lbl("", 10, FontStyle.Regular, Th.Muted);
+            offsiteState.MaximumSize = new Size(480, 0);
+            var offBtns = Ui.Row(Ui.Btn("Elegir carpeta...", ChooseOffsite), Ui.Btn("Copiar el último ahora", () =>
+                {
+                    var last = Backup.List().FirstOrDefault(b => b.Label == "programado" || b.Label == "mundo-al-arrancar" || b.Label == "manual" || b.Label == "web");
+                    if (Backup.OffsiteFolder == null) { MessageBox.Show(this, "Elige antes una carpeta.", "Majinheim"); return; }
+                    if (last == null) { MessageBox.Show(this, "Todavía no hay ningún backup del mundo.", "Majinheim"); return; }
+                    Backup.CopyOffsite(last.Path);
+                    Status("Copiando " + System.IO.Path.GetFileName(last.Path) + " a la carpeta externa...");
+                }), Ui.Btn("Quitar", () => { s.OffsiteDir = ""; Settings.Save(); UpdateAutoState(); }));
             var tasks = Ui.Col(Ui.Lbl("Tareas automáticas", 11, FontStyle.Bold), autoState,
                 Ui.Lbl("Backup del mundo mientras el server está encendido", 9.5f), cbBackupHours,
                 cNightly, cbNightlyHour, why,
@@ -96,7 +108,8 @@ namespace Majinheim
                     if (msg == null) return;
                     string err = SayInGame(msg);
                     if (err == null) Status("Mensaje enviado al chat del juego."); else MessageBox.Show(this, "No se pudo: " + err, "Majinheim");
-                })));
+                })),
+                Ui.Lbl("Copia fuera del PC", 11, FontStyle.Bold), offsiteState, offBtns);
             autoPopulating = false;
 
             var top = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Th.Bg };
@@ -161,6 +174,30 @@ namespace Majinheim
                 : !Rcon.Ready ? "El mod está instalado. Con el server apagado, pulsa Preparar: le pone una contraseña larga al azar y solo acepta órdenes desde este PC."
                 : "Listo: solo acepta órdenes desde este PC (puerto " + Rcon.Port + ", que no se abre en el router).";
             rconState.ForeColor = Rcon.Ready ? Th.Good : Th.Muted;
+            if (offsiteState != null)
+            {
+                string od = Backup.OffsiteFolder;
+                offsiteState.Text = od == null ? "Desactivada. Elige una carpeta en otro disco, un USB o OneDrive: cada backup del mundo se copiará también allí (se guardan los " + Backup.OffsiteKeep + " últimos). Así, si el disco del PC falla, el mundo no se pierde."
+                    : Backup.OffsiteError != null ? "Último intento falló: " + Backup.OffsiteError + "\nCarpeta: " + od
+                    : "Activada: " + od + (Backup.OffsiteLast != DateTime.MinValue ? "\nÚltima copia: " + Backup.OffsiteLast.ToString("dd/MM HH:mm") : "\nSe copia con el próximo backup del mundo.");
+                offsiteState.ForeColor = od == null ? Th.Muted : Backup.OffsiteError != null ? Th.Bad : Th.Good;
+            }
+        }
+
+        void ChooseOffsite()
+        {
+            using (var d = new FolderBrowserDialog { Description = "Carpeta para la copia de los backups (otro disco, USB u OneDrive). Dentro se crea Majinheim-backups.", ShowNewFolderButton = true })
+            {
+                if (!string.IsNullOrEmpty(Settings.Current.OffsiteDir)) d.SelectedPath = Settings.Current.OffsiteDir;
+                if (d.ShowDialog(this) != DialogResult.OK) return;
+                string full = System.IO.Path.GetFullPath(d.SelectedPath).TrimEnd('\\');
+                if (full.StartsWith(System.IO.Path.GetFullPath(AppInfo.BackupDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                { MessageBox.Show(this, "Esa carpeta es la de los backups normales: elige otra, mejor en otro disco.", "Majinheim"); return; }
+                Settings.Current.OffsiteDir = full;
+                Settings.Save();
+                Log.W("Copia fuera del PC activada: {0}", full);
+            }
+            UpdateAutoState();
         }
 
         void PrepareRcon()
@@ -209,6 +246,12 @@ namespace Majinheim
                 else Discord.Send("⬅️ **" + Esc(name) + "** ha salido (" + Dur(min) + ").");
             };
             WebAdmin.AdminExtras = AdminExtras;
+            WebAdmin.RconExec = cmd =>
+            {
+                if (!Rcon.Ready) throw new Exception("la consola no está preparada (pestaña Automático, Mensajes en el juego)");
+                if (!runner.Running) throw new Exception("el server está apagado");
+                return Rcon.Exec(cmd);
+            };
             lastUpdateCheck = DateTime.Now;   // OnShown ya lanza la primera búsqueda de versiones
             DiscordBot.Apply();
         }
@@ -263,8 +306,46 @@ namespace Majinheim
                 }
             }
 
+            // Jefes derrotados: se mira cada 2 minutos por RCON (globalKeys)
+            if (runner.Running && Rcon.Ready && !bossPollRunning && now >= nextBossPoll && (now - runner.StartedAt).TotalSeconds > 90)
+            {
+                nextBossPoll = now.AddMinutes(2);
+                bossPollRunning = true;
+                Task.Factory.StartNew(PollBosses).ContinueWith(t => { bossPollRunning = false; });
+            }
+
             // Versiones nuevas de mods: cada 12 h
             if ((now - lastUpdateCheck).TotalHours >= 12) { lastUpdateCheck = now; CheckUpdatesQuiet(); }
+        }
+
+        void PollBosses()
+        {
+            string keys;
+            try { keys = Rcon.Exec("globalKeys"); }
+            catch { return; }   // server arrancando o sin RCON: ya se mirará en la próxima vuelta
+            var found = System.Text.RegularExpressions.Regex.Matches(keys ?? "", @"defeated_[a-z_]+", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                .Cast<System.Text.RegularExpressions.Match>().Select(m => m.Value);
+            foreach (var k in Bosses.Update(found))
+            {
+                Log.W("Jefe derrotado: {0}", Bosses.Name(k));
+                Discord.Send("⚔️ **¡Habéis derrotado a " + Bosses.Name(k) + "!** " + BossHint(k));
+                if (Rcon.Ready) Rcon.Say("[Majinheim] ¡Jefe derrotado: " + Bosses.Name(k) + "!");
+            }
+        }
+
+        static string BossHint(string key)
+        {
+            switch (key)
+            {
+                case "defeated_eikthyr": return "Con su asta se fabrica el pico: a por el cobre y el estaño de la Selva Negra.";
+                case "defeated_gdking": return "Su llave abre las criptas hundidas del Pantano.";
+                case "defeated_bonemass": return "Su espoleta encuentra la plata de las Montañas.";
+                case "defeated_dragon": return "Con sus lágrimas se hace la mesa de artesano: rumbo a las Llanuras.";
+                case "defeated_goblinking": return "Con su espíritu se hace la luz para las Tierras Brumosas.";
+                case "defeated_queen": return "Las Tierras de Ceniza os esperan.";
+                case "defeated_fader": return "Habéis completado Valheim. ¡Leyendas!";
+            }
+            return "";
         }
 
         void RunScheduledBackup()
@@ -324,6 +405,9 @@ namespace Majinheim
                         { "ultimoBackupAuto", lastSchedBackup == DateTime.MinValue ? null : lastSchedBackup.ToString("yyyy-MM-dd'T'HH:mm:sszzz") },
                         { "reinicioDiario", s.NightlyRestart ? s.NightlyRestartHour.ToString("00") + ":00" : null },
                         { "discord", Discord.Configured ? (Discord.LastError == null ? "ok" : "error") : null },
+                        { "copiaExterna", Backup.OffsiteFolder == null ? null : Backup.OffsiteError != null ? "error" : "ok" },
+                        { "copiaExternaUltima", Backup.OffsiteLast == DateTime.MinValue ? null : Backup.OffsiteLast.ToString("yyyy-MM-dd'T'HH:mm:sszzz") },
+                        { "consola", Rcon.Ready },
                     }
                 },
             };
