@@ -4,7 +4,8 @@
 - **Asistente con IA**: en Discord se le habla mencionando al bot con @, como a uno más del grupo ("@MajinBot ¿quién jugó ayer?", "¿cuántas horas lleva Benja este mes?", "¿qué jefe nos falta?") y responde con los datos reales del server: quién juega, horas y partidas de cada vikingo, días y horas en que se juega, muertes, jefes, mods, último backup y día del mundo. También resuelve dudas generales de Valheim y recuerda lo último hablado en el canal para seguir la conversación. El bot solo ve el texto de los mensajes que lo mencionan: no lee el resto de conversaciones.
 - La IA funciona **en el propio PC del server** con [Ollama](https://ollama.com): ni las preguntas ni los datos salen a internet, y no cuesta nada.
 - **Solo lee**: no puede encender, apagar ni cambiar nada, y nunca ve IDs de Steam ni IPs. A los administradores del Discord les puede mirar también el registro del server para buscar errores.
-- Nueva pestaña **Asistente IA** en el launcher del server: instalar Ollama, descargar el modelo con su progreso, elegir modelo (Qwen3 8B por defecto), activar las respuestas en Discord y probar preguntas sin salir del launcher.
+- Nueva pestaña **Asistente IA** en el launcher del server: instalar Ollama, descargar el modelo con su progreso, elegir modelo (Qwen3 14B por defecto; Qwen3 8B para gráficas de 8 GB), activar las respuestas en Discord y probar preguntas sin salir del launcher.
+- Antes de responder revisa que los números salgan de los datos reales; si no, rehace la respuesta o dice que no lo sabe.
 - Una pregunta cada 10 segundos por persona y una a la vez en la gráfica, para no cargar el PC mientras se juega.
 
 ## 1.8.3

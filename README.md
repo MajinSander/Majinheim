@@ -31,7 +31,7 @@ En el launcher del server, pestaña **Automático**: pega el token del bot y el 
 En Discord se le habla mencionando al bot con @, como a uno más del grupo: "@MajinBot ¿quién jugó ayer?", "¿cuántas horas lleva Benja este mes?", "¿qué jefe nos falta?". Recuerda lo último hablado en el canal, así que se le puede seguir preguntando ("¿y la semana pasada?").
 La IA funciona en el propio PC del server con [Ollama](https://ollama.com) (nada sale a internet), solo lee datos y nunca ve IDs de Steam ni IPs.
 Se prepara en la pestaña **Asistente IA** del launcher del server: instalar Ollama, descargar el modelo y activarla. Discord solo le pasa al bot el texto de los mensajes que lo mencionan: no lee el resto de conversaciones.
-Hace falta una tarjeta gráfica con unos 8 GB de memoria o más para que responda rápido.
+Va mejor con una tarjeta gráfica de 12 GB (modelo Qwen3 14B, responde en 1-2 segundos); con 8 GB se puede usar el Qwen3 8B, más rápido pero menos fino. Parada no gasta: el modelo se descarga solo a los 15 minutos sin preguntas.
 
 ## Avisos en el juego
 Antes de apagar o reiniciar el server con gente dentro, sale un aviso en el chat del juego 1 minuto y 10 segundos antes.

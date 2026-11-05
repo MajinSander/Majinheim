@@ -239,7 +239,7 @@ namespace Majinheim
             WebUsers = new List<WebUser>();
             DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true; RconPassword = ""; WarnBeforeStop = true;
             BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5; OffsiteDir = "";
-            AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:8b";
+            AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:14b";
         }
         public static Settings Current = new Settings();
         public static void Load() { Current = Json.Load<Settings>(AppInfo.SettingsFile); if (Current.WebUsers == null) Current.WebUsers = new List<WebUser>(); }
