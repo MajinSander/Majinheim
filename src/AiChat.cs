@@ -255,8 +255,40 @@ namespace Majinheim
             {
                 sb.Append("\nDATOS REALES DEL SERVER AHORA MISMO (úsalos tal cual; para más detalle usa las herramientas):\n").Append(Compact(Summary())).Append("\n");
                 sb.Append("Si te preguntan algo que no está en estos datos ni en las herramientas, di que no lo sabes. Nunca pongas números de ejemplo.\n");
+                sb.Append(Facts());
             }
             catch (Exception e) { Log.W("Asistente IA: no pude preparar el resumen: {0}", e.Message); }
+            return sb.ToString();
+        }
+
+        // Lo más preguntado, en frases sencillas al final del mensaje: los modelos pequeños las usan mucho mejor que un JSON.
+        static string Facts()
+        {
+            var snap = ServerWatch.Snapshot();
+            var srv = (Dictionary<string, object>)snap["servidor"];
+            var st = ServerWatch.Stats();
+            var tot = (Dictionary<string, object>)st["total"];
+            var players = ((IEnumerable<object>)st["jugadores"]).Cast<Dictionary<string, object>>().ToList();
+            var online = ((IEnumerable<object>)snap["jugadores"]).Cast<Dictionary<string, object>>().ToList();
+            var hours = (int[])st["horas"];
+            var all = ServerWatch.Sessions(DateTime.MinValue);
+            var sb = new StringBuilder("\nRESPUESTAS YA PREPARADAS (úsalas tal cual, también con el server apagado; las estadísticas no dependen de que esté encendido):\n");
+            string estado = (string)srv["estado"];
+            sb.Append("- El server está ").Append(estado).Append(estado == "en marcha" && srv["desde"] != null ? ", encendido desde " + WhenIso(srv["desde"]) : "").Append(".\n");
+            if (srv["dia"] != null) sb.Append("- Día del mundo: ").Append(srv["dia"]).Append(".\n");
+            sb.Append("- Jugando ahora: ").Append(online.Count == 0 ? "nadie" : string.Join(", ", online.Select(p => p["nombre"] + " (lleva " + Hm(Convert.ToInt32(p["minutos"])) + ")"))).Append(".\n");
+            sb.Append("- Partidas jugadas en total: ").Append(tot["sesiones"]).Append(".\n");
+            sb.Append("- Tiempo jugado en total: ").Append(Hm(Convert.ToInt32(tot["minutos"]))).Append(", entre ").Append(tot["jugadores"]).Append(" vikingos.\n");
+            if (players.Count > 0) sb.Append("- Quien más ha jugado: ").Append(players[0]["nombre"]).Append(", con ").Append(Hm(Convert.ToInt32(players[0]["minutos"]))).Append(".\n");
+            foreach (var p in players.Take(15))
+                sb.Append("- ").Append(p["nombre"]).Append(": ").Append(Hm(Convert.ToInt32(p["minutos"]))).Append(" en total, ").Append(Convert.ToInt32(p["sesiones"]) == 1 ? "1 partida" : p["sesiones"] + " partidas").Append("; ")
+                  .Append((bool)p["jugando"] ? "está jugando ahora" : "jugó por última vez el " + WhenIso(p["ultima"])).Append(".\n");
+            if (online.Count == 0 && all.Count > 0)
+            {
+                var last = all.OrderBy(x => x.End).Last();
+                sb.Append("- Desde la última partida (").Append(last.Name).Append(", terminó el ").Append(When(last.End)).Append(") no ha jugado nadie.\n");
+            }
+            if (hours.Sum() > 0) sb.Append("- Horas en que más se juega: ").Append(string.Join(", ", Enumerable.Range(0, 24).Where(h => hours[h] > 0).OrderByDescending(h => hours[h]).Take(3).Select(h => h.ToString("00") + ":00 a " + ((h + 1) % 24).ToString("00") + ":00"))).Append(".\n");
             return sb.ToString();
         }
 
@@ -434,7 +466,7 @@ namespace Majinheim
             var list = ServerWatch.Sessions(DateTime.Now.AddDays(-days)).Where(x => NameMatch(x.Name, player)).ToList();
             var o = new Dictionary<string, object>
             {
-                { "desde", When(DateTime.Now.AddDays(-days)) },
+                { "buscadoDesde", When(DateTime.Now.AddDays(-days)) },
                 { "totalPartidas", list.Count },
                 { "partidas", list.Skip(Math.Max(0, list.Count - 80)).Select(x => new Dictionary<string, object>
                     {
@@ -443,6 +475,12 @@ namespace Majinheim
                     }).ToList() },
             };
             if (list.Count > 80) o["nota"] = "Solo salen las 80 más recientes.";
+            if (list.Count == 0)
+            {
+                var ever = ServerWatch.Sessions(DateTime.MinValue).Where(x => NameMatch(x.Name, player)).OrderBy(x => x.End).LastOrDefault();
+                o["ultimaPartidaDeSiempre"] = ever == null ? "ninguna" : ever.Name + ": " + When(ever.Start) + " a " + (ever.Live ? "ahora" : When(ever.End));
+                o["nota"] = "No hay partidas en ese plazo. buscadoDesde es solo el inicio de la búsqueda, no una partida.";
+            }
             return o;
         }
 
