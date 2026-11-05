@@ -312,23 +312,51 @@ namespace Majinheim
             var online = ((IEnumerable<object>)snap["jugadores"]).Cast<Dictionary<string, object>>().ToList();
             var hours = (int[])st["horas"];
             var all = ServerWatch.Sessions(DateTime.MinValue);
-            var sb = new StringBuilder("\nRESPUESTAS YA PREPARADAS (úsalas tal cual, también con el server apagado; las estadísticas no dependen de que esté encendido):\n");
-            string estado = (string)srv["estado"];
-            sb.Append("- El server está ").Append(estado).Append(estado == "en marcha" && srv["desde"] != null ? ", encendido desde " + WhenIso(srv["desde"]) : "").Append(".\n");
-            if (srv["dia"] != null) sb.Append("- Día del mundo: ").Append(srv["dia"]).Append(".\n");
-            sb.Append("- Jugando ahora: ").Append(online.Count == 0 ? "nadie" : string.Join(", ", online.Select(p => p["nombre"] + " (lleva " + Hm(Convert.ToInt32(p["minutos"])) + ")"))).Append(".\n");
+            var es = new CultureInfo("es-ES");
+            var sb = new StringBuilder("\nRESPUESTAS YA PREPARADAS (úsalas tal cual, también con el server apagado: las estadísticas no dependen de que esté encendido). " +
+                "Responde solo a lo que te preguntan; si no está aquí, usa las herramientas:\n");
             sb.Append("- Partidas jugadas en total: ").Append(tot["sesiones"]).Append(".\n");
             sb.Append("- Tiempo jugado en total: ").Append(Hm(Convert.ToInt32(tot["minutos"]))).Append(", entre ").Append(tot["jugadores"]).Append(" vikingos.\n");
-            if (players.Count > 0) sb.Append("- Quien más ha jugado: ").Append(players[0]["nombre"]).Append(", con ").Append(Hm(Convert.ToInt32(players[0]["minutos"]))).Append(".\n");
+            if (players.Count > 0)
+            {
+                sb.Append("- Quien más ha jugado: ").Append(players[0]["nombre"]).Append(", con ").Append(Hm(Convert.ToInt32(players[0]["minutos"]))).Append(".\n");
+                var dead = players.OrderByDescending(p => Convert.ToInt32(p["muertes"])).First();
+                sb.Append("- Quien más ha muerto: ").Append(Convert.ToInt32(dead["muertes"]) == 0 ? "nadie ha muerto todavía" : dead["nombre"] + ", con " + dead["muertes"] + " muertes").Append(".\n");
+            }
+            if (all.Count > 0)
+            {
+                var longest = all.OrderByDescending(x => x.End - x.Start).First();
+                sb.Append("- Partida más larga: ").Append(longest.Name).Append(", ").Append(Hm((int)(longest.End - longest.Start).TotalMinutes)).Append(", el ").Append(When(longest.Start)).Append(".\n");
+            }
             foreach (var p in players.Take(15))
-                sb.Append("- ").Append(p["nombre"]).Append(": ").Append(Hm(Convert.ToInt32(p["minutos"]))).Append(" en total, ").Append(Convert.ToInt32(p["sesiones"]) == 1 ? "1 partida" : p["sesiones"] + " partidas").Append("; ")
+                sb.Append("- ").Append(p["nombre"]).Append(": ").Append(Hm(Convert.ToInt32(p["minutos"]))).Append(" en total, ").Append(Convert.ToInt32(p["sesiones"]) == 1 ? "1 partida" : p["sesiones"] + " partidas")
+                  .Append(", ").Append(Convert.ToInt32(p["muertes"]) == 1 ? "1 muerte" : p["muertes"] + " muertes").Append("; ")
                   .Append((bool)p["jugando"] ? "está jugando ahora" : "jugó por última vez el " + WhenIso(p["ultima"])).Append(".\n");
+            // Quién jugó cada día de la última semana (cada partida repartida entre los días que toca).
+            sb.Append("- Quién jugó cada día de la última semana:\n");
+            for (int i = 0; i < 7; i++)
+            {
+                var d0 = DateTime.Today.AddDays(-i); var d1 = d0.AddDays(1);
+                var who = all.Where(x => x.Start < d1 && x.End > d0).GroupBy(x => x.Name)
+                    .Select(g => g.Key + " " + Hm(g.Sum(x => (int)((x.End > d1 ? d1 : x.End) - (x.Start < d0 ? d0 : x.Start)).TotalMinutes))).ToList();
+                string label = i == 0 ? "hoy" : i == 1 ? "ayer" : d0.ToString("dddd", es);
+                sb.Append("  · ").Append(label).Append(" (").Append(d0.ToString("yyyy-MM-dd")).Append("): ").Append(who.Count == 0 ? "nadie" : string.Join(", ", who)).Append(".\n");
+            }
             if (online.Count == 0 && all.Count > 0)
             {
                 var last = all.OrderBy(x => x.End).Last();
                 sb.Append("- Desde la última partida (").Append(last.Name).Append(", terminó el ").Append(When(last.End)).Append(") no ha jugado nadie.\n");
             }
             if (hours.Sum() > 0) sb.Append("- Horas en que más se juega: ").Append(string.Join(", ", Enumerable.Range(0, 24).Where(h => hours[h] > 0).OrderByDescending(h => hours[h]).Take(3).Select(h => h.ToString("00") + ":00 a " + ((h + 1) % 24).ToString("00") + ":00"))).Append(".\n");
+            string ver = srv["version"] as string;
+            sb.Append("- Versión de Valheim del server: ").Append(string.IsNullOrEmpty(ver) ? "se sabe cuando el server arranca" : ver).Append(".\n");
+            var mods = snap["mods"] as Dictionary<string, object>;
+            if (mods != null && ((IEnumerable<object>)mods["lista"]).Any()) sb.Append("- Mods del server: ").Append(string.Join(", ", ((IEnumerable<object>)mods["lista"]).Cast<Dictionary<string, object>>().Select(m => m["nombre"] + " " + m["version"]))).Append(".\n");
+            // El estado, al final: lo último que lee el modelo es lo que más pesa.
+            string estado = (string)srv["estado"];
+            if (srv["dia"] != null) sb.Append("- Día del mundo: ").Append(srv["dia"]).Append(".\n");
+            sb.Append("- Jugando ahora: ").Append(online.Count == 0 ? "nadie" : string.Join(", ", online.Select(p => p["nombre"] + " (lleva " + Hm(Convert.ToInt32(p["minutos"])) + ")"))).Append(".\n");
+            sb.Append("- El server está ").Append(estado).Append(estado == "en marcha" && srv["desde"] != null ? ", encendido desde " + WhenIso(srv["desde"]) : "").Append(".\n");
             return sb.ToString();
         }
 
@@ -410,7 +438,7 @@ namespace Majinheim
             {
                 case "estado_servidor": return ToolState();
                 case "estadisticas": return ToolStats(Arg(args, "jugador"));
-                case "partidas": return ToolSessions(Arg(args, "jugador"), ArgInt(args, "dias", 7, 1, 60));
+                case "partidas": return ToolSessions(Arg(args, "jugador"), ArgInt(args, "dias", 7, 7, 60));   // mínimo 7: con 1 o 2 días se pierde "ayer por la noche"
                 case "registro_servidor":
                     if (!admin) return new Dictionary<string, object> { { "error", "solo para administradores" } };
                     return ToolLog(ArgInt(args, "lineas", 30, 1, 50));
