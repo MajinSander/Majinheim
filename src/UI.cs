@@ -235,6 +235,7 @@ namespace Majinheim
 #if SERVER
             if (name == "Backups") RefreshBackups();
             if (name == "Ajustes de mods" && !CfgDirty()) ReloadCfg();
+            if (name == "Asistente IA") RefreshAi();
 #endif
         }
 
@@ -356,6 +357,7 @@ namespace Majinheim
             AddPage("Backups", "↺", BuildBackupsPage());
             AddPage("Web", "◎", BuildWebPage());
             AddPage("Automático", "⏱", BuildAutoPage());
+            AddPage("Asistente IA", "✦", BuildAiPage());
 
             tray = new NotifyIcon { Icon = Icon, Text = "Majinheim Server", Visible = true };
             var menu = new ContextMenuStrip();

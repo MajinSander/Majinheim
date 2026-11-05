@@ -85,8 +85,22 @@ namespace Majinheim
                         if (LauncherOpen()) return 1;
                         Console.WriteLine(WebAdmin.RemoveUser(args[1]) ? "Cuenta borrada." : "No existe esa cuenta.");
                         return 0;
+                    case "ia":
+                        {
+                            // ia: estado de Ollama y del modelo.  ia descargar: baja el modelo elegido.
+                            if (args.Length > 1 && args[1].ToLowerInvariant() == "descargar")
+                            {
+                                string last = null;
+                                AiChat.Pull(AiChat.Model, t => { if (t != last) { last = t; Console.WriteLine(t); } });
+                            }
+                            var c = AiChat.Status();
+                            Console.WriteLine(c.Text);
+                            Console.WriteLine("Asistente IA en Discord: " + (Settings.Current.AiEnabled ? "activado" : "desactivado") + ". Modelo: " + AiChat.Model + ".");
+                            if (c.Installed.Count > 0) Console.WriteLine("Modelos descargados: " + string.Join(", ", c.Installed));
+                            return c.Up && c.HasModel ? 0 : 1;
+                        }
                     default:
-                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre>");
+                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | ia [descargar]");
                         return 1;
                 }
             }

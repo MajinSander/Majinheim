@@ -1,5 +1,5 @@
-// Bot de Discord con comandos (/estado, /jugadores, /estadisticas, /web y, solo para administradores del Discord,
-// /encender, /apagar, /reiniciar, /backup). Se conecta al gateway de Discord solo para recibir los comandos (intents 0:
+// Bot de Discord con comandos (/estado, /jugadores, /estadisticas, /web, /preguntar (IA local, si está activada) y, solo para
+// administradores del Discord, /encender, /apagar, /reiniciar, /backup). Se conecta al gateway de Discord solo para recibir los comandos (intents 0:
 // no lee mensajes ni ve a nadie) y responde por la API REST. Edición Server.
 #if SERVER
 using System;
@@ -160,9 +160,10 @@ namespace Majinheim
             appId = app != null ? app["id"] as string : null;
             var user = d["user"] as Dictionary<string, object>;
             State = "Conectado como " + (user != null ? user["username"] : "bot") + ".";
-            if (appId != null && registeredFor != appId)
+            string want = appId + (Settings.Current.AiEnabled ? "+ia" : "");   // al encender o apagar la IA cambia la lista
+            if (appId != null && registeredFor != want)
             {
-                try { RegisterCommands(); registeredFor = appId; }
+                try { RegisterCommands(); registeredFor = want; }
                 catch (Exception e) { State = "Conectado, pero no pude registrar los comandos: " + e.Message; Log.W("Bot de Discord: registrar comandos: {0}", e.Message); }
             }
         }
@@ -193,6 +194,12 @@ namespace Majinheim
             var avisar = cmd("avisar", "Manda un mensaje al chat del juego (solo administradores)", true);
             avisar["options"] = new[] { new Dictionary<string, object> { { "type", 3 }, { "name", "mensaje" }, { "description", "Lo que verán los jugadores" }, { "required", true }, { "max_length", 200 } } };
             list.Add(avisar);
+            if (Settings.Current.AiEnabled)
+            {
+                var ask = cmd("preguntar", "Pregúntale a la IA del server (quién juega, horas, jefes, partidas...)", false);
+                ask["options"] = new[] { new Dictionary<string, object> { { "type", 3 }, { "name", "pregunta" }, { "description", "Lo que quieres saber, como se lo dirías a un amigo" }, { "required", true }, { "max_length", AiChat.MaxQuestion } } };
+                list.Add(ask);
+            }
             Rest("PUT", "/applications/" + appId + "/commands", list);
             Log.W("Bot de Discord: comandos registrados.");
         }
@@ -209,6 +216,7 @@ namespace Majinheim
                 var member = mo as Dictionary<string, object>;
                 string reply; bool ephemeral = false;
                 if (member == null) reply = "Los comandos solo funcionan dentro del servidor de Discord.";
+                else if (name == "preguntar") { AskAi(id, itoken, data, member); return; }
                 else if (AdminCommands.Contains(name))
                 {
                     ephemeral = false;
@@ -246,6 +254,59 @@ namespace Majinheim
                 Rest("POST", "/interactions/" + id + "/" + itoken + "/callback", resp, false);
             }
             catch (Exception e) { Log.W("Bot de Discord: comando falló: {0}", e.Message); }
+        }
+
+        // ------------------------------------------------------------ /preguntar (IA local)
+
+        static readonly Dictionary<string, DateTime> lastAsk = new Dictionary<string, DateTime>();
+        const int AskCooldown = 15;   // segundos entre preguntas de la misma persona
+
+        // La IA tarda más de los 3 segundos que da Discord: primero se contesta "pensando..." y luego se cambia por la respuesta.
+        static void AskAi(string id, string itoken, Dictionary<string, object> data, Dictionary<string, object> member)
+        {
+            var user = member["user"] as Dictionary<string, object>;
+            string uid = user != null ? user["id"] as string : "?";
+            string who = (member.ContainsKey("nick") ? member["nick"] as string : null)
+                ?? (user != null && user.ContainsKey("global_name") ? user["global_name"] as string : null)
+                ?? (user != null ? user["username"] as string : null) ?? "?";
+            long perms = 0;
+            long.TryParse(member["permissions"] as string ?? "0", NumberStyles.Integer, CultureInfo.InvariantCulture, out perms);
+            bool admin = (perms & (PermAdministrator | PermManageGuild)) != 0;
+            string q = Option(data, "pregunta").Trim();
+
+            string early = null;
+            if (!Settings.Current.AiEnabled) early = "La IA del server está desactivada.";
+            else
+                lock (lastAsk)
+                {
+                    DateTime prev;
+                    if (lastAsk.TryGetValue(uid, out prev) && (DateTime.Now - prev).TotalSeconds < AskCooldown)
+                        early = "Espera unos segundos antes de preguntar otra vez.";
+                    else lastAsk[uid] = DateTime.Now;
+                }
+            if (early != null)
+            {
+                Rest("POST", "/interactions/" + id + "/" + itoken + "/callback", new Dictionary<string, object>
+                {
+                    { "type", 4 },
+                    { "data", new Dictionary<string, object> { { "content", early }, { "flags", 64 }, { "allowed_mentions", new Dictionary<string, object> { { "parse", new string[0] } } } } },
+                }, false);
+                return;
+            }
+            Rest("POST", "/interactions/" + id + "/" + itoken + "/callback", new Dictionary<string, object> { { "type", 5 } }, false);
+            var t0 = DateTime.Now;
+            string answer = AiChat.Ask(q, who, admin);
+            Log.W("Bot de Discord: /preguntar de {0} respondida en {1:0.0} s.", who, (DateTime.Now - t0).TotalSeconds);
+            string text = "> **" + Esc(who) + "**: " + Esc(q) + "\n" + answer;
+            if (text.Length > 2000) text = text.Substring(0, 1999) + "…";
+            try
+            {
+                Rest("PATCH", "/webhooks/" + appId + "/" + itoken + "/messages/@original", new Dictionary<string, object>
+                {
+                    { "content", text }, { "allowed_mentions", new Dictionary<string, object> { { "parse", new string[0] } } },
+                }, false);
+            }
+            catch (Exception e) { Log.W("Bot de Discord: no pude mandar la respuesta de la IA: {0}", e.Message); }
         }
 
         static string Option(Dictionary<string, object> data, string name)
