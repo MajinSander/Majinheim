@@ -1,4 +1,4 @@
-// Asistente con IA local: responde en lenguaje natural a preguntas sobre el server (/preguntar en Discord y la pestaña
+// Asistente con IA local: responde en lenguaje natural a preguntas sobre el server (en Discord, mencionando al bot, y en la pestaña
 // "Asistente IA"). Usa Ollama en este mismo PC: ni las preguntas ni los datos salen a internet. El modelo solo puede LEER,
 // con unas pocas herramientas (estado, estadísticas, partidas y, para administradores, el registro), y nunca ve
 // IDs de Steam ni IPs. Edición Server.
@@ -119,13 +119,14 @@ namespace Majinheim
 
         // Responde a una pregunta. Nunca lanza: si algo falla, devuelve una explicación sencilla.
         // asker: nombre de quien pregunta (para "¿cuánto llevo yo?"); admin: puede consultar el registro del server.
-        public static string Ask(string question, string asker, bool admin)
+        // past: lo último hablado en el mismo canal ({pregunta, respuesta}), para seguir la conversación.
+        public static string Ask(string question, string asker, bool admin, List<string[]> past = null)
         {
             question = (question ?? "").Trim();
             if (question.Length == 0) return "Escribe una pregunta.";
             if (question.Length > MaxQuestion) question = question.Substring(0, MaxQuestion);
             if (!gate.Wait(TimeSpan.FromSeconds(90))) return "Estoy respondiendo otras preguntas. Prueba otra vez en un momento.";
-            try { return Clean(Run(question, asker, admin)); }
+            try { return Clean(Run(question, asker, admin, past)); }
             catch (OllamaError e)
             {
                 string m = e.Message ?? "";
@@ -144,14 +145,16 @@ namespace Majinheim
             finally { gate.Release(); }
         }
 
-        static string Run(string question, string asker, bool admin)
+        static string Run(string question, string asker, bool admin, List<string[]> past)
         {
             var deadline = DateTime.Now.AddSeconds(150);
             var messages = new List<object>
             {
                 Msg("system", SystemPrompt(asker, admin)),
-                Msg("user", question),
             };
+            if (past != null)
+                foreach (var p in past) { messages.Add(Msg("user", p[0])); messages.Add(Msg("assistant", p[1])); }
+            messages.Add(Msg("user", question));
             var tools = Tools(admin);
             for (int round = 0; round < 6; round++)
             {
@@ -230,7 +233,7 @@ namespace Majinheim
             var es = new CultureInfo("es-ES");
             string web = s.WebEnabled && s.WebPublic ? WebPanel.PublicUrl : null;
             var sb = new StringBuilder();
-            sb.Append("Eres el asistente del servidor de Valheim «").Append(s.ServerName).Append("» (mundo «").Append(s.WorldName).Append("») de un grupo de amigos. Respondes en su Discord.\n");
+            sb.Append("Eres el asistente del servidor de Valheim «").Append(s.ServerName).Append("» (mundo «").Append(s.WorldName).Append("») de un grupo de amigos. Respondes en su Discord cuando te mencionan; habla con naturalidad, como uno más del grupo.\n");
             sb.Append("Ahora es ").Append(now.ToString("dddd d 'de' MMMM 'de' yyyy, HH:mm", es)).Append(" (hora de ").Append(TimeZoneInfo.Local.StandardName).Append(").\n");
             if (!string.IsNullOrEmpty(asker)) sb.Append("Te pregunta: ").Append(asker).Append(" (su nombre de Discord; su vikingo en el juego puede llamarse distinto).\n");
             if (web != null) sb.Append("Web del server: ").Append(web).Append(" (estadísticas en ").Append(web).Append("estadisticas y mapa en ").Append(web).Append("mapa/).\n");

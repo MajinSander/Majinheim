@@ -220,7 +220,7 @@ namespace Majinheim
         public int NightlyRestartHour { get; set; }
         public string OffsiteDir { get; set; }     // copia extra de los backups del mundo en otra carpeta (otro disco, OneDrive...); vacío = no
         public string ValheimBuild { get; set; }   // versión de Steam (buildid) del server de Valheim la última vez que se miró
-        // Asistente con IA local (pestaña "Asistente IA"): /preguntar en Discord con Ollama en este PC
+        // Asistente con IA local (pestaña "Asistente IA"): responde en Discord al mencionar al bot, con Ollama en este PC
         public bool AiEnabled { get; set; }
         public string OllamaUrl { get; set; }      // dónde escucha Ollama (por defecto, este PC)
         public string OllamaModel { get; set; }

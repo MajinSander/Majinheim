@@ -1,4 +1,4 @@
-// Página "Asistente IA" de la edición Server: IA local (Ollama) que responde en Discord con /preguntar.
+// Página "Asistente IA" de la edición Server: IA local (Ollama) que responde en Discord cuando mencionan al bot (@).
 #if SERVER
 using System;
 using System.Drawing;
@@ -25,13 +25,13 @@ namespace Majinheim
             aiState = Ui.Lbl("● Comprobando...", 15, FontStyle.Bold, Th.Muted);
             aiDetail = Ui.Lbl("", 10, FontStyle.Regular, Th.Muted);
             aiDetail.MaximumSize = new Size(480, 0);
-            cAiOn = Ui.Chk("Comando /preguntar en Discord (para todos los del Discord)", s.AiEnabled);
+            cAiOn = Ui.Chk("Responder en Discord cuando mencionan al bot (@), a cualquiera del Discord", s.AiEnabled);
             cAiOn.CheckedChanged += (o, e) =>
             {
                 if (aiPopulating) return;
                 s.AiEnabled = cAiOn.Checked; Settings.Save();
                 Log.W("Asistente IA {0}.", s.AiEnabled ? "activado" : "desactivado");
-                DiscordBot.Apply();   // vuelve a conectar y registra (o quita) /preguntar
+                DiscordBot.Apply();   // vuelve a conectar, ahora atento (o no) a las menciones
                 RefreshAi();
             };
 
@@ -75,7 +75,8 @@ namespace Majinheim
             var how = Ui.Lbl("Cómo se prepara (una sola vez):\n" +
                 "1. \"Instalar Ollama\" abre su página: descarga el instalador para Windows y ábrelo. Se queda funcionando en segundo plano, junto al reloj.\n" +
                 "2. \"Descargar el modelo\": se baja la IA (unos 5 GB). Con la gráfica de este PC responde en pocos segundos.\n" +
-                "3. Marca \"Comando /preguntar en Discord\". El bot tarda unos segundos en reconectarse.", 9f, FontStyle.Regular, Th.Muted);
+                "3. Marca \"Responder en Discord cuando mencionan al bot\". El bot tarda unos segundos en reconectarse.\n" +
+                "En Discord se le habla escribiendo @ y su nombre, como a uno más: \"@MajinBot ¿quién jugó ayer?\". Para que responda citando el mensaje necesita el permiso \"Leer el historial de mensajes\" (si no lo tiene, responde igual, sin citar).", 9f, FontStyle.Regular, Th.Muted);
             how.MaximumSize = new Size(480, 0);
             left.Controls.Add(how);
 
@@ -93,7 +94,7 @@ namespace Majinheim
                 "y nunca ve IDs de Steam ni IPs. A los administradores del Discord también les puede mirar el registro del server para buscar errores.", 9f, FontStyle.Regular, Th.Muted);
             what.MaximumSize = new Size(560, 0);
             var right = Ui.Col(Ui.Lbl("Probar aquí", 11, FontStyle.Bold),
-                Ui.Lbl("Pregunta como lo harías en Discord (aquí respondes como administrador):", 9.5f, FontStyle.Regular, Th.Muted),
+                Ui.Lbl("Pregunta como lo harías en Discord (aquí preguntas como administrador):", 9.5f, FontStyle.Regular, Th.Muted),
                 tAiQuestion, bAiAsk, aiAnswer,
                 Ui.Lbl("Qué puede responder", 11, FontStyle.Bold), what);
 
@@ -108,7 +109,7 @@ namespace Majinheim
             t.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             t.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             t.Controls.Add(Ui.Lbl("Asistente IA", 18, FontStyle.Bold), 0, 0);
-            var sub = Ui.Lbl("Una IA que funciona en este PC y responde en vuestro Discord con /preguntar, en lenguaje normal, con los datos reales del server.", 9.5f, FontStyle.Regular, Th.Muted);
+            var sub = Ui.Lbl("Una IA que funciona en este PC y responde en vuestro Discord cuando la mencionáis (@bot), en lenguaje normal, con los datos reales del server.", 9.5f, FontStyle.Regular, Th.Muted);
             sub.MaximumSize = new Size(900, 0);
             t.Controls.Add(sub, 0, 1);
             t.Controls.Add(top, 0, 2);
@@ -146,7 +147,7 @@ namespace Majinheim
             aiState.Text = !ready ? "● Sin preparar" : s.AiEnabled ? "● Funcionando" : "● Lista (apagada en Discord)";
             aiState.ForeColor = !ready ? Th.Warn : s.AiEnabled ? Th.Good : Th.Muted;
             string bot = !s.AiEnabled ? "" : !Discord.Configured ? "\nFalta configurar el bot de Discord (pestaña Automático)."
-                : !s.DiscordCommands ? "\nLos comandos del bot están desactivados (pestaña Automático)." : "\nEn Discord: /preguntar.";
+                : !s.DiscordCommands ? "\nLos comandos del bot están desactivados (pestaña Automático)." : "\nEn Discord: mencionad al bot con @ y preguntadle.";
             aiDetail.Text = c.Text + bot;
         }
 

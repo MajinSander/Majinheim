@@ -25,12 +25,12 @@ La opción **Recordarme en este dispositivo** evita tener que entrar cada vez.
 En el launcher del server, pestaña **Automático**: pega el token del bot y el ID del canal y pulsa "Guardar y probar". Ahí también se eligen los backups automáticos y el reinicio diario.
 
 - El bot avisa cuando el server se enciende, se apaga o se cae, quién entra y sale, y si hay mods con versión nueva.
-- Comandos: `/estado`, `/jugadores`, `/estadisticas`, `/web` y `/preguntar` (si la IA está activada) para todos; `/encender`, `/apagar`, `/reiniciar`, `/backup` y `/avisar` solo para los administradores del Discord.
+- Comandos: `/estado`, `/jugadores`, `/estadisticas` y `/web` para todos; `/encender`, `/apagar`, `/reiniciar`, `/backup` y `/avisar` solo para los administradores del Discord.
 
 ## Asistente con IA
-Con `/preguntar` en Discord se le pregunta al server en lenguaje normal: "¿quién jugó ayer?", "¿cuántas horas lleva Benja este mes?", "¿qué jefe nos falta?".
+En Discord se le habla mencionando al bot con @, como a uno más del grupo: "@MajinBot ¿quién jugó ayer?", "¿cuántas horas lleva Benja este mes?", "¿qué jefe nos falta?". Recuerda lo último hablado en el canal, así que se le puede seguir preguntando ("¿y la semana pasada?").
 La IA funciona en el propio PC del server con [Ollama](https://ollama.com) (nada sale a internet), solo lee datos y nunca ve IDs de Steam ni IPs.
-Se prepara en la pestaña **Asistente IA** del launcher del server: instalar Ollama, descargar el modelo y activar `/preguntar`.
+Se prepara en la pestaña **Asistente IA** del launcher del server: instalar Ollama, descargar el modelo y activarla. Discord solo le pasa al bot el texto de los mensajes que lo mencionan: no lee el resto de conversaciones.
 Hace falta una tarjeta gráfica con unos 8 GB de memoria o más para que responda rápido.
 
 ## Avisos en el juego
