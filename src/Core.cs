@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "1.8.3";
+        public const string Version = "2.0.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -220,6 +220,10 @@ namespace Majinheim
         public int NightlyRestartHour { get; set; }
         public string OffsiteDir { get; set; }     // copia extra de los backups del mundo en otra carpeta (otro disco, OneDrive...); vacío = no
         public string ValheimBuild { get; set; }   // versión de Steam (buildid) del server de Valheim la última vez que se miró
+        // Asistente con IA local (pestaña "Asistente IA"): responde en Discord al mencionar al bot, con Ollama en este PC
+        public bool AiEnabled { get; set; }
+        public string OllamaUrl { get; set; }      // dónde escucha Ollama (por defecto, este PC)
+        public string OllamaModel { get; set; }
         // comunes: de dónde sale el modpack (GitHub)
         public string GitHubRepo { get; set; }
         // edicion cliente
@@ -235,6 +239,7 @@ namespace Majinheim
             WebUsers = new List<WebUser>();
             DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true; RconPassword = ""; WarnBeforeStop = true;
             BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5; OffsiteDir = "";
+            AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:14b";
         }
         public static Settings Current = new Settings();
         public static void Load() { Current = Json.Load<Settings>(AppInfo.SettingsFile); if (Current.WebUsers == null) Current.WebUsers = new List<WebUser>(); }

@@ -1,6 +1,7 @@
 // Bot de Discord con comandos (/estado, /jugadores, /estadisticas, /web y, solo para administradores del Discord,
-// /encender, /apagar, /reiniciar, /backup). Se conecta al gateway de Discord solo para recibir los comandos (intents 0:
-// no lee mensajes ni ve a nadie) y responde por la API REST. Edición Server.
+// /encender, /apagar, /reiniciar, /backup). Se conecta al gateway de Discord para recibir los comandos y responde por la API REST.
+// Con el asistente IA activado, además contesta cuando lo mencionan (@bot): Discord solo le da el texto de los mensajes que
+// lo mencionan (sin el permiso especial "Message Content"), así que no lee el resto de conversaciones. Edición Server.
 #if SERVER
 using System;
 using System.Collections.Generic;
@@ -10,6 +11,7 @@ using System.Linq;
 using System.Net;
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -24,6 +26,8 @@ namespace Majinheim
         static int seq = -1;
         static string appId;
         static string registeredFor;
+        static string botId;
+        const int IntentGuildMessages = 1 << 9;   // avisos de mensajes nuevos (el texto, solo de los que mencionan al bot)
         public static string State { get; private set; }
         public static bool Connected { get; private set; }
 
@@ -94,7 +98,7 @@ namespace Majinheim
                         { "d", new Dictionary<string, object>
                             {
                                 { "token", Token },
-                                { "intents", 0 },
+                                { "intents", Settings.Current.AiEnabled ? IntentGuildMessages : 0 },
                                 { "properties", new Dictionary<string, object> { { "os", "windows" }, { "browser", "majinheim" }, { "device", "majinheim" } } },
                             }
                         },
@@ -117,6 +121,7 @@ namespace Majinheim
                             var d = msg["d"] as Dictionary<string, object>;
                             if (t == "READY") OnReady(d);
                             else if (t == "INTERACTION_CREATE") { var dd = d; var _ = Task.Run(() => OnInteraction(dd)); }
+                            else if (t == "MESSAGE_CREATE" && Settings.Current.AiEnabled) { var dd = d; var _ = Task.Run(() => OnMessage(dd)); }
                         }
                     }
                     finally { hbCts.Cancel(); }
@@ -159,7 +164,8 @@ namespace Majinheim
             var app = d["application"] as Dictionary<string, object>;
             appId = app != null ? app["id"] as string : null;
             var user = d["user"] as Dictionary<string, object>;
-            State = "Conectado como " + (user != null ? user["username"] : "bot") + ".";
+            botId = user != null ? user["id"] as string : null;
+            State = "Conectado como " + (user != null ? user["username"] : "bot") + "." + (Settings.Current.AiEnabled ? " Responde cuando lo mencionan (@" + (user != null ? user["username"] : "bot") + ")." : "");
             if (appId != null && registeredFor != appId)
             {
                 try { RegisterCommands(); registeredFor = appId; }
@@ -248,6 +254,106 @@ namespace Majinheim
             catch (Exception e) { Log.W("Bot de Discord: comando falló: {0}", e.Message); }
         }
 
+        // ------------------------------------------------------------ asistente IA: se le habla mencionándolo (@bot)
+
+        static readonly Dictionary<string, DateTime> lastAsk = new Dictionary<string, DateTime>();
+        const int AskCooldown = 10;   // segundos entre preguntas de la misma persona
+        // Lo último hablado en cada canal, para poder seguir la conversación ("¿y ayer?"). Se olvida a los 10 minutos.
+        static readonly Dictionary<string, List<string[]>> chats = new Dictionary<string, List<string[]>>();
+        static readonly Dictionary<string, DateTime> chatAt = new Dictionary<string, DateTime>();
+
+        static void OnMessage(Dictionary<string, object> d)
+        {
+            try
+            {
+                var author = d["author"] as Dictionary<string, object>;
+                if (author == null || botId == null || !d.ContainsKey("guild_id")) return;
+                object isBot;
+                if (author.TryGetValue("bot", out isBot) && isBot is bool && (bool)isBot) return;   // ni a sí mismo ni a otros bots
+                object mo;
+                bool mentioned = d.TryGetValue("mentions", out mo) && mo is object[] &&
+                    ((object[])mo).OfType<Dictionary<string, object>>().Any(u => (u["id"] as string) == botId);
+                if (!mentioned) return;
+                string channel = d["channel_id"] as string, msgId = d["id"] as string, guild = d["guild_id"] as string;
+                string uid = author["id"] as string;
+                string text = Regex.Replace(d["content"] as string ?? "", "<@!?" + botId + ">", "").Trim();
+                var member = d.ContainsKey("member") ? d["member"] as Dictionary<string, object> : null;
+                string who = (member != null && member.ContainsKey("nick") ? member["nick"] as string : null)
+                    ?? (author.ContainsKey("global_name") ? author["global_name"] as string : null) ?? (author["username"] as string) ?? "?";
+
+                if (text.Length == 0) { Reply(channel, msgId, "¡Dime! Pregúntame lo que quieras del server: quién juega, quién jugó ayer, cuántas horas lleva cada uno, qué jefe falta..."); return; }
+                lock (lastAsk)
+                {
+                    DateTime prev;
+                    if (lastAsk.TryGetValue(uid, out prev) && (DateTime.Now - prev).TotalSeconds < AskCooldown) { Reply(channel, msgId, "Dame unos segundos, que aún estoy con lo anterior."); return; }
+                    lastAsk[uid] = DateTime.Now;
+                }
+                bool admin = IsAdmin(guild, member, uid);
+                List<string[]> past;
+                lock (chats)
+                {
+                    DateTime at;
+                    if (!chats.TryGetValue(channel, out past) || !chatAt.TryGetValue(channel, out at) || (DateTime.Now - at).TotalMinutes > 10) past = new List<string[]>();
+                    past = past.ToList();
+                }
+                try { Rest("POST", "/channels/" + channel + "/typing", new Dictionary<string, object>()); } catch { }   // "escribiendo..."
+                var t0 = DateTime.Now;
+                string answer = AiChat.Ask(text, who, admin, past);
+                Log.W("Bot de Discord: pregunta a la IA de {0} respondida en {1:0.0} s.", who, (DateTime.Now - t0).TotalSeconds);
+                lock (chats)
+                {
+                    past.Add(new[] { who + ": " + text, answer });
+                    chats[channel] = past.Skip(Math.Max(0, past.Count - 3)).ToList();
+                    chatAt[channel] = DateTime.Now;
+                }
+                Reply(channel, msgId, answer);
+            }
+            catch (Exception e) { Log.W("Bot de Discord: no pude responder a una mención: {0}", e.Message); }
+        }
+
+        // Responde al mensaje (como respuesta, sin avisar a nadie). Si no puede citarlo, lo manda normal.
+        static void Reply(string channel, string msgId, string text)
+        {
+            if (text.Length > 2000) text = text.Substring(0, 1999) + "…";
+            var body = new Dictionary<string, object>
+            {
+                { "content", text },
+                { "allowed_mentions", new Dictionary<string, object> { { "parse", new string[0] }, { "replied_user", false } } },
+                { "message_reference", new Dictionary<string, object> { { "message_id", msgId }, { "fail_if_not_exists", false } } },
+            };
+            try { Rest("POST", "/channels/" + channel + "/messages", body); }
+            catch { body.Remove("message_reference"); Rest("POST", "/channels/" + channel + "/messages", body); }
+        }
+
+        // ¿Es administrador del Discord? (dueño o con un rol de Administrador / Gestionar servidor). Los roles se miran cada 10 min.
+        static Dictionary<string, object> guildCache; static DateTime guildAt; static string guildFor;
+        static bool IsAdmin(string guild, Dictionary<string, object> member, string uid)
+        {
+            try
+            {
+                Dictionary<string, object> g;
+                lock (lastAsk)
+                {
+                    if (guildFor != guild || guildCache == null || (DateTime.Now - guildAt).TotalMinutes > 10)
+                    { guildCache = RestGet("/guilds/" + guild); guildFor = guild; guildAt = DateTime.Now; }
+                    g = guildCache;
+                }
+                if ((g["owner_id"] as string) == uid) return true;
+                var mine = new HashSet<string> { guild };   // @everyone tiene el mismo id que el servidor
+                object rs;
+                if (member != null && member.TryGetValue("roles", out rs) && rs is object[]) foreach (var r in (object[])rs) mine.Add(r as string);
+                long perms = 0;
+                foreach (var role in ((object[])g["roles"]).OfType<Dictionary<string, object>>())
+                {
+                    if (!mine.Contains(role["id"] as string)) continue;
+                    long p; long.TryParse(Convert.ToString(role["permissions"], CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture, out p);
+                    perms |= p;
+                }
+                return (perms & (PermAdministrator | PermManageGuild)) != 0;
+            }
+            catch { return false; }
+        }
+
         static string Option(Dictionary<string, object> data, string name)
         {
             object o;
@@ -307,6 +413,16 @@ namespace Majinheim
                         "🌐 Web del server: " + web + "\n📊 Estadísticas: " + web + "estadisticas" + (snap["mapa"] != null ? "\n🗺️ Mapa del mundo: " + web + "mapa/" : "\n🗺️ El mapa se enciende con el server.");
             }
             return "No conozco ese comando.";
+        }
+
+        static Dictionary<string, object> RestGet(string path)
+        {
+            var r = (HttpWebRequest)WebRequest.Create(Discord.Api + path);
+            r.UserAgent = "DiscordBot (https://github.com/" + AppInfo.GitHubRepo + ", " + AppInfo.Version + ")";
+            r.Headers["Authorization"] = "Bot " + Token;
+            r.Timeout = 15000;
+            using (var resp = r.GetResponse())
+            using (var sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) return Json.ParseObj(sr.ReadToEnd());
         }
 
         static void Rest(string method, string path, object body, bool auth = true)

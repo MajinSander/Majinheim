@@ -58,7 +58,7 @@ namespace Majinheim
             discState.MaximumSize = new Size(540, 0);
             var help = Ui.Lbl("Cómo se consigue (una sola vez):\n" +
                 "1. En discord.com/developers/applications abre vuestro bot > Bot > \"Reset Token\" y cópialo aquí.\n" +
-                "2. En OAuth2 > URL Generator marca \"bot\" y \"applications.commands\" y el permiso \"Send Messages\"; abre el enlace e invítalo a vuestro servidor.\n" +
+                "2. En OAuth2 > URL Generator marca \"bot\" y \"applications.commands\" y los permisos \"Send Messages\" y \"Read Message History\"; abre el enlace e invítalo a vuestro servidor.\n" +
                 "3. En Discord: Ajustes > Avanzado > Modo desarrollador. Clic derecho en el canal > \"Copiar ID del canal\".\n" +
                 "El token se guarda cifrado y solo sirve en este PC. Nunca se publica.", 9f, FontStyle.Regular, Th.Muted);
             help.MaximumSize = new Size(540, 0);

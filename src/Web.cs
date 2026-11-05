@@ -1009,6 +1009,18 @@ namespace Majinheim
 
         public static DateTime ParseIsoPublic(string s) { return ParseIso(s); }
 
+        // Partidas (guardadas y en curso) que acaban después de 'since', de la más vieja a la más nueva. Solo nombres y tiempos.
+        public class SessionView { public string Name; public DateTime Start, End; public int Deaths; public bool Live; }
+        public static List<SessionView> Sessions(DateTime since)
+        {
+            var now = DateTime.Now;
+            lock (lk)
+                return history.Select(h => new SessionView { Name = h.Name, Start = ParseIso(h.Start), End = ParseIso(h.End), Deaths = h.Deaths })
+                    .Concat(online.Values.Where(l => l.Name != null).Select(l => new SessionView { Name = l.Name, Start = l.Since, End = now, Deaths = l.Deaths, Live = true }))
+                    .Where(x => x.Start != DateTime.MinValue && x.End >= x.Start && x.End > since)
+                    .OrderBy(x => x.Start).ToList();
+        }
+
         static DateTime ParseIso(string s)
         {
             DateTime d;
