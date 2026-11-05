@@ -1003,12 +1003,18 @@ namespace Majinheim
 
         public static string ServerExe() { return Path.Combine(Settings.Current.ServerDir, "valheim_server.exe"); }
 
-        public string BuildArgs()
+        public static string EscapeArg(string val)
+        {
+            return (val ?? "").Replace("\"", "\\\"");
+        }
+
+        public string BuildArgs(bool maskPassword = false)
         {
             var s = Settings.Current;
             var a = new StringBuilder();
+            string pw = maskPassword ? "****" : EscapeArg(s.Password);
             a.AppendFormat("-nographics -batchmode -name \"{0}\" -port {1} -world \"{2}\" -password \"{3}\" -public {4} -savedir \"{5}\"",
-                s.ServerName, s.Port, s.WorldName, s.Password, s.Public ? 1 : 0, AppInfo.SavesDir);
+                EscapeArg(s.ServerName), s.Port, EscapeArg(s.WorldName), pw, s.Public ? 1 : 0, EscapeArg(AppInfo.SavesDir));
             if (s.Crossplay) a.Append(" -crossplay");
             if (!string.IsNullOrWhiteSpace(s.ExtraArgs)) a.Append(" ").Append(s.ExtraArgs.Trim());
             a.Append(" ").Append(Doorstop.Args(AppInfo.Profile, true));
@@ -1046,7 +1052,7 @@ namespace Majinheim
             proc.OutputDataReceived += h;
             proc.ErrorDataReceived += h;
             proc.Exited += (o, e) => { lock (stdout) stdout.Dispose(); OnExit(); };
-            Log.W("Arrancando server: {0} {1}", ServerExe(), BuildArgs().Replace("-password \"" + s.Password + "\"", "-password \"****\""));
+            Log.W("Arrancando server: {0} {1}", ServerExe(), BuildArgs(true));
             StartedAt = DateTime.Now;
             proc.Start();
             try { proc.PriorityClass = ProcessPriorityClass.High; } catch { }
