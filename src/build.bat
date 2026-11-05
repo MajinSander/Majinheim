@@ -7,7 +7,7 @@ set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 set CECIL=lib\Mono.Cecil.dll
 if not exist "%CECIL%" (echo Falta %CECIL%: copialo del BepInExPack (BepInExPack_Valheim/BepInEx/core) & exit /b 1)
 set REFS=/r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:System.Web.Extensions.dll /r:System.Management.dll /r:System.Security.dll /r:"%CECIL%"
-set WEBRES=/resource:web\index.html,index.html /resource:web\app.js,app.js /resource:web\estilo.css,estilo.css /resource:web\icono.svg,icono.svg /resource:web\admin.html,admin.html /resource:web\admin.js,admin.js /resource:web\estadisticas.html,estadisticas.html /resource:web\estadisticas.js,estadisticas.js
+set WEBRES=/resource:web\index.html,index.html /resource:web\app.js,app.js /resource:web\estilo.css,estilo.css /resource:web\icono.svg,icono.svg /resource:web\admin.html,admin.html /resource:web\admin.js,admin.js /resource:web\estadisticas.html,estadisticas.html /resource:web\estadisticas.js,estadisticas.js /resource:web\mapa-es.js,mapa-es.js
 set OPTS=/nologo /optimize+ /platform:anycpu /codepage:65001 /win32icon:icon.ico
 
 if not exist ..\distribucion mkdir ..\distribucion
