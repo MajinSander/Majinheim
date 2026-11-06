@@ -565,7 +565,7 @@ namespace MajinheimMundo
             }
 
             var all = new StringBuilder(chests.Length + drawers.Length + 4096);
-            int day = EnvMan.instance != null ? EnvMan.instance.GetCurrentDay() : 0;
+            int day = EnvMan.instance != null ? EnvMan.instance.GetDay() : 0;
             all.Append("{\"fecha\":").Append(Q(DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss", Inv))).Append(",\"dia\":").Append(day)
                .Append(",\"cofres\":[").Append(chests).Append("],\"cajones\":[").Append(drawers).Append("],\"tumbas\":[").Append(tombs)
                .Append("],\"carteles\":[").Append(signs).Append("],\"portales\":[").Append(portals).Append("],\"nombres\":{");
