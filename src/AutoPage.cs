@@ -51,7 +51,7 @@ namespace Majinheim
             tDiscChannel = Ui.Txt(s.DiscordChannel, 220);
             cDiscJoins = Ui.Chk("Avisar cuando alguien entra o sale (con el tiempo que ha jugado)", s.DiscordJoins);
             cDiscUpdates = Ui.Chk("Avisar cuando un mod tiene versión nueva", s.DiscordUpdates);
-            cDiscCommands = Ui.Chk("Comandos del bot: /estado, /jugadores, /estadisticas, /web para todos; /encender, /apagar, /reiniciar, /backup, /salud, /actualizar solo para administradores del Discord", s.DiscordCommands);
+            cDiscCommands = Ui.Chk("Comandos del bot: /estado, /jugadores, /estadisticas, /web y /quedada para todos; /encender, /apagar, /reiniciar, /backup, /salud, /actualizar solo para administradores del Discord", s.DiscordCommands);
             cDiscCommands.MaximumSize = new Size(540, 0);
             cDiscCommands.CheckedChanged += (o, e) => { if (autoPopulating) return; s.DiscordCommands = cDiscCommands.Checked; Settings.Save(); DiscordBot.Apply(); UpdateAutoState(); };
             cDiscJoins.CheckedChanged += (o, e) => { if (autoPopulating) return; s.DiscordJoins = cDiscJoins.Checked; Settings.Save(); };
@@ -71,6 +71,7 @@ namespace Majinheim
                 Ui.Row(Ui.Btn("Guardar y probar", SaveDiscord, true),
                        Ui.Btn("Quitar", () => { if (!Confirm("¿Quitar el bot de Discord? Dejará de avisar.")) return; s.DiscordToken = ""; Settings.Save(); DiscordBot.Stop(); UpdateAutoState(); })),
                 help);
+            disc.Controls.AddRange(BuildCommunityControls());
 
             // ---- Tareas
             int bi = Array.IndexOf(BackupChoices, s.BackupEveryHours);
@@ -173,6 +174,7 @@ namespace Majinheim
             parts.Add(s.BackupEveryHours <= 0 ? "Backups automáticos: desactivados (sigue habiendo uno cada vez que arranca el server)."
                 : "Backups: cada " + s.BackupEveryHours + " h con el server encendido" + (lastSchedBackup != DateTime.MinValue ? "; el último, " + lastSchedBackup.ToString("dd/MM HH:mm") : "") + ".");
             parts.Add(s.NightlyRestart ? "Reinicio diario a las " + s.NightlyRestartHour.ToString("00") + ":00 si no hay nadie." : "Reinicio diario: desactivado.");
+            if (s.OnDemand) parts.Add("Server bajo demanda: cualquiera del Discord lo enciende con /encender; se apaga solo tras " + s.OnDemandIdleMinutes + " min sin nadie.");
             parts.Add(s.AutoUpdateMods ? "Mantenimiento diario a las " + s.NightlyRestartHour.ToString("00") + ":00: mods y Valheim al día, con prueba." : "Mantenimiento diario: desactivado (pestaña Salud).");
             var vst = Steam.Server();
             if (vst != null && vst.UpdatePending) parts.Add(s.AutoUpdateMods ? "Hay una actualización de Valheim esperando: se instala y se prueba en cuanto no haya nadie jugando." : "Hay una actualización de Valheim esperando: Steam la instala cuando el server está apagado.");
@@ -278,7 +280,7 @@ namespace Majinheim
                 if (st == "En marcha" && !wasUp) { wasUp = true; msg = "🟢 **" + Esc(Settings.Current.ServerName) + "** está encendido. ¡A jugar!"; }
                 else if (st.StartsWith("Crasheo")) { wasUp = false; msg = "🔴 El server se ha caído. Lo vuelvo a arrancar solo en unos segundos."; }
                 else if (st == ServerRunner.GaveUpStatus) { wasUp = false; msg = "🔴 El server se ha caído 3 veces seguidas nada más arrancar y lo he dejado apagado para no estropear nada. Hay que mirarlo (¿algún mod que no funciona tras una actualización?)."; }
-                else if (st == "Detenido" && (wasUp || lastRunnerStatus.StartsWith("Guardando"))) { wasUp = false; msg = "⚫ Server apagado (el mundo está guardado)."; }
+                else if (st == "Detenido" && (wasUp || lastRunnerStatus.StartsWith("Guardando"))) { wasUp = false; msg = IdleStopMessage() ?? "⚫ Server apagado (el mundo está guardado)."; }
                 lastRunnerStatus = st;
             }
             if (maintRunning) return;   // durante el mantenimiento se apaga y se enciende para probar: ya avisa él al terminar
@@ -318,6 +320,9 @@ namespace Majinheim
                 bossPollRunning = true;
                 Task.Factory.StartNew(PollBosses).ContinueWith(t => { bossPollRunning = false; });
             }
+
+            // Vida en el Discord: hitos, resumen de la semana, quedadas y server bajo demanda
+            CommunityTick(now);
 
             // Versiones nuevas de mods: cada 12 h
             if ((now - lastUpdateCheck).TotalHours >= 12) { lastUpdateCheck = now; CheckUpdatesQuiet(); }

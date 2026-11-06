@@ -738,6 +738,13 @@ namespace Majinheim
             t.Start();
         }
 
+        // Solo las partidas guardadas, sin vigilar el server (para la consola).
+        public static void LoadHistory()
+        {
+            if (started) return;
+            try { lock (lk) history = Json.Load<List<SessionRecord>>(HistoryFile); } catch (Exception e) { Log.W("Web: no pude leer sesiones.json: {0}", e.Message); }
+        }
+
         static bool Running { get { try { return proc != null && !proc.HasExited; } catch { return false; } } }
 
         static void Tick()
@@ -1008,6 +1015,7 @@ namespace Majinheim
         }
 
         public static DateTime ParseIsoPublic(string s) { return ParseIso(s); }
+        public static int? CurrentDay() { return WorldDay(); }
 
         // Partidas (guardadas y en curso) que acaban después de 'since', de la más vieja a la más nueva. Solo nombres y tiempos.
         public class SessionView { public string Name; public DateTime Start, End; public int Deaths; public bool Live; }

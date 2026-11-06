@@ -25,7 +25,8 @@ La opción **Recordarme en este dispositivo** evita tener que entrar cada vez.
 En el launcher del server, pestaña **Automático**: pega el token del bot y el ID del canal y pulsa "Guardar y probar". Ahí también se eligen los backups automáticos y el reinicio diario.
 
 - El bot avisa cuando el server se enciende, se apaga o se cae, quién entra y sale, y si hay mods con versión nueva.
-- Comandos: `/estado`, `/jugadores`, `/estadisticas` y `/web` para todos; `/encender`, `/apagar`, `/reiniciar`, `/backup`, `/avisar`, `/salud` y `/actualizar` solo para los administradores del Discord.
+- **Vida en el Discord**: `/quedada viernes 22:00` para quedar (el bot apunta quién va, avisa 15 minutos antes y enciende el server), resumen de la semana los domingos, hitos (100 horas, récords…) y, si quieres, server bajo demanda (cualquiera lo enciende con `/encender` y se apaga solo vacío).
+- Comandos: `/estado`, `/jugadores`, `/estadisticas`, `/web`, `/quedada` y `/quedadas` para todos; `/encender`, `/apagar`, `/reiniciar`, `/backup`, `/avisar`, `/salud` y `/actualizar` solo para los administradores del Discord.
 
 ## Salud y mantenimiento sin sustos
 En el launcher del server, pestaña **Salud**: una revisión de todo lo que hace falta para que el server funcione (backups, copia fuera del PC, disco, mods, Valheim, HTTPS, DDNS, cortafuegos, Windows Update, Discord, IA...), en verde, amarillo o rojo y con lo que hay que hacer. Se repite sola cada 10 minutos y avisa en Discord si algo importante se estropea.

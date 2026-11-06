@@ -1,5 +1,14 @@
 # Novedades
 
+## 2.3.0
+- **Quedadas**: `/quedada viernes 22:00` (o "hoy 21:30", "mañana 18h", "15/11 22:00"…, con un plan opcional como "a por Moder") deja en el canal un mensaje con botones **Me apunto** / **No voy**. 15 minutos antes, el bot avisa a los que van (solo a ellos) y **enciende el server** si está apagado. Quien la crea, o un administrador, la puede cancelar. `/quedadas` dice las próximas y quién va.
+- **Resumen de la semana** los domingos a las 21:00: horas entre todos y comparadas con la semana anterior, quién jugó más, la partida más larga, muertes, jefes caídos y gente nueva. Lo escribe la IA si está activada, siempre con los datos reales (si se inventa algo, sale el resumen normal). Si lleváis dos semanas sin jugar, no molesta.
+- **Hitos** en Discord: alguien llega a 10, 25, 50, 100… horas; entre todos, 100, 250, 500… horas; récord de partida más larga; 50, 100… muertes; y alguien que entra por primera vez. Los que ya teníais conseguidos no se avisan de golpe.
+- **Server bajo demanda** (desactivado de serie): si lo apagas para ahorrar, cualquiera del Discord puede encenderlo con `/encender`, y se apaga solo, guardando el mundo, cuando lleva el rato elegido sin nadie (30 minutos de serie). Nunca se apaga con una quedada a punto de empezar. Apagar a mano sigue siendo solo de los administradores.
+- Todo se activa o desactiva en la pestaña **Automático**, en "Vida en el Discord".
+- La IA sabe las próximas quedadas y explica cómo proponer una.
+- Consola: `MajinheimCli resumen [enviar]` (el resumen de la semana, para verlo antes) y `cuando <texto>` (cómo entiende el bot una fecha).
+
 ## 2.2.0
 - **La IA conoce el mundo**: en Discord se le puede preguntar "@MajinBot ¿dónde está el hierro?", "¿cuánta madera tenemos?", "¿cómo se hace la espada de hierro?", "¿para qué sirve la piel de lobo?" o "¿dónde está mi tumba?", y contesta con los datos reales del mundo, no de memoria.
 - **Dónde está cada cosa**: mira todos los cofres, cajones, barcos y carros, junta los que están en el mismo sitio y lo explica con el portal más cercano ("a 40 m al norte del portal «Casa»") y los carteles de al lado. Dice cuánto hay en total, si hay parecidos (chatarra de hierro...) y si hay algo en alguna tumba. **Los cofres personales no se miran.**

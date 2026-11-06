@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "2.2.0";
+        public const string Version = "2.3.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -235,6 +235,17 @@ namespace Majinheim
         public string OllamaUrl { get; set; }      // dónde escucha Ollama (por defecto, este PC)
         public string OllamaModel { get; set; }
         public bool WorldExport { get; set; }      // mod propio Majinheim Mundo en el server: la IA sabe qué hay en cofres y tumbas y las recetas con mods
+        // Vida en el Discord (2.3)
+        public bool WeeklySummary { get; set; }    // resumen de la semana los domingos a las 21:00 (escrito por la IA si está)
+        public string WeeklyDone { get; set; }     // último domingo (yyyy-MM-dd) en que se mandó
+        public bool Milestones { get; set; }       // hitos: horas de cada uno y del grupo, récords, primera vez...
+        public List<string> MilestonesSeen { get; set; }
+        public bool MilestonesReady { get; set; }  // la primera vez solo se apunta lo ya conseguido, sin avisar
+        public int RecordMinutes { get; set; }     // partida más larga hasta ahora
+        public bool Meetups { get; set; }          // /quedada en Discord
+        public bool MeetupStart { get; set; }      // encender el server 15 minutos antes de una quedada
+        public bool OnDemand { get; set; }         // server bajo demanda: cualquiera del Discord lo enciende y se apaga solo vacío
+        public int OnDemandIdleMinutes { get; set; }
         // comunes: de dónde sale el modpack (GitHub)
         public string GitHubRepo { get; set; }
         // edicion cliente
@@ -251,6 +262,7 @@ namespace Majinheim
             DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true; RconPassword = ""; WarnBeforeStop = true;
             BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5; OffsiteDir = "";
             AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:14b"; WorldExport = true;
+            WeeklySummary = true; WeeklyDone = ""; Milestones = true; MilestonesSeen = new List<string>(); Meetups = true; MeetupStart = true; OnDemand = false; OnDemandIdleMinutes = 30;
             AutoUpdateMods = true; MaintenanceDay = ""; VerifiedBuild = ""; BackupCheckAt = ""; BackupCheckText = "";
             SkippedUpdates = new List<string>(); ModNotices = new List<string>(); HealthAlerts = new List<string>();
         }
@@ -262,6 +274,8 @@ namespace Majinheim
             if (Current.SkippedUpdates == null) Current.SkippedUpdates = new List<string>();
             if (Current.ModNotices == null) Current.ModNotices = new List<string>();
             if (Current.HealthAlerts == null) Current.HealthAlerts = new List<string>();
+            if (Current.MilestonesSeen == null) Current.MilestonesSeen = new List<string>();
+            if (Current.OnDemandIdleMinutes < 10) Current.OnDemandIdleMinutes = 30;
         }
         public static void Save() { Json.Save(AppInfo.SettingsFile, Current); }
     }

@@ -37,6 +37,7 @@ namespace Majinheim
         public static void Apply()
         {
             Stop();
+            registeredFor = null;   // al reconectar se vuelven a registrar los comandos (pueden haber cambiado con los ajustes)
             if (!Settings.Current.DiscordCommands || Token == null) { State = Token == null ? null : "Comandos desactivados."; return; }
             cts = new CancellationTokenSource();
             var ct = cts.Token;
@@ -185,13 +186,14 @@ namespace Majinheim
                 if (admin) c["default_member_permissions"] = PermAdministrator.ToString(CultureInfo.InvariantCulture);
                 return c;
             };
+            bool onDemand = Settings.Current.OnDemand;
             var list = new List<object>
             {
                 cmd("estado", "Si el server está encendido, quién juega y el día en el mundo", false),
                 cmd("jugadores", "Quién está jugando ahora y cuánto lleva", false),
                 cmd("estadisticas", "Horas jugadas por cada vikingo", false),
                 cmd("web", "Enlaces a la web del server y al mapa", false),
-                cmd("encender", "Enciende el server (solo administradores)", true),
+                onDemand ? cmd("encender", "Enciende el server (se apaga solo cuando lleva un rato vacío)", false) : cmd("encender", "Enciende el server (solo administradores)", true),
                 cmd("apagar", "Guarda el mundo y apaga el server (solo administradores)", true),
                 cmd("reiniciar", "Guarda el mundo y reinicia el server (solo administradores)", true),
                 cmd("backup", "Hace un backup completo del server (solo administradores)", true),
@@ -201,6 +203,17 @@ namespace Majinheim
             var avisar = cmd("avisar", "Manda un mensaje al chat del juego (solo administradores)", true);
             avisar["options"] = new[] { new Dictionary<string, object> { { "type", 3 }, { "name", "mensaje" }, { "description", "Lo que verán los jugadores" }, { "required", true }, { "max_length", 200 } } };
             list.Add(avisar);
+            if (Settings.Current.Meetups)
+            {
+                var q = cmd("quedada", "Propone una hora para jugar juntos: el bot apunta quién va y avisa 15 minutos antes", false);
+                q["options"] = new[]
+                {
+                    new Dictionary<string, object> { { "type", 3 }, { "name", "cuando" }, { "description", "Día y hora, por ejemplo: viernes 22:00, hoy 21:30, mañana 18h, 15/11 22:00" }, { "required", true }, { "max_length", 40 } },
+                    new Dictionary<string, object> { { "type", 3 }, { "name", "plan" }, { "description", "Opcional: qué vais a hacer (por ejemplo: a por Moder)" }, { "required", false }, { "max_length", 100 } },
+                };
+                list.Add(q);
+                list.Add(cmd("quedadas", "Las próximas quedadas y quién va", false));
+            }
             Rest("PUT", "/applications/" + appId + "/commands", list);
             Log.W("Bot de Discord: comandos registrados.");
         }
@@ -209,7 +222,9 @@ namespace Majinheim
         {
             try
             {
-                if (Convert.ToInt32(d["type"]) != 2) return;   // solo comandos
+                int itype = Convert.ToInt32(d["type"]);
+                if (itype == 3) { OnButton(d); return; }   // botones de las quedadas
+                if (itype != 2) return;   // solo comandos
                 string id = d["id"] as string, itoken = d["token"] as string;
                 var data = d["data"] as Dictionary<string, object>;
                 string name = data != null ? data["name"] as string : null;
@@ -217,6 +232,8 @@ namespace Majinheim
                 var member = mo as Dictionary<string, object>;
                 string reply; bool ephemeral = false;
                 if (member == null) reply = "Los comandos solo funcionan dentro del servidor de Discord.";
+                else if (name == "quedada") { NewMeetup(d, data, member); return; }
+                else if (name == "quedadas") { reply = ListMeetups(); ephemeral = true; }
                 else if (AdminCommands.Contains(name))
                 {
                     ephemeral = false;
@@ -224,7 +241,8 @@ namespace Majinheim
                     string who = user != null ? (string)user["username"] : "?";
                     long perms = 0;
                     long.TryParse(member["permissions"] as string ?? "0", NumberStyles.Integer, CultureInfo.InvariantCulture, out perms);
-                    if ((perms & (PermAdministrator | PermManageGuild)) == 0) { reply = "Este comando es solo para los administradores del Discord."; ephemeral = true; }
+                    bool anyone = name == "encender" && Settings.Current.OnDemand;   // server bajo demanda: cualquiera lo enciende (apagar sigue siendo de los administradores)
+                    if ((perms & (PermAdministrator | PermManageGuild)) == 0 && !anyone) { reply = "Este comando es solo para los administradores del Discord."; ephemeral = true; }
                     else
                     {
                         string what = name == "encender" ? "iniciar" : name == "apagar" ? "parar" : name;
@@ -270,6 +288,157 @@ namespace Majinheim
             }
             catch (Exception e) { Log.W("Bot de Discord: comando falló: {0}", e.Message); }
         }
+
+        // ------------------------------------------------------------ quedadas (/quedada viernes 22:00)
+
+        static string DisplayName(Dictionary<string, object> member)
+        {
+            var user = member != null ? member["user"] as Dictionary<string, object> : null;
+            string n = member != null && member.ContainsKey("nick") ? member["nick"] as string : null;
+            if (string.IsNullOrEmpty(n) && user != null && user.ContainsKey("global_name")) n = user["global_name"] as string;
+            if (string.IsNullOrEmpty(n) && user != null) n = user["username"] as string;
+            return n ?? "?";
+        }
+        static string UserId(Dictionary<string, object> member) { var u = member != null ? member["user"] as Dictionary<string, object> : null; return u != null ? u["id"] as string : null; }
+        static bool MemberIsAdmin(Dictionary<string, object> member)
+        {
+            long perms = 0;
+            if (member != null) long.TryParse(member["permissions"] as string ?? "0", NumberStyles.Integer, CultureInfo.InvariantCulture, out perms);
+            return (perms & (PermAdministrator | PermManageGuild)) != 0;
+        }
+
+        static Dictionary<string, object> Button(int style, string label, string id)
+        {
+            return new Dictionary<string, object> { { "type", 2 }, { "style", style }, { "label", label }, { "custom_id", id } };
+        }
+
+        static object[] MeetupButtons(Community.Meetup m)
+        {
+            if (m.Done || m.Cancelled) return new object[0];
+            return new object[]
+            {
+                new Dictionary<string, object> { { "type", 1 }, { "components", new object[] { Button(3, "Me apunto", "q:" + m.Id + ":si"), Button(2, "No voy", "q:" + m.Id + ":no"), Button(4, "Cancelar", "q:" + m.Id + ":x") } } },
+            };
+        }
+
+        static Dictionary<string, object> MeetupMessage(Community.Meetup m)
+        {
+            return new Dictionary<string, object>
+            {
+                { "content", Community.Describe(m) },
+                { "components", MeetupButtons(m) },
+                { "allowed_mentions", new Dictionary<string, object> { { "parse", new string[0] } } },
+            };
+        }
+
+        static void Callback(Dictionary<string, object> d, int type, Dictionary<string, object> data)
+        {
+            Rest("POST", "/interactions/" + (d["id"] as string) + "/" + (d["token"] as string) + "/callback", new Dictionary<string, object> { { "type", type }, { "data", data } }, false);
+        }
+        static void Private(Dictionary<string, object> d, string text)
+        {
+            Callback(d, 4, new Dictionary<string, object> { { "content", text }, { "flags", 64 }, { "allowed_mentions", new Dictionary<string, object> { { "parse", new string[0] } } } });
+        }
+
+        static void NewMeetup(Dictionary<string, object> d, Dictionary<string, object> data, Dictionary<string, object> member)
+        {
+            DateTime when; string err;
+            if (!Community.ParseWhen(Option(data, "cuando"), DateTime.Now, out when, out err)) { Private(d, "📅 " + err + "\nEjemplos: `/quedada viernes 22:00`, `/quedada hoy 21:30`, `/quedada 15/11 22:00`."); return; }
+            if (Community.Meetups().Count(x => !x.Done && !x.Cancelled) >= 10) { Private(d, "Ya hay 10 quedadas en marcha: cancela alguna antes (o esperad a que pasen)."); return; }
+            string uid = UserId(member), who = DisplayName(member);
+            string plan = Regex.Replace(Option(data, "plan"), @"[\x00-\x1f]+", " ").Trim();
+            var m = new Community.Meetup
+            {
+                Id = Guid.NewGuid().ToString("N").Substring(0, 8),
+                When = when.ToString("yyyy-MM-dd'T'HH:mm:ss", CultureInfo.InvariantCulture),
+                Plan = plan.Length > 100 ? plan.Substring(0, 100) : plan,
+                Channel = d["channel_id"] as string, Creator = who, CreatorId = uid,
+            };
+            m.People.Add(new Community.Person { Id = uid, Name = who });
+            Community.Change(null, x => m);
+            Callback(d, 4, MeetupMessage(m));
+            Log.W("Quedada nueva de {0} para el {1:dd/MM HH:mm}.", who, when);
+            try
+            {
+                // El mensaje con los botones, para cerrarlo cuando pase la quedada.
+                var orig = RestGet("/webhooks/" + appId + "/" + (d["token"] as string) + "/messages/@original");
+                string mid = orig["id"] as string;
+                Community.Change(m.Id, x => { if (x != null) x.Message = mid; return x; });
+            }
+            catch (Exception e) { Log.W("Quedadas: no pude leer el mensaje creado: {0}", e.Message); }
+        }
+
+        static void OnButton(Dictionary<string, object> d)
+        {
+            var data = d["data"] as Dictionary<string, object>;
+            string cid = data != null ? data["custom_id"] as string : null;
+            object mo; d.TryGetValue("member", out mo);
+            var member = mo as Dictionary<string, object>;
+            if (cid == null || !cid.StartsWith("q:") || member == null) return;
+            var parts = cid.Split(':');
+            if (parts.Length != 3) return;
+            string uid = UserId(member), who = DisplayName(member), what = parts[2];
+            string deny = null;
+            var m = Community.Change(parts[1], x =>
+            {
+                if (x == null) { deny = "Esa quedada ya no existe."; return null; }
+                if (x.Done || x.Cancelled) { deny = "Esa quedada ya ha pasado o se ha cancelado."; return x; }
+                if (what == "si" && !x.People.Any(p => p.Id == uid)) x.People.Add(new Community.Person { Id = uid, Name = who });
+                else if (what == "no") x.People.RemoveAll(p => p.Id == uid);
+                else if (what == "x")
+                {
+                    if (x.CreatorId != uid && !MemberIsAdmin(member)) { deny = "Solo la puede cancelar quien la creó (" + x.Creator + ") o un administrador."; return x; }
+                    x.Cancelled = true;
+                }
+                return x;
+            });
+            if (deny != null) { Private(d, deny); return; }
+            Callback(d, 7, MeetupMessage(m));
+            if (what == "x") Log.W("Quedada del {0:dd/MM HH:mm} cancelada por {1}.", m.At, who);
+        }
+
+        static string ListMeetups()
+        {
+            var list = Community.Meetups().Where(m => !m.Done && !m.Cancelled && m.At > DateTime.Now.AddHours(-1)).OrderBy(m => m.At).ToList();
+            if (list.Count == 0) return "No hay ninguna quedada. Propón una con `/quedada viernes 22:00`.";
+            var es = new CultureInfo("es-ES");
+            return "📅 **Próximas quedadas**\n" + string.Join("\n", list.Select(m => "• **" + m.At.ToString("dddd d 'de' MMMM, HH:mm", es) + "** (<t:" + Community.Unix(m.At) + ":R>)" +
+                (string.IsNullOrEmpty(m.Plan) ? "" : " · " + Esc(m.Plan)) + " · van " + m.People.Count + (m.People.Count > 0 ? ": " + string.Join(", ", m.People.Select(p => Esc(p.Name))) : "")));
+        }
+
+        // 15 minutos antes: aviso a los que van (con mención, solo a ellos) en el canal donde se creó.
+        public static void MeetupReminder(Community.Meetup m, string serverNote)
+        {
+            var sb = new StringBuilder("⏰ **La quedada empieza en 15 minutos** (" + m.At.ToString("HH:mm") + ")");
+            if (!string.IsNullOrEmpty(m.Plan)) sb.Append(" · 🎯 ").Append(Esc(m.Plan));
+            sb.Append('\n');
+            string mentions = string.Join(" ", m.People.Where(p => Discord.IsSnowflake(p.Id)).Select(p => "<@" + p.Id + ">"));
+            if (!string.IsNullOrEmpty(serverNote)) sb.Append(serverNote);
+            var body = new Dictionary<string, object>
+            {
+                { "content", (sb.ToString().TrimEnd() + (mentions.Length > 0 ? "\n" + mentions : "")) },
+                { "allowed_mentions", new Dictionary<string, object> { { "parse", new string[0] }, { "users", m.People.Select(p => p.Id).Where(Discord.IsSnowflake).Take(100).ToArray() } } },
+            };
+            try
+            {
+                if (Token == null || !Discord.IsSnowflake(m.Channel)) throw new Exception("sin canal");
+                Rest("POST", "/channels/" + m.Channel + "/messages", body);
+            }
+            catch (Exception e)
+            {
+                Log.W("Quedadas: no pude avisar en su canal ({0}); aviso en el de siempre.", e.Message);
+                Discord.Send(sb.ToString().TrimEnd() + (m.People.Count > 0 ? "\nVan: " + string.Join(", ", m.People.Select(p => Esc(p.Name))) : ""));
+            }
+        }
+
+        // Cuando ya ha pasado: el mensaje se queda sin botones y dice "Ya pasó".
+        public static void CloseMeetupMessage(Community.Meetup m)
+        {
+            if (Token == null || !Discord.IsSnowflake(m.Channel) || !Discord.IsSnowflake(m.Message)) return;
+            try { Rest("PATCH", "/channels/" + m.Channel + "/messages/" + m.Message, MeetupMessage(m)); }
+            catch (Exception e) { Log.W("Quedadas: no pude cerrar el mensaje: {0}", e.Message); }
+        }
+
 
         // ------------------------------------------------------------ asistente IA: se le habla mencionándolo (@bot)
 
