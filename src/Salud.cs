@@ -571,6 +571,13 @@ namespace Majinheim
 
             add(() =>
             {
+                if (r != null) return WorldData.Check(r.Running, r.StartedAt);
+                var ps = System.Diagnostics.Process.GetProcessesByName("valheim_server");
+                return WorldData.Check(ps.Length > 0, ps.Length > 0 ? ps[0].StartTime : DateTime.MinValue);
+            });
+
+            add(() =>
+            {
                 var h = Maintenance.History().FirstOrDefault();
                 string when = "a las " + s.NightlyRestartHour.ToString("00") + ":00";
                 if (!s.AutoUpdateMods) return I("mantenimiento", "Mantenimiento diario", "info", "Desactivado: mods y Valheim se actualizan a mano.");

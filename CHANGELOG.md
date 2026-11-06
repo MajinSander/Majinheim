@@ -1,5 +1,15 @@
 # Novedades
 
+## 2.2.0
+- **La IA conoce el mundo**: en Discord se le puede preguntar "@MajinBot ¿dónde está el hierro?", "¿cuánta madera tenemos?", "¿cómo se hace la espada de hierro?", "¿para qué sirve la piel de lobo?" o "¿dónde está mi tumba?", y contesta con los datos reales del mundo, no de memoria.
+- **Dónde está cada cosa**: mira todos los cofres, cajones, barcos y carros, junta los que están en el mismo sitio y lo explica con el portal más cercano ("a 40 m al norte del portal «Casa»") y los carteles de al lado. Dice cuánto hay en total, si hay parecidos (chatarra de hierro...) y si hay algo en alguna tumba. **Los cofres personales no se miran.**
+- **Recetas de verdad**: materiales, mesa y nivel, lo que piden las mejoras y con qué herramienta se construye cada cosa, sacado del propio server con todos sus mods y en español. Si preguntas por un material, dice para qué sirve.
+- **Tumbas**: de quién, cuándo murió, dónde está y qué lleva.
+- Lo hace un mod propio, **Majinheim Mundo**, que va **solo en el server** (los jugadores no instalan nada) y **solo lee**: no cambia nada del mundo. Cada 5 minutos apunta lo que hay, poco a poco para no frenar la partida. El launcher lo prepara solo al arrancar el server, para la versión de Valheim de ese PC, y lo vuelve a preparar si Valheim se actualiza. Si algo falla, el server arranca igual, sin él.
+- Se puede apagar en la pestaña **Asistente IA** ("Que sepa qué hay en los cofres...").
+- Salud: nueva línea "La IA conoce el mundo" (si el mod está funcionando y de cuándo son los datos).
+- Consola: `MajinheimCli mundo` (prepara el mod y dice qué sabe), y `buscar <objeto>`, `receta <objeto>` y `tumbas [jugador]` para ver lo mismo que consulta la IA.
+
 ## 2.1.0
 - **Mantenimiento diario sin sustos**: a la hora del reinicio diario, y solo si no hay nadie jugando, el launcher del server mira si hay versiones nuevas de los mods o de Valheim. Si las hay, hace backup del mundo, los ajustes y la lista de mods; apaga el server; deja que Steam actualice Valheim; instala los mods nuevos y **prueba que el server arranca y carga el mundo**. Si un mod nuevo da errores, lo deja en la versión de antes y se queda con los demás; si aun así no arranca, vuelve a dejarlo todo como estaba (también el mundo, si la prueba llegó a guardarlo). Al terminar, el server queda como estaba (encendido o apagado), tus amigos reciben los mods nuevos al abrir su launcher y en Discord sale qué se ha hecho.
 - Para saber si un arranque ha ido bien se comparan sus errores con los de antes: solo cuentan los **nuevos** que vienen del cargador de mods o de un mod actualizado. Los de siempre (gráficos, vídeo...) no hacen saltar la alarma.

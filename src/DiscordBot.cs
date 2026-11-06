@@ -298,7 +298,9 @@ namespace Majinheim
                 string who = (member != null && member.ContainsKey("nick") ? member["nick"] as string : null)
                     ?? (author.ContainsKey("global_name") ? author["global_name"] as string : null) ?? (author["username"] as string) ?? "?";
 
-                if (text.Length == 0) { Reply(channel, msgId, "¡Dime! Pregúntame lo que quieras del server: quién juega, quién jugó ayer, cuántas horas lleva cada uno, qué jefe falta..."); return; }
+                if (text.Length == 0) { Reply(channel, msgId, Settings.Current.WorldExport
+                    ? "¡Dime! Pregúntame lo que quieras del server: quién juega, quién jugó ayer, qué jefe falta, dónde está el hierro, cómo se hace algo, dónde está tu tumba..."
+                    : "¡Dime! Pregúntame lo que quieras del server: quién juega, quién jugó ayer, cuántas horas lleva cada uno, qué jefe falta..."); return; }
                 lock (lastAsk)
                 {
                     DateTime prev;

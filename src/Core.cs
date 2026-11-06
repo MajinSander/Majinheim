@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "2.1.0";
+        public const string Version = "2.2.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -234,6 +234,7 @@ namespace Majinheim
         public bool AiEnabled { get; set; }
         public string OllamaUrl { get; set; }      // dónde escucha Ollama (por defecto, este PC)
         public string OllamaModel { get; set; }
+        public bool WorldExport { get; set; }      // mod propio Majinheim Mundo en el server: la IA sabe qué hay en cofres y tumbas y las recetas con mods
         // comunes: de dónde sale el modpack (GitHub)
         public string GitHubRepo { get; set; }
         // edicion cliente
@@ -249,7 +250,7 @@ namespace Majinheim
             WebUsers = new List<WebUser>();
             DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true; RconPassword = ""; WarnBeforeStop = true;
             BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5; OffsiteDir = "";
-            AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:14b";
+            AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:14b"; WorldExport = true;
             AutoUpdateMods = true; MaintenanceDay = ""; VerifiedBuild = ""; BackupCheckAt = ""; BackupCheckText = "";
             SkippedUpdates = new List<string>(); ModNotices = new List<string>(); HealthAlerts = new List<string>();
         }
@@ -1073,6 +1074,9 @@ namespace Majinheim
             if (backup && Directory.Exists(Path.Combine(AppInfo.SavesDir, "worlds_local")))
                 Backup.Create("mundo-al-arrancar", Backup.WorldItems(), true);
             Doorstop.EnsureServerProxy(s.ServerDir, AppInfo.Profile);
+#if SERVER
+            WorldMod.EnsureFresh();   // el mod que lee el mundo para la IA, compilado para el Valheim de este PC
+#endif
 
             var psi = new ProcessStartInfo(ServerExe(), BuildArgs());
             psi.WorkingDirectory = s.ServerDir;

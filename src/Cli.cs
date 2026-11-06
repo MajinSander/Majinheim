@@ -152,8 +152,35 @@ namespace Majinheim
                             Discord.Flush(15000);
                             return rep.Level == "mal" ? 1 : 0;
                         }
+                    case "mundo":
+                        {
+                            // mundo: prepara el mod Majinheim Mundo (con el server apagado) y dice qué sabe la IA del mundo.
+                            if (System.Diagnostics.Process.GetProcessesByName("valheim_server").Length == 0)
+                            {
+                                Console.WriteLine("Preparando el mod Majinheim Mundo...");
+                                WorldMod.EnsureFresh();
+                                Console.WriteLine(WorldMod.LastError == null ? (WorldMod.Installed ? "Mod listo en el perfil del server." : "Mod desactivado (WorldExport).") : "No se ha podido preparar: " + WorldMod.LastError);
+                                if (WorldMod.LastError != null && File.Exists(WorldMod.ErrorLog)) Console.WriteLine(File.ReadAllText(WorldMod.ErrorLog));
+                            }
+                            else Console.WriteLine("El server está en marcha: el mod " + (WorldMod.Installed ? "está instalado." : "NO está instalado (se prepara al arrancar el server)."));
+                            var ps = System.Diagnostics.Process.GetProcessesByName("valheim_server");
+                            var it = WorldData.Check(ps.Length > 0, ps.Length > 0 ? ps[0].StartTime : DateTime.MinValue);
+                            Console.WriteLine("{0} {1}", Health.Dot(it.State), it.Detail);
+                            return WorldMod.LastError == null ? 0 : 1;
+                        }
+                    case "buscar":
+                    case "receta":
+                    case "tumbas":
+                        {
+                            // Lo mismo que consulta la IA, para probarlo sin Discord: buscar <objeto> | receta <objeto> | tumbas [jugador]
+                            string q = string.Join(" ", args.Skip(1)).Trim();
+                            if (q == "" && cmd != "tumbas") { Console.WriteLine("Uso: MajinheimCli " + cmd + " <objeto>"); return 1; }
+                            object res = cmd == "buscar" ? WorldData.FindItem(q) : cmd == "receta" ? WorldData.Craft(q) : WorldData.Tombs(q);
+                            Console.WriteLine(Json.Str(res));
+                            return 0;
+                        }
                     default:
-                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | ia [descargar] | salud | comprobar-backups | errores | actualizar [reintentar]");
+                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | ia [descargar] | salud | comprobar-backups | errores | actualizar [reintentar] | mundo | buscar <objeto> | receta <objeto> | tumbas [jugador]");
                         return 1;
                 }
             }
