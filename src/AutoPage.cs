@@ -457,7 +457,11 @@ namespace Majinheim
             var o = new Dictionary<string, object>
             {
                 { "backups", Backup.List().Take(15).Select(b => new Dictionary<string, object>
-                    { { "fecha", b.Date.ToString("yyyy-MM-dd'T'HH:mm:sszzz") }, { "nombre", b.Label }, { "tipo", b.Kind }, { "mb", Math.Round(b.Size / 1048576.0, 1) } }).ToList() },
+                    {
+                        { "fecha", b.Date.ToString("yyyy-MM-dd'T'HH:mm:sszzz") }, { "nombre", b.Label }, { "tipo", b.Kind }, { "mb", Math.Round(b.Size / 1048576.0, 1) },
+                        { "archivo", System.IO.Path.GetFileName(b.Path) }, { "mundo", Backup.HasWorld(b) },   // para «Restaurar» en la web (2.5)
+                    }).ToList() },
+                { "jugando", SomeonePlaying() },
                 { "actualizaciones", UpdateList() },
                 { "tareas", new Dictionary<string, object>
                     {

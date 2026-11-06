@@ -34,6 +34,10 @@
       <input id="usuario" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="32">
       <label for="clave">Contraseña</label>
       <input id="clave" type="password" autocomplete="current-password" required>
+      <div id="fila-codigo" class="campo-codigo" hidden>
+        <label for="codigo">Código de tu app de verificación</label>
+        <input id="codigo" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123 456" spellcheck="false">
+      </div>
       <label class="casilla"><input id="recordar" type="checkbox" checked> Recordarme en este dispositivo</label>
       <button class="boton" type="submit">Entrar</button>
       <p id="login-error" class="error" role="alert"></p>
@@ -149,9 +153,30 @@
     <ul id="mantenimientos" class="lista apilada"></ul>
   </section>
 
-  <section class="tarjeta">
+  <section class="tarjeta" id="t-backups">
     <h2>Backups <span class="tenue">(los últimos)</span></h2>
     <ul id="backups" class="lista"></ul>
+    <div id="restaurar" class="problema" hidden></div>
+    <p class="tenue">«Restaurar» vuelve el mundo a como estaba en ese backup. Hay que confirmarlo dos veces y antes se guarda una copia de cómo está ahora.</p>
+  </section>
+
+  <section class="tarjeta ancha" id="t-ajustes">
+    <h2>Ajustes de los mods</h2>
+    <div class="formulario">
+      <div class="en-linea filtros">
+        <select id="ajustes-mod" class="campo" aria-label="Mod"><option value="">★ Los más usados</option></select>
+        <input id="ajustes-buscar" type="search" maxlength="60" placeholder="Buscar en todos los mods" autocomplete="off" aria-label="Buscar un ajuste">
+      </div>
+    </div>
+    <p id="ajustes-titulo" class="subtitulo"></p>
+    <ul id="ajustes" class="lista apilada ajustes"></ul>
+    <div id="ajustes-revisar" class="problema" hidden></div>
+    <div class="botonera" id="ajustes-botonera">
+      <button id="ajustes-ver" class="boton" type="button" disabled>Revisar cambios</button>
+      <button id="ajustes-deshacer" class="boton secundario" type="button" disabled>Deshacer</button>
+    </div>
+    <p id="ajustes-resultado" class="tenue" role="status"></p>
+    <p class="tenue">Los mismos que en el launcher del server, pestaña Ajustes de mods. Antes de guardar se hace una copia del archivo. La mayoría de mods aplican el cambio al momento, también a los que están jugando; si alguno no lo nota, se aplica al reiniciar el server.</p>
   </section>
 
   <section class="tarjeta">
@@ -165,6 +190,17 @@
     <div class="botonera">
       <button id="salir-todos" class="boton secundario">Cerrar sesión en todos los dispositivos</button>
     </div>
+  </section>
+
+  <section class="tarjeta" id="t-seguridad">
+    <h2>Seguridad de tu cuenta</h2>
+    <p id="seg-estado" class="resumen-salud"></p>
+    <p id="seg-texto" class="vacio"></p>
+    <div id="seg-flujo" class="problema" hidden></div>
+    <div class="botonera" id="seg-botonera">
+      <button id="seg-boton" class="boton" type="button">Activar</button>
+    </div>
+    <p class="tenue">Cuando alguien entra en este panel desde un navegador nuevo, llega un aviso al Discord. Si pierdes el móvil: en el launcher del server, pestaña Web, «Quitar verificación en dos pasos».</p>
   </section>
 
   <section class="tarjeta ancha">

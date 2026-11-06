@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "2.4.0";
+        public const string Version = "2.5.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -279,7 +279,9 @@ namespace Majinheim
             if (Current.MilestonesSeen == null) Current.MilestonesSeen = new List<string>();
             if (Current.OnDemandIdleMinutes < 10) Current.OnDemandIdleMinutes = 30;
         }
-        public static void Save() { Json.Save(AppInfo.SettingsFile, Current); }
+        static readonly object saveLk = new object();
+        // Se guarda desde la ventana, la web y Discord: de uno en uno.
+        public static void Save() { lock (saveLk) Json.Save(AppInfo.SettingsFile, Current); }
     }
 
     // Cuenta de la web del server. Role: "admin" (controles del server) o "jugador" (ve lo mismo que un invitado).
@@ -288,7 +290,8 @@ namespace Majinheim
         public string Name { get; set; }
         public string Role { get; set; }
         public string Hash { get; set; }         // pbkdf2-sha256$iteraciones$sal$hash
-        public WebUser() { Name = ""; Role = "jugador"; Hash = ""; }
+        public string Totp { get; set; }         // verificación en dos pasos (2.5): la clave de la app, cifrada con DPAPI; vacía = sin activar
+        public WebUser() { Name = ""; Role = "jugador"; Hash = ""; Totp = ""; }
     }
 
     public static class Ver
@@ -806,8 +809,12 @@ namespace Majinheim
                     try { File.Delete(old.Path); Log.W("Backup antiguo borrado: {0}", System.IO.Path.GetFileName(old.Path)); } catch { }
         }
 
-        // Restaura sobre los destinos originales. Antes guarda un backup de lo que va a pisar.
-        public static void Restore(string zipPath)
+        // Las partes de un backup que son "el mundo": el mundo, los personajes guardados en el server y lo explorado en el mapa de la web.
+        // Restaurar desde la web solo pone estas (ni ajustes, ni cuentas, ni la lista de baneados).
+        public static bool IsWorldPart(string key) { return key == "saves_worlds_local" || key == "saves_characters_local" || key.StartsWith("mapa_"); }
+
+        // Restaura sobre los destinos originales. Antes guarda un backup de lo que va a pisar. only: qué partes (null = todas).
+        public static void Restore(string zipPath, Func<string, bool> only = null)
         {
             Dictionary<string, string> map;
             using (var z = ZipFile.OpenRead(zipPath))
@@ -816,6 +823,8 @@ namespace Majinheim
                 if (je == null) throw new Exception("Este backup no tiene backup.json, no se puede restaurar automaticamente.");
                 using (var sr = new StreamReader(je.Open())) map = Json.Parse<Dictionary<string, string>>(sr.ReadToEnd());
             }
+            if (only != null) map = map.Where(kv => only(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
+            if (map.Count == 0) throw new Exception("Este backup no lleva el mundo.");
             Create("antes-de-restaurar", map.Select(kv => new Item(kv.Value, kv.Key)), false);
             using (var z = ZipFile.OpenRead(zipPath))
             {

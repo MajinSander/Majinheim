@@ -13,17 +13,6 @@ namespace Majinheim
     public partial class MainForm
     {
         const string Favorites = "★  Los más usados";
-        // (archivo, ajuste) que se enseñan en "Los más usados"
-        static readonly string[][] FavoriteKeys =
-        {
-            new[] { "kg.ItemDrawers", "DrawerPickupRange" },
-            new[] { "kg.ItemDrawers", "MaxDrawerPickupRange" },
-            new[] { "Azumatt.AzuExtendedPlayerInventory", "Extra Inventory Rows" },
-            new[] { "Azumatt.AzuExtendedPlayerInventory", "Slots Per Row" },
-            new[] { "Azumatt.AzuCraftyBoxes", "Container Range" },
-            new[] { "kg.ItemDrawers", "Radius" },
-        };
-
         List<CfgFile> cfgFiles = new List<CfgFile>();
         ListBox cfgList;
         DataGridView cfgGrid;
@@ -103,6 +92,18 @@ namespace Majinheim
 
         bool CfgDirty() { return cfgFiles.Any(f => f.Dirty); }
 
+        // Ajustes de mods cambiados desde la web (2.5): se guardan aquí para no pisar lo que haya a medias en esta pestaña.
+        WebResult WebModSettings(List<ModSettings.Change> changes, string who)
+        {
+            if (InvokeRequired) return (WebResult)Invoke(new Func<WebResult>(() => WebModSettings(changes, who)));
+            if (busy || maintRunning) return WebResult.No("El launcher está ocupado con otra tarea; prueba en un momento.");
+            if (cfgGrid != null && cfgGrid.IsCurrentCellInEditMode) cfgGrid.EndEdit();
+            if (CfgDirty()) return WebResult.No("En el launcher del server hay ajustes de mods cambiados sin guardar. Guárdalos o descártalos allí primero.");
+            var r = ModSettings.Apply(changes, who + " (web)");
+            if (r.Ok && cfgList != null) { ReloadCfg(); FillCfgGrid(); }
+            return r;
+        }
+
         void ReloadCfg()
         {
             object sel = cfgList.SelectedItem;
@@ -130,8 +131,7 @@ namespace Majinheim
             var f = cfgList.SelectedItem as CfgFile;
             if (q != "") rows = cfgFiles.SelectMany(x => x.Entries);   // al buscar, busca en todos los mods
             else if (f != null) rows = f.Entries;
-            else rows = FavoriteKeys.Select(k => cfgFiles.Where(x => Path.GetFileNameWithoutExtension(x.Path).Equals(k[0], StringComparison.OrdinalIgnoreCase))
-                .SelectMany(x => x.Entries).FirstOrDefault(e => e.Key == k[1])).Where(e => e != null);
+            else rows = ModSettings.Favorites(cfgFiles);   // los mismos que en la web
             if (q != "") rows = rows.Where(e => (e.Key + " " + e.Section + " " + e.Description + " " + e.File.Name).ToLowerInvariant().Contains(q));
             if (cfgOnlyChanged.Checked) rows = rows.Where(e => !e.IsDefault || e.Changed);
             return rows;

@@ -37,6 +37,12 @@ namespace Majinheim
                     break;
             }
             if (Acceptable.Count > 0 && !Multi && !Acceptable.Contains(Value)) return "tiene que ser uno de: " + string.Join(", ", Acceptable);
+            // "# Acceptable value range: From 1 to 10"
+            var m = Range == null ? null : Regex.Match(Range, @"^From\s+(\S+)\s+to\s+(\S+)$");
+            double lo, hi, v;
+            if (m != null && m.Success && double.TryParse(m.Groups[1].Value, NumberStyles.Float, ci, out lo) && double.TryParse(m.Groups[2].Value, NumberStyles.Float, ci, out hi) &&
+                double.TryParse(Value, NumberStyles.Float, ci, out v) && (v < lo || v > hi))
+                return "tiene que estar entre " + m.Groups[1].Value + " y " + m.Groups[2].Value;
             return null;
         }
     }

@@ -26,6 +26,9 @@ Se puede entrar como invitado (solo mirar) o con una cuenta; solo las cuentas de
 La opción **Recordarme en este dispositivo** evita tener que entrar cada vez.
 La página **Ayuda** (`/ayuda`) resuelve lo típico (instalar, versión incompatible, no conecta, faltan mods...). Los administradores ven
 además la tarjeta **Problemas de los amigos**, con lo que llega desde el botón "Tengo un problema" de cada launcher.
+Los administradores pueden activar la **verificación en dos pasos** (contraseña + código de una app del móvil), reciben un aviso en Discord
+cuando alguien entra con su cuenta desde un navegador nuevo, y desde la web pueden **restaurar el mundo** a un backup y **cambiar los ajustes
+de los mods**, siempre con doble confirmación y una copia de cómo estaba antes.
 
 ## Discord y tareas automáticas
 En el launcher del server, pestaña **Automático**: pega el token del bot y el ID del canal y pulsa "Guardar y probar". Ahí también se eligen los backups automáticos y el reinicio diario.
@@ -69,6 +72,7 @@ C# (.NET Framework 4.8, sin dependencias externas). `src/build.bat` compila las 
 La web solo escucha en el propio PC; desde internet se llega por HTTPS a través de [Caddy](https://caddyserver.com),
 que el launcher descarga de sus Releases oficiales comprobando la huella SHA-512.
 `src/lib/Mono.Cecil.dll` no se incluye: cópialo de `BepInExPack_Valheim/BepInEx/core`.
+Cada cambio se compila solo en GitHub (pestaña Actions, `.github/workflows/compilar.yml`) con el mismo compilador de Windows.
 
 Créditos de los mods a sus autores en Thunderstore. Mod de cajones: KGvalheim y Firehunter1980.
 

@@ -19,7 +19,7 @@ namespace Majinheim
     {
         public const string RoleAdmin = "admin", RolePlayer = "jugador";
         public const int MinAdminPassword = 8;
-        const string CookieName = "mh_sesion";
+        const string CookieName = "mh_sesion", DeviceCookie = "mh_equipo";
         const int SessionHours = 12, RememberDays = 30, Iterations = 150000, MaxSessions = 100;
         const int MaxFailsPerIp = 5, MaxFailsTotal = 20;
         static readonly TimeSpan LockFor = TimeSpan.FromMinutes(15);
@@ -38,6 +38,8 @@ namespace Majinheim
             public string Device { get; set; }
         }
         class Fails { public int Count; public DateTime First, LockedUntil; }
+        class PendingTotp { public string Secret; public DateTime Until; }
+        static readonly Dictionary<string, PendingTotp> pendingTotp = new Dictionary<string, PendingTotp>(StringComparer.OrdinalIgnoreCase);
 
         static readonly object lk = new object();
         static Dictionary<string, Session> sessions;
@@ -53,6 +55,8 @@ namespace Majinheim
         public static Func<string, string> RconExec;   // orden al server por RCON; devuelve la respuesta o lanza excepción (lo pone el launcher)
         public static Func<string, string> Maintain;   // mantenimiento con prueba (mods y Valheim al día) pedido por alguien; devuelve qué va a hacer
         public static Func<string> Health;             // la última revisión de salud, en texto para Discord
+        public static Func<string, string, WebResult> RestoreWorld;             // (archivo del backup, quién): restaura el mundo (lo pone el launcher)
+        public static Func<List<ModSettings.Change>, string, WebResult> SaveModSettings;   // (cambios, quién): guarda ajustes de mods (lo pone el launcher)
 
         // Órdenes que se pueden mandar desde la consola web. Nada que borre cosas del mundo o toque inventarios.
         public static readonly string[] ConsoleAllowed = { "players", "banlist", "kick", "ban", "unban", "save", "time", "globalkeys", "serverstats", "logs", "say", "showmessage", "findobjects" };   // backups, mods con versión nueva y tareas (lo pone el launcher)
@@ -103,9 +107,26 @@ namespace Majinheim
             Users.Remove(u);
             Settings.Save();
             ForgetSessions(u.Name);
+            WebDevices.Forget(u.Name);
             Audit("este PC", "cuenta borrada: " + u.Name);
             return true;
         }
+
+        // Para cuando se pierde el móvil: solo desde el PC del server (launcher o consola).
+        public static string RemoveTotp(string name)
+        {
+            var u = Find(name);
+            if (u == null) return "No existe esa cuenta.";
+            if (string.IsNullOrEmpty(u.Totp)) return u.Name + " no tiene la verificación en dos pasos activada.";
+            u.Totp = "";
+            Settings.Save();
+            Audit("este PC", "verificación en dos pasos quitada a " + u.Name);
+            Discord.Send("🔓 Se ha quitado la verificación en dos pasos de la cuenta **" + Esc(u.Name) + "** desde el PC del server.");
+            return null;
+        }
+
+        public static bool HasTotp(WebUser u) { return u != null && !string.IsNullOrEmpty(u.Totp); }
+        static string Esc(string s) { return (s ?? "").Replace("*", "\\*").Replace("_", "\\_").Replace("`", "\\`").Replace("~", "\\~").Replace("|", "\\|").Replace("@", "@\u200b"); }
 
         static string MakeHash(string pw)
         {
@@ -210,7 +231,7 @@ namespace Majinheim
 
         public static MiniHttp.Response Handle(MiniHttp.Request req)
         {
-            bool get = req.Path == "/api/sesion" || req.Path == "/api/admin/estado" || req.Path == "/api/admin/problema";
+            bool get = req.Path == "/api/sesion" || req.Path == "/api/admin/estado" || req.Path == "/api/admin/problema" || req.Path == "/api/admin/ajustes";
             if (req.Method == "POST" && req.Header("X-Majinheim") != "1") return Err(403, "Petición no permitida.");
             if (get ? req.Method != "GET" && req.Method != "HEAD" : req.Method != "POST") return Err(405, "No permitido.");
 
@@ -287,6 +308,102 @@ namespace Majinheim
                 if (done) Audit(ip, user.Name + " borró el problema " + id);
                 res = done ? Ok("Borrado.") : Err(404, "Ese problema ya no está.");
             }
+            else if (req.Path == "/api/admin/2fa-preparar")
+            {
+                // Verificación en dos pasos (2.5): clave nueva para la app; no se guarda hasta que se confirma con un código.
+                if (HasTotp(user)) return Err(409, "Ya la tienes activada.");
+                string secret = Totp.NewSecret();
+                lock (pendingTotp) pendingTotp[user.Name] = new PendingTotp { Secret = secret, Until = DateTime.UtcNow.AddMinutes(10) };
+                res = MiniHttp.Response.JsonOf(200, new Dictionary<string, object>
+                {
+                    { "ok", true }, { "clave", Totp.Grouped(secret) }, { "qr", QrCode.SvgDataUri(Totp.Uri(user.Name, secret)) },
+                });
+            }
+            else if (req.Path == "/api/admin/2fa-activar")
+            {
+                if (HasTotp(user)) return Err(409, "Ya la tienes activada.");
+                PendingTotp p;
+                lock (pendingTotp) { if (!pendingTotp.TryGetValue(user.Name, out p) || p.Until < DateTime.UtcNow) p = null; }
+                if (p == null) return Err(409, "Han pasado más de 10 minutos. Empieza otra vez con «Activar».");
+                if (!Totp.Check(p.Secret, BodyValue(req, "codigo"), user.Name)) return Err(400, "Ese código no vale. Escribe el que sale ahora en la app (y mira que la hora del móvil esté en automático).");
+                string prot = Secret.Protect(p.Secret);
+                if (prot == null) return Err(500, "No he podido guardar la clave cifrada en este PC.");
+                user.Totp = prot;
+                lock (pendingTotp) pendingTotp.Remove(user.Name);
+                Settings.Save();
+                Audit(ip, user.Name + " activó la verificación en dos pasos");
+                Discord.Send("🔐 **" + Esc(user.Name) + "** ha activado la verificación en dos pasos en la web del server.");
+                res = Ok("Activada. A partir de ahora, al entrar te pedirá también el código de la app.");
+            }
+            else if (req.Path == "/api/admin/2fa-quitar")
+            {
+                // Hace falta un código bueno: con una sesión robada no se puede quitar.
+                if (!HasTotp(user)) return Err(409, "No la tienes activada.");
+                string locked = LockedMessage(ip);
+                if (locked != null) return Err(429, locked);
+                string secret = Secret.Unprotect(user.Totp);
+                if (secret == null) return Err(409, "No puedo leer tu clave en este PC. Quítala desde el launcher del server, pestaña Web.");
+                if (!Totp.Check(secret, BodyValue(req, "codigo"), user.Name))
+                {
+                    Failed(ip);
+                    Audit(ip, user.Name + ": código incorrecto al quitar la verificación en dos pasos");
+                    return Err(400, "Código incorrecto. Escribe el que sale ahora en la app.");
+                }
+                user.Totp = "";
+                Settings.Save();
+                Audit(ip, user.Name + " quitó la verificación en dos pasos");
+                Discord.Send("🔓 **" + Esc(user.Name) + "** ha quitado la verificación en dos pasos de su cuenta de la web. Si no has sido tú, cambia la contraseña en el launcher del server (pestaña Web) y cierra las sesiones.");
+                res = Ok("Quitada. Ahora se entra solo con la contraseña.");
+            }
+            else if (req.Path == "/api/admin/restaurar")
+            {
+                // Volver el mundo a un backup (2.5). Doble confirmación en la web: el botón y escribir RESTAURAR.
+                string file = BodyValue(req, "archivo"), confirm = BodyValue(req, "confirmar");
+                if (confirm == null || confirm.Trim().ToUpperInvariant() != "RESTAURAR") return Err(400, "Para confirmar, escribe RESTAURAR.");
+                if (string.IsNullOrEmpty(file) || file.Length > 120 || file.IndexOfAny(new[] { '/', '\\', ':' }) >= 0) return Err(400, "Backup desconocido.");
+                var f = RestoreWorld;
+                if (f == null) return Err(503, "El launcher del server no está listo.");
+                WebResult r;
+                try { r = f(file, user.Name); }
+                catch (Exception e) { r = WebResult.No("No se pudo: " + e.Message); }
+                Audit(ip, user.Name + " · restaurar el mundo (" + file + "): " + r.Message);
+                res = r.Ok ? Ok(r.Message) : Err(409, r.Message);
+            }
+            else if (req.Path == "/api/admin/ajustes")
+            {
+                // Ajustes de los mods (2.5): ?archivo=x.cfg (uno), ?buscar=texto (en todos) o nada (los más usados).
+                string file = QueryValue(req.Query, "archivo"), q = QueryValue(req.Query, "buscar");
+                if (q != null && q.Length > 60) q = q.Substring(0, 60);
+                Dictionary<string, object> o;
+                try { o = ModSettings.List(file, q); if (string.IsNullOrEmpty(file) && string.IsNullOrEmpty(q)) o["mods"] = ModSettings.Files(); }
+                catch (Exception e) { Log.W("Web: ajustes de mods: {0}", e.Message); o = new Dictionary<string, object> { { "ok", false }, { "mensaje", "No he podido leer los ajustes de los mods." } }; }
+                res = MiniHttp.Response.JsonOf(200, o);
+            }
+            else if (req.Path == "/api/admin/ajustes-guardar")
+            {
+                var changes = new List<ModSettings.Change>();
+                try
+                {
+                    var o = Json.ParseObj(req.BodyText); object v;
+                    if (o.TryGetValue("cambios", out v) && v is System.Collections.IEnumerable && !(v is string))
+                        foreach (var x in (System.Collections.IEnumerable)v)
+                        {
+                            var d = x as Dictionary<string, object>;
+                            if (d == null) continue;
+                            Func<string, string> g = k => { object y; return d.TryGetValue(k, out y) && y != null ? Convert.ToString(y, CultureInfo.InvariantCulture) : null; };
+                            changes.Add(new ModSettings.Change { File = g("archivo"), Section = g("seccion"), Key = g("clave"), Value = g("valor") });
+                        }
+                }
+                catch { }
+                if (changes.Count == 0) return Err(400, "No hay cambios.");
+                var f = SaveModSettings;
+                if (f == null) return Err(503, "El launcher del server no está listo.");
+                WebResult r;
+                try { r = f(changes, user.Name); }
+                catch (Exception e) { r = WebResult.No("No se pudo: " + e.Message); }
+                Audit(ip, user.Name + " · ajustes de mods: " + r.Message);
+                res = r.Ok ? Ok(r.Message) : Err(409, r.Message);
+            }
             else if (req.Path == "/api/admin/salir-todos")
             {
                 ForgetAllSessions();
@@ -362,6 +479,12 @@ namespace Majinheim
             return res;
         }
 
+        static string BodyValue(MiniHttp.Request req, string key)
+        {
+            try { var o = Json.ParseObj(req.BodyText); object v; if (o.TryGetValue(key, out v)) return v as string; } catch { }
+            return null;
+        }
+
         static string QueryValue(string query, string key)
         {
             foreach (var part in (query ?? "").Split('&'))
@@ -382,46 +505,80 @@ namespace Majinheim
                 { "usuario", u != null ? u.Name : null },
                 { "rol", u != null ? u.Role : null },
                 { "recordado", s != null && s.Remember },
+                { "dosPasos", u != null && u.Role == RoleAdmin && HasTotp(u) },
             };
+        }
+
+        static string LockedMessage(string ip)
+        {
+            lock (lk)
+            {
+                var now = DateTime.UtcNow;
+                if (total.LockedUntil > now) return "Demasiados intentos fallidos. Prueba dentro de un rato.";
+                Fails f;
+                if (fails.TryGetValue(ip, out f) && f.LockedUntil > now) return "Demasiados intentos fallidos. Prueba dentro de " + Math.Ceiling((f.LockedUntil - now).TotalMinutes) + " min.";
+            }
+            return null;
+        }
+
+        // Un intento fallido (contraseña o código): 5 seguidos desde la misma IP la bloquean 15 minutos; 20 en una hora, a todas.
+        static void Failed(string ip)
+        {
+            lock (lk)
+            {
+                var now = DateTime.UtcNow;
+                Fails f;
+                if (!fails.TryGetValue(ip, out f) || now - f.First > LockFor) fails[ip] = f = new Fails { First = now };
+                f.Count++;
+                if (f.Count >= MaxFailsPerIp) f.LockedUntil = now + LockFor;
+                if (now - total.First > TimeSpan.FromHours(1)) total = new Fails { First = now };
+                total.Count++;
+                if (total.Count >= MaxFailsTotal) total.LockedUntil = now + LockFor;
+            }
+        }
+
+        static MiniHttp.Response NeedCode(string msg)
+        {
+            return MiniHttp.Response.JsonOf(401, new Dictionary<string, object> { { "ok", false }, { "codigo", true }, { "mensaje", msg } });
         }
 
         static MiniHttp.Response Login(MiniHttp.Request req)
         {
             string ip = req.ClientIp;
             if (!Users.Any(u => !string.IsNullOrEmpty(u.Hash))) return Err(403, "Todavía no hay cuentas. Se crean desde el launcher del server (pestaña Web).");
-            lock (lk)
-            {
-                var now = DateTime.UtcNow;
-                if (total.LockedUntil > now) return Err(429, "Demasiados intentos fallidos. Prueba dentro de un rato.");
-                Fails f;
-                if (fails.TryGetValue(ip, out f) && f.LockedUntil > now) return Err(429, "Demasiados intentos fallidos. Prueba dentro de " + Math.Ceiling((f.LockedUntil - now).TotalMinutes) + " min.");
-            }
-            string pw = null, name = null; bool remember = false;
+            string locked = LockedMessage(ip);
+            if (locked != null) return Err(429, locked);
+            string pw = null, name = null, code = null; bool remember = false;
             try
             {
                 var o = Json.ParseObj(req.BodyText); object v;
                 if (o.TryGetValue("clave", out v)) pw = v as string;
                 if (o.TryGetValue("usuario", out v)) name = v as string;
+                if (o.TryGetValue("codigo", out v)) code = v as string;
                 if (o.TryGetValue("recordar", out v) && v is bool) remember = (bool)v;
             }
             catch { }
             var user = Check(name, pw);
-            lock (lk)
+            if (user == null) { Failed(ip); Audit(ip, "usuario o contraseña incorrectos"); return Err(401, "Usuario o contraseña incorrectos."); }
+
+            // Verificación en dos pasos (2.5): con la contraseña buena, falta el código de la app.
+            if (HasTotp(user))
             {
-                var now = DateTime.UtcNow;
-                if (user == null)
+                string secret = Secret.Unprotect(user.Totp);
+                if (secret == null)
                 {
-                    Fails f;
-                    if (!fails.TryGetValue(ip, out f) || now - f.First > LockFor) fails[ip] = f = new Fails { First = now };
-                    f.Count++;
-                    if (f.Count >= MaxFailsPerIp) f.LockedUntil = now + LockFor;
-                    if (now - total.First > TimeSpan.FromHours(1)) total = new Fails { First = now };
-                    total.Count++;
-                    if (total.Count >= MaxFailsTotal) total.LockedUntil = now + LockFor;
+                    Audit(ip, user.Name + ": no se puede leer su clave de verificación en dos pasos");
+                    return Err(409, "No puedo leer la verificación en dos pasos de esta cuenta en este PC. Quítala en el launcher del server (pestaña Web) y vuelve a activarla.");
                 }
-                else fails.Remove(ip);
+                if (string.IsNullOrWhiteSpace(code)) return NeedCode("Escribe el código de 6 cifras que sale en tu app de verificación.");
+                if (!Totp.Check(secret, code, user.Name))
+                {
+                    Failed(ip);
+                    Audit(ip, user.Name + ": código de verificación incorrecto");
+                    return NeedCode("Código incorrecto o caducado. Escribe el que sale ahora en la app.");
+                }
             }
-            if (user == null) { Audit(ip, "usuario o contraseña incorrectos"); return Err(401, "Usuario o contraseña incorrectos."); }
+            lock (lk) fails.Remove(ip);
 
             var tb = new byte[32];
             using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(tb);
@@ -439,10 +596,30 @@ namespace Majinheim
                 };
                 SaveSessions();
             }
-            Audit(ip, user.Name + " ha entrado (" + (user.Role == RoleAdmin ? "administrador" : "jugador") + (remember ? ", recordado en este dispositivo" : "") + ")");
+            Audit(ip, user.Name + " ha entrado (" + (user.Role == RoleAdmin ? "administrador" : "jugador") + (HasTotp(user) ? ", con código" : "") + (remember ? ", recordado en este dispositivo" : "") + ")");
             var r = MiniHttp.Response.JsonOf(200, new Dictionary<string, object> { { "ok", true }, { "mensaje", "Dentro." }, { "usuario", user.Name }, { "rol", user.Role } });
             r.Extra.Add(SessionCookie(req, token, remember));
+            if (user.Role == RoleAdmin) CheckDevice(req, r, user);
             return r;
+        }
+
+        // Aviso en Discord cuando un administrador entra desde un navegador desde el que no había entrado nunca (2.5).
+        // El navegador se reconoce por una cookie propia que dura 400 días; en Discord no sale la IP.
+        static void CheckDevice(MiniHttp.Request req, MiniHttp.Response r, WebUser user)
+        {
+            string dev = req.Cookie(DeviceCookie);
+            if (dev == null || dev.Length != 64 || !Regex.IsMatch(dev, "^[0-9a-f]{64}$"))
+            {
+                var b = new byte[32];
+                using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(b);
+                dev = BitConverter.ToString(b).Replace("-", "").ToLowerInvariant();
+            }
+            r.Extra.Add("Set-Cookie: " + DeviceCookie + "=" + dev + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + 400 * 86400 + (req.Https ? "; Secure" : ""));
+            string device = DeviceName(req.Header("User-Agent"));
+            if (WebDevices.Seen(user.Name, Sha(dev), device)) return;
+            Audit(req.ClientIp, user.Name + " ha entrado desde un dispositivo nuevo (" + device + ")");
+            Discord.Send("🔑 **" + Esc(user.Name) + "** ha entrado en el panel de control de la web desde un dispositivo nuevo (" + device + "). " +
+                "Si has sido tú, no hace falta hacer nada. Si no: en el launcher del server, pestaña Web, cambia la contraseña de esa cuenta y pulsa «Cerrar sesiones».");
         }
 
         static string DeviceName(string ua)

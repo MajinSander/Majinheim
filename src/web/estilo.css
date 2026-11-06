@@ -148,3 +148,30 @@ code { font: 12px ui-monospace, Consolas, monospace; background: rgba(255,255,25
 .ayuda-pregunta li { margin: 3px 0; }
 .contenidos { display: contents; }
 .problema .datos dt { white-space: nowrap; }
+/* 2.5.0: verificación en dos pasos, restaurar y ajustes de mods */
+.campo-codigo { display: grid; gap: 10px; }
+.campo { background: var(--fondo); color: var(--texto); border: 1px solid var(--borde); border-radius: 8px; padding: 9px 12px; font: inherit; min-width: 0; max-width: 100%; }
+.campo:focus, .formulario select:focus { outline: 2px solid var(--ambar); outline-offset: 1px; }
+.filtros { flex-wrap: wrap; }
+.filtros select { flex: 1 1 220px; }
+.filtros input { flex: 1 1 220px; }
+.qr { display: block; width: 200px; height: 200px; margin: 10px 0; border-radius: 8px; image-rendering: pixelated; }
+.clave-totp { font: 600 15px ui-monospace, Consolas, monospace; letter-spacing: 1px; }
+.pasos { margin: 8px 0; padding-left: 22px; }
+.pasos li { margin: 6px 0; }
+.lista.ajustes li { gap: 4px; }
+.lista.ajustes .cabeza { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.lista.ajustes .quien { overflow-wrap: anywhere; }
+.lista.ajustes .en-linea { align-items: center; margin-top: 4px; flex-wrap: wrap; }
+.lista.ajustes .campo { flex: 0 1 260px; }
+.lista.ajustes li.cambiado .quien { color: var(--ambar); }
+.lista.ajustes li.cambiado .campo { border-color: var(--ambar); }
+.antes { color: var(--tenue); font-size: 13px; }
+.cambios { margin: 6px 0 0; padding-left: 20px; }
+.cambios li { margin: 3px 0; overflow-wrap: anywhere; }
+.lista li .botones-fila .cuanto { align-self: center; }
+#backups li { align-items: center; }
+#backups .columna { display: flex; flex-direction: column; min-width: 0; }
+#backups .cuanto { white-space: normal; font-size: 13px; }
+#backups .boton { flex-shrink: 0; }
+.clave-totp .grupo { white-space: nowrap; }

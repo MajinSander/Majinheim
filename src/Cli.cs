@@ -68,7 +68,7 @@ namespace Majinheim
                         Backup.Create("manual", Backup.FullItems(), false);
                         return 0;
                     case "usuarios":
-                        foreach (var u in WebAdmin.List()) Console.WriteLine("{0,-20} {1}", u.Name, u.Role);
+                        foreach (var u in WebAdmin.List()) Console.WriteLine("{0,-20} {1}{2}", u.Name, u.Role, WebAdmin.HasTotp(u) ? " (con verificación en dos pasos)" : "");
                         Console.WriteLine("{0} sesiones abiertas", WebAdmin.SessionCount());
                         return 0;
                     case "usuario":
@@ -79,6 +79,16 @@ namespace Majinheim
                             string pw = Console.In.ReadLine();
                             string err = WebAdmin.SetUser(args[1], args[2], string.IsNullOrEmpty(pw) ? null : pw);
                             Console.WriteLine(err ?? "Cuenta guardada: " + args[1].Trim() + " (" + args[2] + ")");
+                            return err == null ? 0 : 1;
+                        }
+                    case "quitar-2fa":
+                        {
+                            // Si se pierde el móvil con la app de los códigos (2.5).
+                            if (args.Length < 2) { Console.WriteLine("Uso: MajinheimCli quitar-2fa <nombre>"); return 1; }
+                            if (LauncherOpen()) return 1;
+                            string err = WebAdmin.RemoveTotp(args[1]);
+                            Console.WriteLine(err ?? "Verificación en dos pasos quitada: ya entra solo con la contraseña.");
+                            Discord.Flush(10000);
                             return err == null ? 0 : 1;
                         }
                     case "borrar-usuario":
@@ -221,7 +231,7 @@ namespace Majinheim
                             return 0;
                         }
                     default:
-                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | ia [descargar] | salud | comprobar-backups | errores | actualizar [reintentar] | mundo | buscar <objeto> | receta <objeto> | tumbas [jugador] | resumen [enviar] | cuando <texto> | problemas [id] | ayuda <texto>");
+                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | quitar-2fa <nombre> | ia [descargar] | salud | comprobar-backups | errores | actualizar [reintentar] | mundo | buscar <objeto> | receta <objeto> | tumbas [jugador] | resumen [enviar] | cuando <texto> | problemas [id] | ayuda <texto>");
                         return 1;
                 }
             }

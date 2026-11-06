@@ -294,6 +294,8 @@
 
   function pintarExtras(d) {
     pintarSalud(d);
+    pintarSeguridad(d);
+    if (!ajustesCargados) cargarAjustes();
     pintarMantenimiento(d);
     pintarProblemas(d);
     var t = d.tareas || {};
@@ -315,17 +317,279 @@
     });
     if (!ua.firstChild) { var li0 = document.createElement('li'); li0.className = 'tenue'; li0.textContent = 'Todo al día.'; ua.appendChild(li0); }
 
-    var ub = $('backups'); limpiar(ub);
-    (d.backups || []).slice(0, 8).forEach(function (b) {
+    pintarBackups(d);
+  }
+
+  // Backups (2.5): los que llevan el mundo se pueden restaurar desde aquí.
+  var ultimo = null;
+  function pintarBackups(d) {
+    ultimo = d;
+    var ub = $('backups');
+    var bks = (d.backups || []).slice(0, 8);
+    var clave = bks.map(function (b) { return (b.archivo || b.nombre) + (b.mundo ? '+' : ''); }).join('|');
+    if (ub.getAttribute('data-clave') === clave) return;
+    ub.setAttribute('data-clave', clave);
+    limpiar(ub);
+    bks.forEach(function (b) {
       var li = document.createElement('li');
-      var q = document.createElement('span'); q.className = 'quien';
-      q.textContent = new Date(b.fecha).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-      var c = document.createElement('span'); c.className = 'cuanto';
-      c.textContent = (tipos[b.nombre] || b.nombre.replace(/[-_]/g, ' ')) + ' · ' + String(b.mb).replace('.', ',') + ' MB';
-      li.appendChild(q); li.appendChild(c); ub.appendChild(li);
+      var izq = el('span', 'columna');
+      izq.appendChild(el('span', 'quien', fechaCorta(b.fecha)));
+      izq.appendChild(el('span', 'cuanto', (tipos[b.nombre] || b.nombre.replace(/[-_]/g, ' ')) + ' · ' + String(b.mb).replace('.', ',') + ' MB'));
+      li.appendChild(izq);
+      if (b.mundo && b.archivo) {
+        var bt = el('button', 'boton secundario chico', 'Restaurar…');
+        bt.type = 'button';
+        bt.addEventListener('click', function () { abrirRestaurar(b); });
+        li.appendChild(bt);
+      }
+      ub.appendChild(li);
     });
     if (!ub.firstChild) { var li1 = document.createElement('li'); li1.className = 'tenue'; li1.textContent = 'Todavía no hay backups.'; ub.appendChild(li1); }
   }
+
+  function abrirRestaurar(b) {
+    var box = $('restaurar'); limpiar(box); box.hidden = false;
+    var s = ((ultimo && ultimo.estado) || {}).servidor || {};
+    var encendido = s.estado && s.estado !== 'apagado';
+    box.appendChild(el('h3', 'subtitulo', 'Volver el mundo al backup del ' + fechaCorta(b.fecha)));
+    var ul = el('ul', 'pasos');
+    ['El mundo y los personajes vuelven a como estaban en ese momento: lo construido y conseguido después se pierde.',
+     'Antes se guarda una copia de cómo está ahora («antes de restaurar»), por si te arrepientes.',
+     encendido ? 'El server se apaga guardando el mundo y vuelve a arrancar solo.' : 'El server está apagado y se queda apagado.',
+     'Los ajustes, las cuentas y la lista de baneados no se tocan.',
+     'No se hace si hay alguien jugando.'].forEach(function (t) { ul.appendChild(el('li', null, t)); });
+    box.appendChild(ul);
+    if (ultimo && ultimo.jugando) box.appendChild(el('p', 'aviso', 'Ahora hay gente jugando: espera a que no haya nadie.'));
+    var f = el('div', 'formulario');
+    var lab = el('label', null, 'Para confirmar, escribe RESTAURAR');
+    lab.htmlFor = 'restaurar-confirmar';
+    var inp = el('input'); inp.id = 'restaurar-confirmar'; inp.type = 'text'; inp.autocomplete = 'off'; inp.spellcheck = false; inp.maxLength = 20;
+    var fila = el('div', 'botonera');
+    var si = el('button', 'boton peligro', 'Restaurar ahora'); si.type = 'button'; si.disabled = true;
+    var no = el('button', 'boton secundario', 'Cancelar'); no.type = 'button';
+    var res = el('p', 'tenue'); res.setAttribute('role', 'status');
+    inp.addEventListener('input', function () { si.disabled = inp.value.trim().toUpperCase() !== 'RESTAURAR'; });
+    no.addEventListener('click', function () { box.hidden = true; limpiar(box); });
+    si.addEventListener('click', function () {
+      si.disabled = true; inp.disabled = true;
+      res.textContent = 'Un momento…';
+      api('/api/admin/restaurar', { archivo: b.archivo, confirmar: inp.value.trim() }).then(function (r) {
+        if (r._code === 401) { verLogin('Tu sesión ha caducado. Entra otra vez.'); return; }
+        res.textContent = r.mensaje || '';
+        res.className = r.ok ? 'tenue' : 'aviso';
+        if (r.ok) { no.textContent = 'Cerrar'; } else { inp.disabled = false; si.disabled = false; }
+      }).catch(function () { res.textContent = 'Sin conexión con el server.'; inp.disabled = false; si.disabled = false; });
+    });
+    f.appendChild(lab); f.appendChild(inp);
+    fila.appendChild(si); fila.appendChild(no);
+    box.appendChild(f); box.appendChild(fila); box.appendChild(res);
+    inp.focus();
+    box.scrollIntoView({ block: 'nearest' });
+  }
+
+  // Seguridad de la cuenta (2.5): verificación en dos pasos con una app de códigos.
+  var segFlujo = false;
+  function pintarSeguridad(d) {
+    if (segFlujo) return;
+    var on = !!d.dosPasos;
+    $('seg-estado').className = 'resumen-salud ' + (on ? 'verde' : 'ambar');
+    $('seg-estado').textContent = on ? 'Verificación en dos pasos: activada' : 'Verificación en dos pasos: desactivada';
+    $('seg-texto').textContent = on
+      ? 'Para entrar como administrador hace falta la contraseña y el código de 6 cifras de la app del móvil.'
+      : 'Con ella, para entrar como administrador hace falta además un código de 6 cifras de una app del móvil (Google Authenticator, Microsoft Authenticator…). Aunque alguien sepa tu contraseña, no podrá entrar.';
+    $('seg-boton').textContent = on ? 'Quitar' : 'Activar';
+    $('seg-boton').className = on ? 'boton secundario' : 'boton';
+    $('seg-boton').setAttribute('data-on', on ? '1' : '0');
+  }
+
+  function cerrarSeguridad() { segFlujo = false; $('seg-flujo').hidden = true; limpiar($('seg-flujo')); $('seg-botonera').hidden = false; refrescar(); }
+
+  function campoCodigo(id, texto) {
+    var f = el('div', 'formulario');
+    var lab = el('label', null, texto); lab.htmlFor = id;
+    var inp = el('input'); inp.id = id; inp.type = 'text'; inp.inputMode = 'numeric'; inp.autocomplete = 'one-time-code'; inp.maxLength = 7; inp.placeholder = '123 456'; inp.spellcheck = false;
+    f.appendChild(lab); f.appendChild(inp);
+    return { caja: f, input: inp };
+  }
+
+  $('seg-boton').addEventListener('click', function () {
+    var box = $('seg-flujo'); limpiar(box);
+    var on = $('seg-boton').getAttribute('data-on') === '1';
+    var res = el('p', 'tenue'); res.setAttribute('role', 'status');
+    var fila = el('div', 'botonera');
+    var no = el('button', 'boton secundario', 'Cancelar'); no.type = 'button';
+    no.addEventListener('click', cerrarSeguridad);
+    segFlujo = true; $('seg-botonera').hidden = true; box.hidden = false;
+    if (on) {
+      var c = campoCodigo('seg-codigo-quitar', 'Para quitarla, escribe el código que sale ahora en la app');
+      var q = el('button', 'boton peligro', 'Quitar'); q.type = 'button';
+      var mandar = function () {
+        q.disabled = true; res.textContent = 'Un momento…';
+        api('/api/admin/2fa-quitar', { codigo: c.input.value }).then(function (r) {
+          if (r._code === 401) { segFlujo = false; verLogin('Tu sesión ha caducado. Entra otra vez.'); return; }
+          if (r.ok) { cerrarSeguridad(); $('seg-texto').textContent = r.mensaje; return; }
+          res.textContent = r.mensaje || 'No se pudo.'; res.className = 'aviso'; q.disabled = false; c.input.select();
+        }).catch(function () { res.textContent = 'Sin conexión con el server.'; q.disabled = false; });
+      };
+      q.addEventListener('click', mandar);
+      c.input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') mandar(); });
+      box.appendChild(c.caja); fila.appendChild(q); fila.appendChild(no); box.appendChild(fila); box.appendChild(res);
+      c.input.focus();
+      return;
+    }
+    box.appendChild(el('p', 'vacio', 'Preparando…'));
+    api('/api/admin/2fa-preparar', {}).then(function (r) {
+      limpiar(box);
+      if (!r.ok) { box.appendChild(el('p', 'aviso', r.mensaje || 'No se pudo.')); fila.appendChild(no); box.appendChild(fila); return; }
+      var pasos = el('ol', 'pasos');
+      var p1 = el('li', null, 'Abre en el móvil una app de códigos (Google Authenticator, Microsoft Authenticator o la que uses), pulsa añadir y escanea este código:');
+      var img = el('img', 'qr'); img.src = r.qr; img.alt = 'Código QR para la app de verificación'; img.width = 200; img.height = 200;
+      p1.appendChild(img);
+      p1.appendChild(el('span', 'tenue', '¿No puedes escanearlo? Elige «introducir clave» y escribe: '));
+      var kc = el('span', 'clave-totp');
+      r.clave.split(' ').forEach(function (g, i) { if (i) kc.appendChild(document.createTextNode(' ')); kc.appendChild(el('span', 'grupo', g)); });
+      p1.appendChild(kc);
+      pasos.appendChild(p1);
+      pasos.appendChild(el('li', null, 'Escribe aquí el código de 6 cifras que te sale en la app.'));
+      box.appendChild(pasos);
+      var c = campoCodigo('seg-codigo', 'Código de la app');
+      var si = el('button', 'boton', 'Activar'); si.type = 'button';
+      var mandar = function () {
+        si.disabled = true; res.textContent = 'Comprobando…'; res.className = 'tenue';
+        api('/api/admin/2fa-activar', { codigo: c.input.value }).then(function (x) {
+          if (x._code === 401) { segFlujo = false; verLogin('Tu sesión ha caducado. Entra otra vez.'); return; }
+          if (x.ok) { cerrarSeguridad(); $('seg-texto').textContent = x.mensaje; return; }
+          res.textContent = x.mensaje || 'No se pudo.'; res.className = 'aviso'; si.disabled = false; c.input.select();
+        }).catch(function () { res.textContent = 'Sin conexión con el server.'; si.disabled = false; });
+      };
+      si.addEventListener('click', mandar);
+      c.input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') mandar(); });
+      box.appendChild(c.caja); fila.appendChild(si); fila.appendChild(no); box.appendChild(fila); box.appendChild(res);
+      c.input.focus({ preventScroll: true });
+    }).catch(function () { limpiar(box); box.appendChild(el('p', 'aviso', 'Sin conexión con el server.')); fila.appendChild(no); box.appendChild(fila); });
+  });
+
+  // Ajustes de los mods (2.5): se cargan al abrir el panel y al elegir otro mod; no se repintan solos para no perder lo escrito.
+  var cambios = {}, ajustesCargados = false, buscarTimer = null;
+  function claveAjuste(a) { return a.archivo + '|' + a.seccion + '|' + a.clave; }
+  function nCambios() { return Object.keys(cambios).length; }
+  function botonesAjustes() {
+    var n = nCambios();
+    $('ajustes-ver').disabled = n === 0;
+    $('ajustes-ver').textContent = n ? 'Revisar cambios (' + n + ')' : 'Revisar cambios';
+    $('ajustes-deshacer').disabled = n === 0;
+  }
+
+  function cargarAjustes() {
+    ajustesCargados = true;
+    var q = $('ajustes-buscar').value.trim(), f = $('ajustes-mod').value;
+    var url = '/api/admin/ajustes' + (q ? '?buscar=' + encodeURIComponent(q) : f ? '?archivo=' + encodeURIComponent(f) : '');
+    $('ajustes-titulo').textContent = 'Cargando…';
+    api(url).then(function (r) {
+      if (r._code === 401) { verLogin('Tu sesión ha caducado. Entra otra vez.'); return; }
+      if (r.mods) {
+        var sel = $('ajustes-mod'), actual = sel.value;
+        while (sel.options.length > 1) sel.remove(1);
+        r.mods.forEach(function (m) {
+          var o = el('option', null, m.nombre + ' (' + m.ajustes + ')'); o.value = m.archivo; sel.appendChild(o);
+        });
+        sel.value = actual;
+      }
+      pintarAjustes(r);
+    }).catch(function () { $('ajustes-titulo').textContent = 'Sin conexión con el server.'; });
+  }
+
+  function pintarAjustes(r) {
+    var ul = $('ajustes'); limpiar(ul);
+    if (!r.ok) { $('ajustes-titulo').textContent = r.mensaje || 'No se pudo.'; return; }
+    var lista = r.ajustes || [];
+    var unMod = !!$('ajustes-mod').value && !$('ajustes-buscar').value.trim();   // un solo mod: no repetir su nombre en cada ajuste
+    $('ajustes-titulo').textContent = r.titulo + (lista.length ? '' : ': no hay ninguno.');
+    lista.forEach(function (a) {
+      var k = claveAjuste(a), pend = cambios[k];
+      var li = el('li', pend ? 'cambiado' : null);
+      var cab = el('div', 'cabeza');
+      cab.appendChild(el('span', 'quien', a.clave));
+      cab.appendChild(el('span', 'cuanto', (unMod ? '' : a.mod + (a.seccion ? ' · ' : '')) + (a.seccion || '')));
+      li.appendChild(cab);
+      var info = [];
+      if (a.descripcion) info.push(/[.!?:)]$/.test(a.descripcion) ? a.descripcion : a.descripcion + '.');
+      if (a.rango) info.push('Rango: ' + a.rango + '.');
+      if (a.varios && a.opciones && a.opciones.length) info.push('Puedes poner varios separados por comas: ' + a.opciones.join(', ') + '.');
+      if (a.defecto != null) info.push('Por defecto: ' + a.defecto + '.');
+      if (info.length) li.appendChild(el('span', 'cuanto', info.join(' ')));
+      var fila = el('div', 'en-linea');
+      var campo;
+      var opciones = a.tipo === 'Boolean' ? ['true', 'false'] : (!a.varios && a.opciones && a.opciones.length ? a.opciones : null);
+      if (opciones) {
+        campo = el('select', 'campo');
+        if (opciones.indexOf(a.valor) < 0) opciones = [a.valor].concat(opciones);
+        opciones.forEach(function (v) {
+          var o = el('option', null, a.tipo === 'Boolean' ? (v === 'true' ? 'Sí (true)' : v === 'false' ? 'No (false)' : v) : v);
+          o.value = v; campo.appendChild(o);
+        });
+      } else {
+        campo = el('input', 'campo'); campo.type = 'text'; campo.maxLength = 500; campo.spellcheck = false; campo.autocomplete = 'off';
+        if (/^(Int|Single|Double|Decimal|Byte)/.test(a.tipo || '')) campo.inputMode = 'decimal';
+      }
+      campo.setAttribute('aria-label', a.clave);
+      campo.value = pend ? pend.valor : a.valor;
+      var antes = el('span', 'antes', pend ? 'antes: ' + a.valor : '');
+      var cambiar = function () {
+        var v = campo.value.trim();
+        if (v === a.valor) delete cambios[k];
+        else cambios[k] = { archivo: a.archivo, seccion: a.seccion, clave: a.clave, valor: v, antes: a.valor, mod: a.mod };
+        li.className = cambios[k] ? 'cambiado' : '';
+        antes.textContent = cambios[k] ? 'antes: ' + a.valor : '';
+        botonesAjustes();
+      };
+      campo.addEventListener('change', cambiar);
+      campo.addEventListener('input', cambiar);
+      fila.appendChild(campo); fila.appendChild(antes);
+      li.appendChild(fila);
+      ul.appendChild(li);
+    });
+    botonesAjustes();
+  }
+
+  $('ajustes-mod').addEventListener('change', function () { $('ajustes-buscar').value = ''; cargarAjustes(); });
+  $('ajustes-buscar').addEventListener('input', function () {
+    if (buscarTimer) clearTimeout(buscarTimer);
+    buscarTimer = setTimeout(cargarAjustes, 350);
+  });
+  $('ajustes-deshacer').addEventListener('click', function () { cambios = {}; $('ajustes-revisar').hidden = true; cargarAjustes(); });
+  $('ajustes-ver').addEventListener('click', function () {
+    var box = $('ajustes-revisar'); limpiar(box); box.hidden = false;
+    var lista = Object.keys(cambios).map(function (k) { return cambios[k]; });
+    box.appendChild(el('h3', 'subtitulo', lista.length === 1 ? '¿Guardar este cambio?' : '¿Guardar estos ' + lista.length + ' cambios?'));
+    var ul = el('ul', 'cambios');
+    lista.forEach(function (c) { ul.appendChild(el('li', null, c.mod + ' › ' + c.clave + ': ' + c.antes + ' → ' + c.valor)); });
+    box.appendChild(ul);
+    box.appendChild(el('p', 'tenue', 'Antes de guardar se hace una copia de los archivos que cambian.'));
+    var fila = el('div', 'botonera');
+    var si = el('button', 'boton', 'Sí, guardar'); si.type = 'button';
+    var no = el('button', 'boton secundario', 'Volver'); no.type = 'button';
+    var res = el('p', 'tenue'); res.setAttribute('role', 'status');
+    no.addEventListener('click', function () { box.hidden = true; limpiar(box); $('ajustes-botonera').hidden = false; });
+    si.addEventListener('click', function () {
+      si.disabled = true; res.textContent = 'Guardando…';
+      api('/api/admin/ajustes-guardar', { cambios: lista.map(function (c) { return { archivo: c.archivo, seccion: c.seccion, clave: c.clave, valor: c.valor }; }) }).then(function (r) {
+        if (r._code === 401) { verLogin('Tu sesión ha caducado. Entra otra vez.'); return; }
+        if (r.ok) {
+          cambios = {}; box.hidden = true; limpiar(box); $('ajustes-botonera').hidden = false;
+          $('ajustes-resultado').textContent = r.mensaje; $('ajustes-resultado').className = 'tenue';
+          cargarAjustes();
+          return;
+        }
+        res.textContent = r.mensaje || 'No se pudo.'; res.className = 'aviso'; si.disabled = false;
+      }).catch(function () { res.textContent = 'Sin conexión con el server.'; si.disabled = false; });
+    });
+    fila.appendChild(si); fila.appendChild(no);
+    box.appendChild(fila); box.appendChild(res);
+    $('ajustes-botonera').hidden = true;
+    $('ajustes-resultado').textContent = '';
+    box.scrollIntoView({ block: 'nearest' });
+  });
 
   function refrescar() {
     api('/api/admin/estado').then(function (d) {
@@ -338,8 +602,19 @@
   $('form-login').addEventListener('submit', function (ev) {
     ev.preventDefault();
     $('login-error').textContent = '';
-    api('/api/entrar', { usuario: $('usuario').value.trim(), clave: $('clave').value, recordar: $('recordar').checked }).then(function (r) {
-      $('clave').value = '';
+    var datos = { usuario: $('usuario').value.trim(), clave: $('clave').value, recordar: $('recordar').checked };
+    var conCodigo = !$('fila-codigo').hidden;
+    if (conCodigo) datos.codigo = $('codigo').value.trim();
+    api('/api/entrar', datos).then(function (r) {
+      if (r.codigo) {
+        // Contraseña buena; falta (o está mal) el código de la app de verificación.
+        $('fila-codigo').hidden = false;
+        if (conCodigo && datos.codigo) $('login-error').textContent = r.mensaje || 'Código incorrecto.';
+        else $('login-info').textContent = r.mensaje || 'Escribe el código de tu app de verificación.';
+        $('codigo').value = ''; $('codigo').focus();
+        return;
+      }
+      $('clave').value = ''; $('codigo').value = ''; $('fila-codigo').hidden = true;
       if (!r.ok) { $('login-error').textContent = r.mensaje || 'No se pudo entrar.'; $('clave').focus(); return; }
       if (r.rol === 'admin') refrescar();
       else location.href = '/';

@@ -903,6 +903,8 @@ namespace Majinheim
             runner.TryAdopt();
             UpdateServerState();
             WebAdmin.Action = WebAction;
+            WebAdmin.RestoreWorld = WebRestore;
+            WebAdmin.SaveModSettings = WebModSettings;
             WebAdmin.Say = SayInGame;
             InitAuto();
             WebPanel.Apply();
@@ -937,6 +939,40 @@ namespace Majinheim
                     return "Haciendo backup completo (mundo, personajes y ajustes).";
             }
             return "Acción desconocida.";
+        }
+
+        // Volver el mundo a un backup desde la web (2.5). La web ya ha pedido doble confirmación; aquí se comprueba que se puede.
+        // Solo el mundo, los personajes y lo explorado en el mapa: ni ajustes, ni cuentas, ni la lista de baneados.
+        WebResult WebRestore(string file, string who)
+        {
+            if (InvokeRequired) return (WebResult)Invoke(new Func<WebResult>(() => WebRestore(file, who)));
+            if (busy || maintRunning) return WebResult.No("El launcher está ocupado con otra tarea; prueba en un momento.");
+            if (SomeonePlaying()) return WebResult.No("Hay gente jugando. Restaurar apaga el server y les quitaría lo último que han hecho: espera a que no haya nadie.");
+            var b = Backup.List().FirstOrDefault(x => string.Equals(Path.GetFileName(x.Path), file, StringComparison.OrdinalIgnoreCase));
+            if (b == null) return WebResult.No("Ese backup ya no está.");
+            if (!Backup.HasWorld(b)) return WebResult.No("Ese backup no lleva el mundo (solo ajustes).");
+            bool wasRunning = runner.Running;
+            string when = b.Date.ToString("d MMM HH:mm", new System.Globalization.CultureInfo("es-ES"));
+            RunBg("Restaurando el mundo al backup del " + when + " (desde la web)...", () =>
+            {
+                string err = null;
+                try
+                {
+                    if (wasRunning) runner.Stop(true);
+                    Backup.Restore(b.Path, Backup.IsWorldPart);
+                }
+                catch (Exception e) { err = e.Message; }
+                if (wasRunning)
+                    try { runner.Start(); }
+                    catch (Exception e) { err = (err == null ? "" : err + ". ") + "El server no ha vuelto a arrancar: " + e.Message; }
+                WebAdmin.Audit("este PC", "restaurar el mundo al backup del " + when + " (pedido por " + who + "): " + (err ?? "hecho"));
+                Discord.Send(err == null
+                    ? "⏪ **" + Esc(who) + "** ha vuelto el mundo al backup del " + when + ". Lo que había justo antes está guardado en el backup «antes de restaurar»." + (wasRunning ? " El server vuelve a arrancar." : "")
+                    : "⚠️ No se ha podido restaurar el backup del " + when + ": " + err);
+            }, () => { if (pages.ContainsKey("Backups") && pages["Backups"].Visible) RefreshBackups(); });
+            return WebResult.Yes((wasRunning ? "Restaurando: se apaga el server guardando el mundo, " : "Restaurando: ") +
+                "se hace una copia de cómo está ahora («antes de restaurar»), se pone el backup del " + when + (wasRunning ? " y vuelve a arrancar" : "") +
+                ". Tarda un par de minutos; el resultado sale en Discord y en «Lo que se ha hecho desde la web».");
         }
 
         protected override void OnResize(EventArgs e)
