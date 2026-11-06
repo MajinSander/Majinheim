@@ -1,5 +1,18 @@
 # Novedades
 
+## 2.1.0
+- **Mantenimiento diario sin sustos**: a la hora del reinicio diario, y solo si no hay nadie jugando, el launcher del server mira si hay versiones nuevas de los mods o de Valheim. Si las hay, hace backup del mundo, los ajustes y la lista de mods; apaga el server; deja que Steam actualice Valheim; instala los mods nuevos y **prueba que el server arranca y carga el mundo**. Si un mod nuevo da errores, lo deja en la versión de antes y se queda con los demás; si aun así no arranca, vuelve a dejarlo todo como estaba (también el mundo, si la prueba llegó a guardarlo). Al terminar, el server queda como estaba (encendido o apagado), tus amigos reciben los mods nuevos al abrir su launcher y en Discord sale qué se ha hecho.
+- Para saber si un arranque ha ido bien se comparan sus errores con los de antes: solo cuentan los **nuevos** que vienen del cargador de mods o de un mod actualizado. Los de siempre (gráficos, vídeo...) no hacen saltar la alarma.
+- Una versión de un mod que falla la prueba no se vuelve a intentar sola: espera a la siguiente versión o a que alguien la pida a mano ("Reintentar las que fallaron").
+- **Actualizaciones de Valheim sin esperar**: si hay una esperando, los que ya tienen el juego actualizado no pueden entrar, así que se instala y se prueba en cuanto el server lleva un rato sin nadie, sin esperar al mantenimiento diario.
+- Nueva pestaña **Salud** en el launcher del server: server, último backup, backups comprobados, copia fuera del PC, espacio en disco, mods, Valheim, HTTPS y DDNS, cortafuegos, horas activas de Windows Update, arranque con Windows, Discord, asistente IA y el último mantenimiento, cada uno en verde, amarillo o rojo con lo que hay que hacer. Se revisa sola cada 10 minutos y avisa en Discord si algo importante se estropea (disco casi lleno, backups, HTTPS, DDNS, IA) y cuando se arregla. Botones para revisar, actualizar ahora (con prueba) y comprobar los backups, e historial de los últimos mantenimientos.
+- **Backups comprobados**: una vez por semana se abre el último backup del mundo y se lee entero (y el de la copia fuera del PC), para enterarse antes de necesitarlo si alguno está dañado.
+- **Mods a vigilar**: aviso en Discord (una vez) de los mods que su autor ha marcado como obsoletos en Thunderstore o que llevan mucho sin versión nueva. En la pestaña Mods, los obsoletos salen en rojo.
+- Discord: `/salud` (la revisión, solo la ve quien la pide) y `/actualizar` (el mantenimiento ahora, con prueba), los dos solo para administradores.
+- Web de administración: tarjeta **Salud del server**, botón "Actualizar ahora (con prueba)" e historial de mantenimientos.
+- Consola: `MajinheimCli salud`, `comprobar-backups`, `errores` (los errores del último arranque que no salían antes) y `actualizar [reintentar]` (con el server apagado y el launcher cerrado).
+- Web: el cuadro de "Mensaje al chat del juego" ya no se sale de la tarjeta en pantallas estrechas.
+
 ## 2.0.0
 - **Asistente con IA**: en Discord se le habla mencionando al bot con @, como a uno más del grupo ("@MajinBot ¿quién jugó ayer?", "¿cuántas horas lleva Benja este mes?", "¿qué jefe nos falta?") y responde con los datos reales del server: quién juega, horas y partidas de cada vikingo, días y horas en que se juega, muertes, jefes, mods, último backup y día del mundo. También resuelve dudas generales de Valheim y recuerda lo último hablado en el canal para seguir la conversación. El bot solo ve el texto de los mensajes que lo mencionan: no lee el resto de conversaciones.
 - La IA funciona **en el propio PC del server** con [Ollama](https://ollama.com): ni las preguntas ni los datos salen a internet, y no cuesta nada.

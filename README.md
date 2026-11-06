@@ -25,7 +25,14 @@ La opción **Recordarme en este dispositivo** evita tener que entrar cada vez.
 En el launcher del server, pestaña **Automático**: pega el token del bot y el ID del canal y pulsa "Guardar y probar". Ahí también se eligen los backups automáticos y el reinicio diario.
 
 - El bot avisa cuando el server se enciende, se apaga o se cae, quién entra y sale, y si hay mods con versión nueva.
-- Comandos: `/estado`, `/jugadores`, `/estadisticas` y `/web` para todos; `/encender`, `/apagar`, `/reiniciar`, `/backup` y `/avisar` solo para los administradores del Discord.
+- Comandos: `/estado`, `/jugadores`, `/estadisticas` y `/web` para todos; `/encender`, `/apagar`, `/reiniciar`, `/backup`, `/avisar`, `/salud` y `/actualizar` solo para los administradores del Discord.
+
+## Salud y mantenimiento sin sustos
+En el launcher del server, pestaña **Salud**: una revisión de todo lo que hace falta para que el server funcione (backups, copia fuera del PC, disco, mods, Valheim, HTTPS, DDNS, cortafuegos, Windows Update, Discord, IA...), en verde, amarillo o rojo y con lo que hay que hacer. Se repite sola cada 10 minutos y avisa en Discord si algo importante se estropea.
+
+- **Mantenimiento diario**: a la hora del reinicio diario y si no hay nadie jugando, se actualizan los mods y Valheim con backup antes, **prueba de arranque** y vuelta atrás si algo falla. Si un mod nuevo da problemas, se queda en su versión de antes y no se reintenta solo.
+- Cada semana se comprueba que el último backup del mundo se abre entero.
+- Discord: `/salud` y `/actualizar` (solo administradores). En la web de administración, la tarjeta **Salud del server**.
 
 ## Asistente con IA
 En Discord se le habla mencionando al bot con @, como a uno más del grupo: "@MajinBot ¿quién jugó ayer?", "¿cuántas horas lleva Benja este mes?", "¿qué jefe nos falta?". Recuerda lo último hablado en el canal, así que se le puede seguir preguntando ("¿y la semana pasada?").

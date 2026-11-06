@@ -51,6 +51,8 @@ namespace Majinheim
         public static Func<string, string> Say;   // mensaje al chat del juego; devuelve null si ha llegado (lo pone el launcher)
         public static Func<Dictionary<string, object>> AdminExtras;
         public static Func<string, string> RconExec;   // orden al server por RCON; devuelve la respuesta o lanza excepción (lo pone el launcher)
+        public static Func<string, string> Maintain;   // mantenimiento con prueba (mods y Valheim al día) pedido por alguien; devuelve qué va a hacer
+        public static Func<string> Health;             // la última revisión de salud, en texto para Discord
 
         // Órdenes que se pueden mandar desde la consola web. Nada que borre cosas del mundo o toque inventarios.
         public static readonly string[] ConsoleAllowed = { "players", "banlist", "kick", "ban", "unban", "save", "time", "globalkeys", "serverstats", "logs", "say", "showmessage", "findobjects" };   // backups, mods con versión nueva y tareas (lo pone el launcher)
@@ -311,11 +313,12 @@ namespace Majinheim
             {
                 string what = null;
                 try { var o = Json.ParseObj(req.BodyText); object v; if (o.TryGetValue("accion", out v)) what = v as string; } catch { }
-                if (what != "iniciar" && what != "parar" && what != "reiniciar" && what != "backup") return Err(400, "Acción desconocida.");
+                if (what != "iniciar" && what != "parar" && what != "reiniciar" && what != "backup" && what != "actualizar") return Err(400, "Acción desconocida.");
                 var act = Action;
-                if (act == null) return Err(503, "El launcher del server no está listo.");
+                var maint = Maintain;
+                if (what == "actualizar" ? maint == null : act == null) return Err(503, "El launcher del server no está listo.");
                 string result;
-                try { result = act(what); }
+                try { result = what == "actualizar" ? maint(user.Name + " (web)") : act(what); }
                 catch (Exception e) { result = "No se pudo: " + e.Message; }
                 Audit(ip, user.Name + " · " + what + ": " + result);
                 res = Ok(result);

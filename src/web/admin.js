@@ -136,8 +136,61 @@
     }).catch(function () { pre.textContent = '> ' + orden + '\nSin conexión con el server.'; });
   }
 
-  var tipos = { 'mundo-al-arrancar': 'al arrancar', 'programado': 'automático', 'web': 'desde la web', 'antes-de-restaurar': 'antes de restaurar' };
+  var tipos = { 'mundo-al-arrancar': 'al arrancar', 'programado': 'automático', 'web': 'desde la web', 'antes-de-restaurar': 'antes de restaurar', 'antes-de-actualizar': 'antes de actualizar' };
+  var puntos = { ok: 'verde', aviso: 'ambar', mal: 'rojo', info: 'gris' };
+  var orden = { mal: 0, aviso: 1, ok: 2, info: 3 };
+  var niveles = { ok: 'Bien', aviso: 'Con avisos', mal: 'Falló' };
+  function fechaCorta(iso) { return new Date(iso).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+
+  // Salud del server (2.1): lo que revisa el launcher cada 10 minutos, con lo que falla arriba.
+  function pintarSalud(d) {
+    var sa = d.salud, ul = $('salud');
+    $('t-salud').hidden = !sa && !d.tareas;   // launcher antiguo: sin tarjeta
+    limpiar(ul);
+    if (!sa) {
+      var li0 = document.createElement('li'); li0.className = 'tenue'; li0.textContent = 'Todavía estoy haciendo la primera revisión.'; ul.appendChild(li0);
+      $('salud-resumen').textContent = '';
+      $('salud-resumen').className = 'resumen-salud';
+      return;
+    }
+    var malo = (sa.items || []).some(function (i) { return i.estado === 'mal'; }), avisos = (sa.items || []).some(function (i) { return i.estado === 'aviso'; });
+    $('salud-resumen').textContent = sa.resumen;
+    $('salud-resumen').className = 'resumen-salud ' + (malo ? 'rojo' : avisos ? 'ambar' : 'verde');
+    (sa.items || []).slice().sort(function (a, b) { return orden[a.estado] - orden[b.estado]; }).forEach(function (i) {
+      var li = document.createElement('li');
+      var q = document.createElement('span'); q.className = 'quien';
+      var p = document.createElement('span'); p.className = 'punto ' + (puntos[i.estado] || 'gris');
+      q.appendChild(p); q.appendChild(document.createTextNode(i.nombre));
+      var c = document.createElement('span'); c.className = 'cuanto'; c.textContent = i.detalle;
+      li.appendChild(q); li.appendChild(c); ul.appendChild(li);
+    });
+    $('salud-fecha').textContent = 'Revisado ' + fechaCorta(sa.fecha) + '. Se revisa sola cada 10 minutos; si algo importante se estropea, avisa en Discord.';
+  }
+
+  function pintarMantenimiento(d) {
+    var m = d.mantenimiento, ul = $('mantenimientos'), b = document.querySelector('[data-accion="actualizar"]');
+    b.hidden = !m;
+    if (m) {
+      b.disabled = !!m.enCurso;
+      b.textContent = m.enCurso ? 'Mantenimiento en marcha…' : 'Actualizar ahora (con prueba)';
+      $('act-nota').textContent = m.auto
+        ? 'Se prueban y se instalan solos en el mantenimiento diario de las ' + m.hora + ', si no hay nadie jugando: backup antes y vuelta atrás si algo falla.'
+        : 'El mantenimiento diario está desactivado (launcher del server, pestaña Salud): se actualiza a mano.';
+    }
+    limpiar(ul);
+    ((m && m.historial) || []).forEach(function (h) {
+      var li = document.createElement('li');
+      var q = document.createElement('span'); q.className = 'quien';
+      var p = document.createElement('span'); p.className = 'punto ' + (puntos[h.nivel] || 'gris');
+      q.appendChild(p); q.appendChild(document.createTextNode(fechaCorta(h.fecha) + ' · ' + (niveles[h.nivel] || h.nivel) + (h.quien ? ' · ' + h.quien : '')));
+      var c = document.createElement('span'); c.className = 'cuanto'; c.textContent = h.resumen;
+      li.appendChild(q); li.appendChild(c); ul.appendChild(li);
+    });
+    if (!ul.firstChild) { var li1 = document.createElement('li'); li1.className = 'tenue'; li1.textContent = 'Todavía no se ha hecho ninguno.'; ul.appendChild(li1); }
+  }
   function pintarExtras(d) {
+    pintarSalud(d);
+    pintarMantenimiento(d);
     var t = d.tareas || {};
     $('a-tarea-backup').textContent = t.backupHoras ? 'cada ' + t.backupHoras + ' h' + (t.ultimoBackupAuto ? ' · último ' + new Date(t.ultimoBackupAuto).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '') : (d.tareas ? 'solo al arrancar' : '—');
     $('a-tarea-reinicio').textContent = t.reinicioDiario ? 'a las ' + t.reinicioDiario + ' si no hay nadie' : (d.tareas ? 'desactivado' : '—');

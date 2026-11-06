@@ -81,6 +81,13 @@
     </form>
   </section>
 
+  <section class="tarjeta" id="t-salud">
+    <h2>Salud del server</h2>
+    <p id="salud-resumen" class="resumen-salud"></p>
+    <ul id="salud" class="lista apilada salud"></ul>
+    <p id="salud-fecha" class="tenue">Se revisa sola cada 10 minutos. Si algo importante se estropea, avisa en Discord.</p>
+  </section>
+
   <section class="tarjeta">
     <h2>Jugadores conectados <span id="n-con" class="cuenta">0</span></h2>
     <ul id="conectados" class="lista"></ul>
@@ -102,7 +109,12 @@
   <section class="tarjeta" id="t-actualizaciones">
     <h2>Mods con versión nueva <span id="n-act" class="cuenta">0</span></h2>
     <ul id="actualizaciones" class="lista"></ul>
-    <p class="tenue">No se instala nada solo: se actualiza desde el launcher del server, pestaña Mods, con el server apagado.</p>
+    <p id="act-nota" class="tenue">No se instala nada solo: se actualiza desde el launcher del server, pestaña Mods, con el server apagado.</p>
+    <div class="botonera">
+      <button class="boton secundario" data-accion="actualizar" data-confirmar="¿Actualizar ahora? Si hay versiones nuevas de mods o de Valheim: backup, se apaga el server, se actualiza, se prueba que arranca y, si algo falla, se vuelve a como estaba. Solo si no hay nadie jugando. Tarda unos minutos y el resultado sale en Discord.">Actualizar ahora (con prueba)</button>
+    </div>
+    <h3 class="subtitulo">Últimos mantenimientos</h3>
+    <ul id="mantenimientos" class="lista apilada"></ul>
   </section>
 
   <section class="tarjeta">

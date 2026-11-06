@@ -175,7 +175,7 @@ namespace Majinheim
 
         // ------------------------------------------------------------ comandos
 
-        static readonly string[] AdminCommands = { "encender", "apagar", "reiniciar", "backup", "avisar" };
+        static readonly string[] AdminCommands = { "encender", "apagar", "reiniciar", "backup", "avisar", "salud", "actualizar" };
 
         static void RegisterCommands()
         {
@@ -195,6 +195,8 @@ namespace Majinheim
                 cmd("apagar", "Guarda el mundo y apaga el server (solo administradores)", true),
                 cmd("reiniciar", "Guarda el mundo y reinicia el server (solo administradores)", true),
                 cmd("backup", "Hace un backup completo del server (solo administradores)", true),
+                cmd("salud", "Revisión del server: backups, disco, HTTPS, mods, Valheim... (solo administradores)", true),
+                cmd("actualizar", "Actualiza mods y Valheim con backup, prueba de arranque y vuelta atrás (solo administradores)", true),
             };
             var avisar = cmd("avisar", "Manda un mensaje al chat del juego (solo administradores)", true);
             avisar["options"] = new[] { new Dictionary<string, object> { { "type", 3 }, { "name", "mensaje" }, { "description", "Lo que verán los jugadores" }, { "required", true }, { "max_length", 200 } } };
@@ -226,7 +228,18 @@ namespace Majinheim
                     else
                     {
                         string what = name == "encender" ? "iniciar" : name == "apagar" ? "parar" : name;
-                        if (name == "avisar")
+                        if (name == "salud")
+                        {
+                            var h = WebAdmin.Health;
+                            reply = h == null ? "El launcher del server no está listo." : h();
+                            ephemeral = true;   // solo lo ve quien lo pide
+                        }
+                        else if (name == "actualizar")
+                        {
+                            var m = WebAdmin.Maintain;
+                            reply = m == null ? "El launcher del server no está listo." : m(who + " (Discord)");
+                        }
+                        else if (name == "avisar")
                         {
                             string text = Option(data, "mensaje");
                             var say = WebAdmin.Say;
@@ -239,8 +252,12 @@ namespace Majinheim
                             var act = WebAdmin.Action;
                             reply = act == null ? "El launcher del server no está listo." : act(what);
                         }
-                        WebAdmin.Audit("Discord", who + " · " + what + ": " + reply);
-                        reply = "**" + Esc(who) + "**: " + reply;
+                        if (name != "salud")
+                        {
+                            WebAdmin.Audit("Discord", who + " · " + what + ": " + reply);
+                            reply = "**" + Esc(who) + "**: " + reply;
+                        }
+                        if (reply.Length > 2000) reply = reply.Substring(0, 1999) + "…";
                     }
                 }
                 else reply = Answer(name);

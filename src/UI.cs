@@ -236,6 +236,7 @@ namespace Majinheim
             if (name == "Backups") RefreshBackups();
             if (name == "Ajustes de mods" && !CfgDirty()) ReloadCfg();
             if (name == "Asistente IA") RefreshAi();
+            if (name == "Salud") ShowHealth();
 #endif
         }
 
@@ -351,6 +352,7 @@ namespace Majinheim
             runner.StateChanged += () => { if (!IsDisposed) try { BeginInvoke((Action)UpdateServerState); } catch { } };
 
             AddPage("Servidor", "▶", BuildServerPage());
+            AddPage("Salud", "♥", BuildHealthPage());
             AddPage("Mods", "☰", BuildModsPage());
             AddPage("Ajustes de mods", "⚙", BuildConfigPage());
             AddPage("Amigos", "☺", BuildFriendsPage());
@@ -537,7 +539,7 @@ namespace Majinheim
                        Ui.Btn("Añadir mod...", AddMod), Ui.Btn("Quitar", RemoveSelected), Ui.Btn("Cambiar lado", CycleSide),
                        Ui.Btn("Ver en Thunderstore", OpenSelectedWeb), Ui.Btn("Deshacer cambios", ReloadPack)),
                 Ui.Row(Ui.Btn("APLICAR CAMBIOS", ApplyMods, true), modsInfo, modsDirty),
-                Ui.Lbl("Marca o desmarca para activar o desactivar.  Naranja = hay versión nueva.  Amarillo = lleva mucho sin actualizarse (vigilar).  Gris = desactivado.", 8.5f, FontStyle.Regular, Th.Muted));
+                Ui.Lbl("Marca o desmarca para activar o desactivar.  Naranja = hay versión nueva (el mantenimiento diario la prueba y la instala sola).  Amarillo = lleva mucho sin actualizarse (vigilar).  Rojo = su autor lo ha marcado como obsoleto.  Gris = desactivado.", 8.5f, FontStyle.Regular, Th.Muted));
             PopulateMods();
             return PageWithTitle("Mods", "El modpack que usa el server y que reciben tus amigos automaticamente.", modList, bar);
         }
@@ -575,6 +577,7 @@ namespace Majinheim
             PkgInfo li;
             latest.TryGetValue(m.Id, out li);
             if (!m.Enabled) it.ForeColor = Color.FromArgb(110, 116, 124);
+            else if (li != null && li.Deprecated) it.ForeColor = Th.Bad;
             else if (li != null && Ver.Compare(li.Version, m.Version) > 0) it.ForeColor = Th.AccentHi;
             else if (li != null && string.CompareOrdinal(li.Date, Settings.Current.StaleBefore) < 0) it.ForeColor = Th.Warn;
             else it.ForeColor = Th.Text;
@@ -944,6 +947,12 @@ namespace Majinheim
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            if (!exiting && maintRunning && e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+                MessageBox.Show(this, "Hay un mantenimiento en marcha (actualizando y probando el server). Espera a que termine: si cierras ahora, el server puede quedarse a medias.", "Majinheim", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             if (!exiting && runner.Running && e.CloseReason == CloseReason.UserClosing)
             {
                 var r = MessageBox.Show(this, "El server sigue en marcha.\n\nSí: detenerlo (guardando el mundo) y salir.\nNo: dejarlo en marcha y esconder el launcher junto al reloj.\nCancelar: volver.", "Majinheim", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);

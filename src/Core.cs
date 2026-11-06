@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "2.0.0";
+        public const string Version = "2.1.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -220,6 +220,16 @@ namespace Majinheim
         public int NightlyRestartHour { get; set; }
         public string OffsiteDir { get; set; }     // copia extra de los backups del mundo en otra carpeta (otro disco, OneDrive...); vacío = no
         public string ValheimBuild { get; set; }   // versión de Steam (buildid) del server de Valheim la última vez que se miró
+        // Mantenimiento con red de seguridad (2.1): mods y Valheim al día con backup, prueba de arranque y vuelta atrás
+        public bool AutoUpdateMods { get; set; }       // a la hora del reinicio diario, si hay algo que actualizar y nadie jugando
+        public string MaintenanceDay { get; set; }     // último día (yyyy-MM-dd) en que se hizo el mantenimiento automático
+        public string VerifiedBuild { get; set; }      // versión de Valheim con la que el server arrancó bien en la última prueba
+        public List<string> SkippedUpdates { get; set; } // "Autor-Mod@versión" que fallaron la prueba: no se reintentan solas
+        public List<string> ModNotices { get; set; }   // mods obsoletos o abandonados de los que ya se avisó
+        public List<string> HealthAlerts { get; set; } // revisiones de salud en rojo de las que ya se avisó en Discord
+        public string BackupCheckAt { get; set; }      // última comprobación de backups (se abren y se leen enteros)
+        public bool BackupCheckOk { get; set; }
+        public string BackupCheckText { get; set; }
         // Asistente con IA local (pestaña "Asistente IA"): responde en Discord al mencionar al bot, con Ollama en este PC
         public bool AiEnabled { get; set; }
         public string OllamaUrl { get; set; }      // dónde escucha Ollama (por defecto, este PC)
@@ -240,9 +250,18 @@ namespace Majinheim
             DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true; RconPassword = ""; WarnBeforeStop = true;
             BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5; OffsiteDir = "";
             AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:14b";
+            AutoUpdateMods = true; MaintenanceDay = ""; VerifiedBuild = ""; BackupCheckAt = ""; BackupCheckText = "";
+            SkippedUpdates = new List<string>(); ModNotices = new List<string>(); HealthAlerts = new List<string>();
         }
         public static Settings Current = new Settings();
-        public static void Load() { Current = Json.Load<Settings>(AppInfo.SettingsFile); if (Current.WebUsers == null) Current.WebUsers = new List<WebUser>(); }
+        public static void Load()
+        {
+            Current = Json.Load<Settings>(AppInfo.SettingsFile);
+            if (Current.WebUsers == null) Current.WebUsers = new List<WebUser>();
+            if (Current.SkippedUpdates == null) Current.SkippedUpdates = new List<string>();
+            if (Current.ModNotices == null) Current.ModNotices = new List<string>();
+            if (Current.HealthAlerts == null) Current.HealthAlerts = new List<string>();
+        }
         public static void Save() { Json.Save(AppInfo.SettingsFile, Current); }
     }
 
@@ -315,6 +334,7 @@ namespace Majinheim
     public class PkgInfo
     {
         public string Id, Version, Date, Description;
+        public bool Deprecated;   // su autor lo ha marcado como obsoleto en Thunderstore
         public List<string> Deps = new List<string>();
     }
 
@@ -333,6 +353,8 @@ namespace Majinheim
             p.Version = (string)l["version_number"];
             p.Date = ((string)l["date_created"]).Substring(0, 10);
             p.Description = l.ContainsKey("description") ? (string)l["description"] : "";
+            object dep;
+            p.Deprecated = d.TryGetValue("is_deprecated", out dep) && dep is bool && (bool)dep;
             var deps = l["dependencies"] as IEnumerable;
             if (deps != null) foreach (var o in deps) p.Deps.Add((string)o);
             return p;
@@ -693,7 +715,7 @@ namespace Majinheim
         }
 
         // ---- Copia fuera del PC: los backups con el mundo se copian también a otra carpeta (en segundo plano).
-        static readonly string[] OffsiteLabels = { "programado", "mundo-al-arrancar", "manual", "web" };
+        static readonly string[] OffsiteLabels = { "programado", "mundo-al-arrancar", "manual", "web", "antes-de-actualizar" };
         public const int OffsiteKeep = 10;
         public static string OffsiteFolder { get { var d = (Settings.Current.OffsiteDir ?? "").Trim(); return d.Length == 0 ? null : System.IO.Path.Combine(d, "Majinheim-backups"); } }
         public static DateTime OffsiteLast { get; private set; }
@@ -896,6 +918,13 @@ namespace Majinheim
             return serverState;
         }
 
+        // Igual, pero leído ahora mismo (para esperar a que Steam termine una actualización).
+        public static AppState ServerNow()
+        {
+            serverStateAt = DateTime.MinValue;
+            return Server();
+        }
+
         public static List<string> Libraries()
         {
             var libs = new List<string> { SteamPath() };
@@ -995,6 +1024,7 @@ namespace Majinheim
         volatile int tailGen;
         int quickCrashes;   // caídas seguidas a menos de 5 min de arrancar
         public const string GaveUpStatus = "Caído: no arranca (3 intentos)";
+        public volatile bool NoAutoRestart;   // durante el mantenimiento: si se cae, no se reinicia solo (lo decide el mantenimiento)
         public event Action<string> GameLog;
         public event Action StateChanged;
         public int Players { get; private set; }
@@ -1026,7 +1056,10 @@ namespace Majinheim
             return a.ToString();
         }
 
-        public void Start()
+        public void Start() { Start(true); }
+
+        // backup = false solo cuando quien arranca ya ha hecho uno (el mantenimiento).
+        public void Start(bool backup)
         {
             var s = Settings.Current;
             if (Running) throw new Exception("El server ya está en marcha.");
@@ -1036,8 +1069,8 @@ namespace Majinheim
             if (s.Password.Length > 0 && s.Password.Length < 5) Log.W("Ojo: Valheim recomienda contraseñas de 5 o mas caracteres.");
 
             stopRequested = false;
-            SetStatus("Haciendo backup...");
-            if (Directory.Exists(Path.Combine(AppInfo.SavesDir, "worlds_local")))
+            SetStatus(backup ? "Haciendo backup..." : "Arrancando...");
+            if (backup && Directory.Exists(Path.Combine(AppInfo.SavesDir, "worlds_local")))
                 Backup.Create("mundo-al-arrancar", Backup.WorldItems(), true);
             Doorstop.EnsureServerProxy(s.ServerDir, AppInfo.Profile);
 
@@ -1076,7 +1109,7 @@ namespace Majinheim
             int code = -1;
             try { code = proc.ExitCode; } catch { }
             Log.W("El server se ha cerrado (codigo {0}).", code);
-            if (!stopRequested && Settings.Current.AutoRestart)
+            if (!stopRequested && Settings.Current.AutoRestart && !NoAutoRestart)
             {
                 // Si se cae una y otra vez al poco de arrancar (un mod roto tras una actualización de Valheim...), no insistir:
                 // cada arranque hace un backup del mundo y en un rato se llevaría por delante los buenos más antiguos.

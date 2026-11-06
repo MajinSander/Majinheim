@@ -1,5 +1,6 @@
 ﻿// MajinheimCli.exe: misma logica que la edicion Server, por linea de comandos (diagnostico y pruebas).
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -99,8 +100,60 @@ namespace Majinheim
                             if (c.Installed.Count > 0) Console.WriteLine("Modelos descargados: " + string.Join(", ", c.Installed));
                             return c.Up && c.HasModel ? 0 : 1;
                         }
+                    case "salud":
+                        {
+                            var pk = Modpack.Load();
+                            var latest = new Dictionary<string, PkgInfo>(StringComparer.OrdinalIgnoreCase);
+                            Console.WriteLine("Mirando Thunderstore...");
+                            ModWatch.Refresh(pk, latest);
+                            var items = Health.Check(null, latest, pk);
+                            foreach (var i in items) Console.WriteLine("{0} {1,-30} {2}", Health.Dot(i.State), i.Name, i.Detail);
+                            Console.WriteLine(Health.Summary(items));
+                            return items.Any(i => i.State == "mal") ? 1 : 0;
+                        }
+                    case "comprobar-backups":
+                        {
+                            var r = BackupCheck.Run(!LauncherRunning());
+                            Console.WriteLine(r.Text);
+                            return r.Ok ? 0 : 1;
+                        }
+                    case "errores":
+                        {
+                            // Errores del último arranque (BepInEx\LogOutput.log) que no salían cuando el server funcionaba bien.
+                            var known = LogCheck.Known();
+                            var lines = new List<string>();
+                            if (File.Exists(LogCheck.LogFile))
+                                using (var fs = new FileStream(LogCheck.LogFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                                using (var sr = new StreamReader(fs)) lines.AddRange(sr.ReadToEnd().Split('\n'));
+                            var seen = new HashSet<string>();
+                            int nKnown = 0, nNew = 0;
+                            foreach (var l in lines)
+                            {
+                                string sig = LogCheck.Signature(l);
+                                if (sig == null || !seen.Add(sig)) continue;
+                                if (known.Contains(sig)) { nKnown++; continue; }
+                                nNew++;
+                                string t = l.Trim();
+                                Console.WriteLine("NUEVO " + (LogCheck.FromLoader(t) ? "(cargador de mods) " : "") + (t.Length > 300 ? t.Substring(0, 300) : t));
+                            }
+                            Console.WriteLine("{0} errores distintos: {1} nuevos y {2} conocidos ({3} en la lista de conocidos).", nNew + nKnown, nNew, nKnown, known.Count);
+                            return 0;
+                        }
+                    case "actualizar":
+                        {
+                            // actualizar [reintentar]: el mantenimiento con prueba, con el server apagado y el launcher cerrado.
+                            if (LauncherOpen()) return 1;
+                            var r = new ServerRunner();
+                            if (r.TryAdopt()) { Console.WriteLine("El server está en marcha: desde la consola no sé si hay alguien jugando. Apágalo antes o usa el launcher (pestaña Salud)."); return 1; }
+                            var o = new Maintenance.Options { Who = "consola", Manual = true, RetrySkipped = args.Length > 1 && args[1].ToLowerInvariant() == "reintentar" };
+                            var rep = Maintenance.Run(o, new Maintenance.Context { Runner = r, Status = Console.WriteLine });
+                            Console.WriteLine(rep.Text);
+                            foreach (var d in rep.Details) Console.WriteLine("  " + d);
+                            Discord.Flush(15000);
+                            return rep.Level == "mal" ? 1 : 0;
+                        }
                     default:
-                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | ia [descargar]");
+                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | ia [descargar] | salud | comprobar-backups | errores | actualizar [reintentar]");
                         return 1;
                 }
             }
@@ -111,10 +164,12 @@ namespace Majinheim
             }
         }
 
+        static bool LauncherRunning() { return System.Diagnostics.Process.GetProcessesByName("MajinheimServer").Length > 0; }
+
         // El launcher del server tiene los ajustes en memoria y al guardar pisaría lo que se cambie desde aquí.
         static bool LauncherOpen()
         {
-            if (System.Diagnostics.Process.GetProcessesByName("MajinheimServer").Length == 0) return false;
+            if (!LauncherRunning()) return false;
             Console.WriteLine("Cierra antes el launcher del server (MajinheimServer.exe): si no, al guardar sus ajustes pisaría este cambio.");
             return true;
         }

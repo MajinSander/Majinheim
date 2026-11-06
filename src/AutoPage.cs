@@ -1,4 +1,4 @@
-// Página "Automático" de la edición Server: avisos en Discord y tareas programadas (backups y reinicio diario).
+// Página "Automático" de la edición Server: avisos en Discord y tareas programadas (backups, reinicio y mantenimiento diario).
 #if SERVER
 using System;
 using System.Collections.Generic;
@@ -21,8 +21,10 @@ namespace Majinheim
 
         // Estado de las tareas (solo en memoria; al abrir el launcher se recalcula).
         DateTime lastSchedBackup = DateTime.MinValue, lastUpdateCheck = DateTime.MinValue, nextAutoTick = DateTime.MinValue;
-        DateTime lastNightly = DateTime.MinValue, lastSteamCheck = DateTime.MinValue;
+        DateTime lastSteamCheck = DateTime.MinValue;
         string announcedBuild;   // actualización de Valheim pendiente de la que ya se ha avisado
+        string valheimMaintFor;  // actualización de Valheim para la que ya se ha lanzado el mantenimiento
+        int valheimIdleChecks;   // revisiones seguidas con la actualización esperando y nadie jugando
         bool schedBackupRunning;
         string lastRunnerStatus = "";
         bool wasUp;
@@ -49,7 +51,7 @@ namespace Majinheim
             tDiscChannel = Ui.Txt(s.DiscordChannel, 220);
             cDiscJoins = Ui.Chk("Avisar cuando alguien entra o sale (con el tiempo que ha jugado)", s.DiscordJoins);
             cDiscUpdates = Ui.Chk("Avisar cuando un mod tiene versión nueva", s.DiscordUpdates);
-            cDiscCommands = Ui.Chk("Comandos del bot: /estado, /jugadores, /estadisticas, /web para todos; /encender, /apagar, /reiniciar, /backup solo para administradores del Discord", s.DiscordCommands);
+            cDiscCommands = Ui.Chk("Comandos del bot: /estado, /jugadores, /estadisticas, /web para todos; /encender, /apagar, /reiniciar, /backup, /salud, /actualizar solo para administradores del Discord", s.DiscordCommands);
             cDiscCommands.MaximumSize = new Size(540, 0);
             cDiscCommands.CheckedChanged += (o, e) => { if (autoPopulating) return; s.DiscordCommands = cDiscCommands.Checked; Settings.Save(); DiscordBot.Apply(); UpdateAutoState(); };
             cDiscJoins.CheckedChanged += (o, e) => { if (autoPopulating) return; s.DiscordJoins = cDiscJoins.Checked; Settings.Save(); };
@@ -77,12 +79,13 @@ namespace Majinheim
             cNightly = Ui.Chk("Reiniciar el server una vez al día, a esta hora, si no hay nadie jugando", s.NightlyRestart);
             cbNightlyHour = Combo(Enumerable.Range(0, 24).Select(h => h.ToString("00") + ":00"), s.NightlyRestartHour);
             cNightly.CheckedChanged += (o, e) => { if (autoPopulating) return; s.NightlyRestart = cNightly.Checked; Settings.Save(); UpdateAutoState(); };
-            cbNightlyHour.SelectedIndexChanged += (o, e) => { if (autoPopulating) return; s.NightlyRestartHour = cbNightlyHour.SelectedIndex; Settings.Save(); UpdateAutoState(); };
+            cbNightlyHour.SelectedIndexChanged += (o, e) => { if (autoPopulating) return; s.NightlyRestartHour = cbNightlyHour.SelectedIndex; Settings.Save(); UpdateAutoState(); ShowHealth(); };
             autoState = Ui.Lbl("", 10, FontStyle.Regular, Th.Muted);
             autoState.MaximumSize = new Size(480, 0);
             var why = Ui.Lbl("El backup se hace justo después de que Valheim guarde el mundo, para que la copia esté completa, y solo si alguien ha jugado desde el anterior. " +
                 "Se guardan los " + Math.Max(5, s.KeepAutoBackups) + " últimos; los más viejos se borran solos.\n\n" +
-                "El reinicio diario limpia la memoria del server. Si a esa hora hay alguien dentro, ese día no se reinicia.", 9f, FontStyle.Regular, Th.Muted);
+                "El reinicio diario limpia la memoria del server. Si a esa hora hay alguien dentro, ese día no se reinicia.\n\n" +
+                "A esa misma hora se hace el mantenimiento diario (pestaña Salud): si hay versiones nuevas de mods o de Valheim, se actualizan con backup, prueba de arranque y vuelta atrás si algo falla.", 9f, FontStyle.Regular, Th.Muted);
             why.MaximumSize = new Size(480, 0);
             cWarn = Ui.Chk("Avisar en el chat del juego 1 minuto antes de apagar o reiniciar (web, Discord y reinicio diario)", s.WarnBeforeStop);
             cWarn.MaximumSize = new Size(480, 0);
@@ -170,8 +173,9 @@ namespace Majinheim
             parts.Add(s.BackupEveryHours <= 0 ? "Backups automáticos: desactivados (sigue habiendo uno cada vez que arranca el server)."
                 : "Backups: cada " + s.BackupEveryHours + " h con el server encendido" + (lastSchedBackup != DateTime.MinValue ? "; el último, " + lastSchedBackup.ToString("dd/MM HH:mm") : "") + ".");
             parts.Add(s.NightlyRestart ? "Reinicio diario a las " + s.NightlyRestartHour.ToString("00") + ":00 si no hay nadie." : "Reinicio diario: desactivado.");
+            parts.Add(s.AutoUpdateMods ? "Mantenimiento diario a las " + s.NightlyRestartHour.ToString("00") + ":00: mods y Valheim al día, con prueba." : "Mantenimiento diario: desactivado (pestaña Salud).");
             var vst = Steam.Server();
-            if (vst != null && vst.UpdatePending) parts.Add("Hay una actualización de Valheim esperando: Steam la instala cuando el server está apagado.");
+            if (vst != null && vst.UpdatePending) parts.Add(s.AutoUpdateMods ? "Hay una actualización de Valheim esperando: se instala y se prueba en cuanto no haya nadie jugando." : "Hay una actualización de Valheim esperando: Steam la instala cuando el server está apagado.");
             autoState.Text = string.Join("\n", parts);
             rconState.Text = !Rcon.Installed ? "Hace falta el mod ValheimRcon en la lista de mods del server (solo server: los amigos no instalan nada). Después, con el server apagado, pulsa Preparar."
                 : !Rcon.Ready ? "El mod está instalado. Con el server apagado, pulsa Preparar: le pone una contraseña larga al azar y solo acepta órdenes desde este PC."
@@ -249,6 +253,8 @@ namespace Majinheim
                 else Discord.Send("⬅️ **" + Esc(name) + "** ha salido (" + Dur(min) + ").");
             };
             WebAdmin.AdminExtras = AdminExtras;
+            WebAdmin.Maintain = RemoteMaintenance;
+            WebAdmin.Health = () => Health.ForDiscord();
             WebAdmin.RconExec = cmd =>
             {
                 if (!Rcon.Ready) throw new Exception("la consola no está preparada (pestaña Automático, Mensajes en el juego)");
@@ -275,6 +281,7 @@ namespace Majinheim
                 else if (st == "Detenido" && (wasUp || lastRunnerStatus.StartsWith("Guardando"))) { wasUp = false; msg = "⚫ Server apagado (el mundo está guardado)."; }
                 lastRunnerStatus = st;
             }
+            if (maintRunning) return;   // durante el mantenimiento se apaga y se enciende para probar: ya avisa él al terminar
             if (msg != null) Discord.Send(msg);
         }
 
@@ -289,7 +296,7 @@ namespace Majinheim
             if (pages.ContainsKey("Automático") && pages["Automático"].Visible) UpdateAutoState();
 
             // Backup programado: justo después de un guardado de Valheim (entre 20 s y 10 min antes), si alguien ha jugado desde el último.
-            if (s.BackupEveryHours > 0 && runner.Running && !schedBackupRunning && (now - lastSchedBackup).TotalHours >= s.BackupEveryHours)
+            if (s.BackupEveryHours > 0 && runner.Running && !schedBackupRunning && !maintRunning && (now - lastSchedBackup).TotalHours >= s.BackupEveryHours)
             {
                 var saved = ServerWatch.LastSave;
                 bool fresh = saved.HasValue && (now - saved.Value).TotalSeconds >= 20 && (now - saved.Value).TotalMinutes <= 10;
@@ -297,18 +304,12 @@ namespace Majinheim
                 if ((fresh || overdue) && ServerWatch.LastActivity > lastSchedBackup) RunScheduledBackup();
             }
 
-            // Reinicio diario
-            if (s.NightlyRestart && runner.Running && !busy && now.Hour == s.NightlyRestartHour && lastNightly.Date != now.Date
-                && (now - runner.StartedAt).TotalHours >= 2)
-            {
-                if (runner.Players == 0 && ServerWatch.OnlineCount == 0)
-                {
-                    lastNightly = now;
-                    Log.W("Reinicio diario programado.");
-                    Discord.Send("🔄 Reinicio diario del server (no hay nadie jugando). Vuelve en un par de minutos.");
-                    WebAction("reiniciar");
-                }
-            }
+            // Mantenimiento y reinicio diario (pestaña Salud)
+            DailyTick(now);
+
+            // Revisión de salud cada 10 minutos y comprobación de backups una vez por semana
+            if (now >= nextHealth && !maintRunning) RunHealth(false);
+            if (now >= nextBackupCheck && !maintRunning && BackupCheck.Due) RunBackupCheck(false);
 
             // Jefes derrotados: se mira cada 2 minutos por RCON (globalKeys)
             if (runner.Running && Rcon.Ready && !bossPollRunning && now >= nextBossPoll && (now - runner.StartedAt).TotalSeconds > 90)
@@ -325,6 +326,24 @@ namespace Majinheim
             if ((now - lastSteamCheck).TotalMinutes >= 10) { lastSteamCheck = now; CheckValheimBuild(); }
         }
 
+        // Con una actualización de Valheim esperando, los que ya tienen el juego actualizado no pueden entrar: no se espera al
+        // mantenimiento diario. En cuanto no hay nadie jugando (dos revisiones seguidas), se actualiza y se prueba.
+        void ValheimUpdateSoon(Steam.AppState st)
+        {
+            var s = Settings.Current;
+            string key = PendingKey(st);
+            if (!s.AutoUpdateMods || !st.UpdatePending || valheimMaintFor == key) { valheimIdleChecks = 0; return; }
+            if (busy || maintRunning || dirty || SomeonePlaying()) { valheimIdleChecks = 0; return; }
+            if (++valheimIdleChecks < 2) return;
+            valheimIdleChecks = 0;
+            valheimMaintFor = key;
+            Log.W("Actualización de Valheim esperando y nadie jugando: mantenimiento ahora.");
+            StartMaintenance(new Maintenance.Options { Who = "actualización de Valheim" }, null);
+        }
+
+        // Qué actualización está esperando (Steam no siempre apunta a qué versión va).
+        static string PendingKey(Steam.AppState st) { return (st.TargetBuildId ?? "?") + "@" + st.BuildId; }
+
         // Steam actualiza el server de Valheim solo, y solo con el server apagado. Avisa (una vez) de que hay una actualización
         // esperando y de que ya se ha instalado: con una versión nueva del juego, algún mod puede necesitar actualizarse.
         void CheckValheimBuild()
@@ -336,15 +355,19 @@ namespace Majinheim
             else if (s.ValheimBuild != st.BuildId)
             {
                 Log.W("Steam ha actualizado Valheim en el server (build {0} -> {1}).", s.ValheimBuild, st.BuildId);
-                Discord.Send("⬆️ Steam ha actualizado Valheim en el server. Si algún mod falla al arrancar, hará falta su versión nueva.");
+                if (!maintRunning && s.VerifiedBuild != st.BuildId)   // si lo ha hecho el mantenimiento, ya lo ha contado él
+                    Discord.Send("⬆️ Steam ha actualizado Valheim en el server. Si algún mod falla al arrancar, hará falta su versión nueva.");
                 s.ValheimBuild = st.BuildId; Settings.Save();
             }
-            if (st.UpdatePending && announcedBuild != st.TargetBuildId)
+            if (st.UpdatePending && announcedBuild != PendingKey(st))
             {
-                announcedBuild = st.TargetBuildId;
+                announcedBuild = PendingKey(st);
                 Log.W("Hay una actualización de Valheim para el server (build {0}): Steam la instala con el server apagado.", st.TargetBuildId);
-                Discord.Send("🆕 Hay una actualización de Valheim. Steam la instalará en el server la próxima vez que esté apagado; hasta entonces, quien ya tenga el juego actualizado puede no poder entrar.");
+                Discord.Send(s.AutoUpdateMods
+                    ? "🆕 Hay una actualización de Valheim. La instalo en el server (con backup y prueba) en cuanto no haya nadie jugando; hasta entonces, quien ya tenga el juego actualizado puede no poder entrar."
+                    : "🆕 Hay una actualización de Valheim. Steam la instalará en el server la próxima vez que esté apagado; hasta entonces, quien ya tenga el juego actualizado puede no poder entrar.");
             }
+            ValheimUpdateSoon(st);
         }
 
         void PollBosses()
@@ -398,11 +421,14 @@ namespace Majinheim
         // Tras buscar versiones nuevas: avisa en Discord solo de las que no se habían avisado ya.
         void AfterUpdateCheck()
         {
+            NoticeModsToWatch();
             if (!Settings.Current.DiscordUpdates) return;
             var news = UpdateList().Where(u => announcedUpdates.Add(u["id"] + "@" + u["nueva"])).ToList();
             if (news.Count == 0) return;
+            var s = Settings.Current;
             Discord.Send("🆕 **" + (news.Count == 1 ? "Versión nueva de un mod" : "Versiones nuevas de " + news.Count + " mods") + "**\n" +
-                string.Join("\n", news.Take(15).Select(u => "• " + Esc((string)u["nombre"]) + ": " + u["actual"] + " → " + u["nueva"])));
+                string.Join("\n", news.Take(15).Select(u => "• " + Esc((string)u["nombre"]) + ": " + u["actual"] + " → " + u["nueva"])) +
+                (s.AutoUpdateMods ? "\nLas que el server puede probar se actualizan solas en el mantenimiento diario de las " + s.NightlyRestartHour.ToString("00") + ":00, con backup y prueba de arranque." : ""));
         }
 
         List<Dictionary<string, object>> UpdateList()
@@ -423,7 +449,7 @@ namespace Majinheim
         Dictionary<string, object> AdminExtras()
         {
             var s = Settings.Current;
-            return new Dictionary<string, object>
+            var o = new Dictionary<string, object>
             {
                 { "backups", Backup.List().Take(15).Select(b => new Dictionary<string, object>
                     { { "fecha", b.Date.ToString("yyyy-MM-dd'T'HH:mm:sszzz") }, { "nombre", b.Label }, { "tipo", b.Kind }, { "mb", Math.Round(b.Size / 1048576.0, 1) } }).ToList() },
@@ -440,6 +466,8 @@ namespace Majinheim
                     }
                 },
             };
+            foreach (var kv in HealthExtras()) o[kv.Key] = kv.Value;
+            return o;
         }
     }
 }

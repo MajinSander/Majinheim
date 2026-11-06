@@ -38,6 +38,9 @@ h2 { margin: 0 0 12px; font-size: 16px; color: var(--ambar); display: inline-fle
 .lista .quien { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .lista .cuanto { color: var(--tenue); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--verde); margin-right: 8px; }
+.punto.ambar { background: var(--ambar); }
+.punto.rojo { background: var(--rojo); }
+.punto.gris { background: var(--gris); }
 .datos { margin: 0; display: grid; gap: 8px; }
 .datos div { display: flex; justify-content: space-between; gap: 12px; }
 .datos dt { color: var(--tenue); }
@@ -64,7 +67,7 @@ button.boton:disabled { opacity: .4; cursor: default; filter: none; }
 .boton.peligro { background: var(--rojo); color: #1a1410; }
 .botonera { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .estrecha { max-width: 420px; width: 100%; margin: 24px auto; grid-column: 1 / -1; }
-.formulario { display: grid; gap: 10px; margin-top: 12px; }
+.formulario { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 12px; }
 .formulario input { background: var(--fondo); color: var(--texto); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; font: inherit; }
 .formulario input:focus { outline: 2px solid var(--ambar); outline-offset: 1px; }
 .error { color: var(--rojo); margin: 0; min-height: 1.5em; }
@@ -119,3 +122,11 @@ code { font: 12px ui-monospace, Consolas, monospace; background: rgba(255,255,25
 .jefes li.hecho { opacity: 1; border-color: var(--ambar); }
 .jefes .nombre { display: block; font-weight: 600; }
 .jefes .bioma, .jefes .fecha { display: block; font-size: 12px; color: var(--tenue); }
+/* 2.1.0: salud del server y mantenimientos */
+.lista.salud .quien { white-space: nowrap; }
+.resumen-salud { margin: -4px 0 8px; font-weight: 600; }
+.resumen-salud:empty { display: none; }
+.resumen-salud.verde { color: var(--verde); }
+.resumen-salud.ambar { color: var(--ambar); }
+.resumen-salud.rojo { color: var(--rojo); }
+.subtitulo { font-size: 15px; margin: 18px 0 6px; }
