@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "2.5.0";
+        public const string Version = "2.6.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -235,6 +235,7 @@ namespace Majinheim
         public bool AiEnabled { get; set; }
         public string OllamaUrl { get; set; }      // dónde escucha Ollama (por defecto, este PC)
         public string OllamaModel { get; set; }
+        public bool GameChat { get; set; }         // MajinBot contesta en el chat de la partida a quien escribe "!majin" (2.6)
         public bool WorldExport { get; set; }      // mod propio Majinheim Mundo en el server: la IA sabe qué hay en cofres y tumbas y las recetas con mods
         // Vida en el Discord (2.3)
         public bool WeeklySummary { get; set; }    // resumen de la semana los domingos a las 21:00 (escrito por la IA si está)
@@ -263,7 +264,7 @@ namespace Majinheim
             WebUsers = new List<WebUser>();
             DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true; RconPassword = ""; WarnBeforeStop = true;
             BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5; OffsiteDir = "";
-            AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:14b"; WorldExport = true;
+            AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:14b"; WorldExport = true; GameChat = true;
             WeeklySummary = true; WeeklyDone = ""; Milestones = true; MilestonesSeen = new List<string>(); Meetups = true; MeetupStart = true; OnDemand = false; OnDemandIdleMinutes = 30;
             AutoUpdateMods = true; MaintenanceDay = ""; VerifiedBuild = ""; BackupCheckAt = ""; BackupCheckText = "";
             SkippedUpdates = new List<string>(); ModNotices = new List<string>(); HealthAlerts = new List<string>();

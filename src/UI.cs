@@ -906,6 +906,8 @@ namespace Majinheim
             WebAdmin.RestoreWorld = WebRestore;
             WebAdmin.SaveModSettings = WebModSettings;
             WebAdmin.Say = SayInGame;
+            GameChat.Say = t => runner.Running && Rcon.Ready ? Rcon.Say(t) : "el server o los mensajes en el juego no están listos";
+            GameChat.Start();
             InitAuto();
             WebPanel.Apply();
             CheckUpdatesQuiet();

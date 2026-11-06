@@ -1,5 +1,8 @@
 # Novedades
 
+## 2.6.0
+- **MajinBot en el chat de la partida**: dentro del juego se escribe `!majin` y la pregunta (por ejemplo `!majin ¿dónde está el hierro?`) y contesta en el mismo chat, en una o dos frases y sin formato, con los mismos datos del mundo que en Discord. Recuerda lo último que se ha hablado durante 10 minutos, cada persona puede preguntar una vez cada 10 segundos y las respuestas largas se cortan en tres mensajes como mucho. El mod Majinheim Mundo (1.1.0) solo apunta los mensajes que empiezan por `!majin`; el resto del chat no se guarda. Se puede apagar en la pestaña IA del launcher.
+
 ## 2.5.0
 - **Verificación en dos pasos** para los administradores de la web: en la tarjeta **Seguridad de tu cuenta** se escanea un código QR con una app del móvil (Google Authenticator, Microsoft Authenticator...) y desde entonces, para entrar, hace falta la contraseña y el código de 6 cifras que cambia cada 30 segundos. Aunque alguien sepa la contraseña, no entra. La clave de la app se guarda cifrada en el PC del server (como el token de Discord); cada código vale una sola vez; los códigos mal puestos cuentan como intentos fallidos (5 bloquean esa conexión 15 minutos). Para quitarla desde la web hace falta un código bueno; si se pierde el móvil, se quita en el launcher del server (pestaña Web, «Quitar verificación en dos pasos») o con `MajinheimCli quitar-2fa <nombre>`.
 - **Aviso de entrada nueva**: cuando alguien entra como administrador desde un navegador desde el que no había entrado nunca, llega un aviso al Discord (qué cuenta y qué navegador, sin la IP), y queda en el registro de la web.

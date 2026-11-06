@@ -21,7 +21,7 @@ namespace Majinheim
 
     public static class WorldMod
     {
-        public const string Version = "1.0.0";
+        public const string Version = "1.1.0";
         const string Folder = "Majinheim-Mundo", DllName = "MajinheimMundo.dll", SourceName = "MajinheimMundo.cs";
         static readonly object lk = new object();
 
@@ -650,6 +650,130 @@ namespace Majinheim
             if (w == null) return new Health.Item { Key = key, Name = name, State = "info", Detail = "Sin datos todavía: se apuntan solos unos minutos después de encender el server." };
             string what = w.Chests.Count + " cofres, " + w.Drawers.Count + " cajones y " + w.Tombs.Count + (w.Tombs.Count == 1 ? " tumba" : " tumbas");
             return new Health.Item { Key = key, Name = name, State = "ok", Detail = "Sabe qué hay en " + what + " (" + AiChat.Ago(at) + ")." };
+        }
+    }
+
+    // MajinBot en el chat de la partida (2.6): quien escribe "!majin <pregunta>" recibe la respuesta de la IA en el chat del juego.
+    // El mod Majinheim Mundo apunta solo esos mensajes en chat.jsonl; aquí se leen, se pregunta a la IA y se contesta por RCON.
+    public static class GameChat
+    {
+        public const int Cooldown = 10, MaxParts = 3, PartLen = 180;
+        public static string FileName { get { return Path.Combine(WorldMod.OutDir, "chat.jsonl"); } }
+        public static Func<string, string> Say = t => "los mensajes en el juego no están listos";   // null = ha llegado
+        public static Func<string, string, List<string[]>, string> Ask = (q, who, past) => AiChat.Ask(q, who, false, past);
+        static System.Threading.Thread th;
+        static long pos = -1;
+        static readonly Dictionary<string, DateTime> lastAsk = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        static List<string[]> past = new List<string[]>();
+        static DateTime pastAt;
+
+        public static void Start()
+        {
+            if (th != null) return;
+            th = new System.Threading.Thread(() =>
+            {
+                while (true)
+                {
+                    try { Poll(); } catch (Exception e) { Log.W("Chat del juego: {0}", e.Message); }
+                    System.Threading.Thread.Sleep(2000);
+                }
+            }) { IsBackground = true, Name = "Chat del juego" };
+            th.Start();
+        }
+
+        // Lee lo nuevo de chat.jsonl. Al empezar se salta lo que ya había (no se contestan preguntas viejas).
+        public static void Poll()
+        {
+            var f = new FileInfo(FileName);
+            if (!f.Exists) { pos = 0; return; }
+            if (pos < 0) { pos = f.Length; return; }
+            if (f.Length < pos) pos = 0;   // el mod lo ha empezado de nuevo
+            if (f.Length == pos) return;
+            byte[] buf;
+            using (var fs = new FileStream(FileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                fs.Seek(pos, SeekOrigin.Begin);
+                buf = new byte[f.Length - pos];
+                int n = 0, r;
+                while (n < buf.Length && (r = fs.Read(buf, n, buf.Length - n)) > 0) n += r;
+                if (n < buf.Length) Array.Resize(ref buf, n);
+            }
+            int end = Array.LastIndexOf(buf, (byte)'\n');
+            if (end < 0) return;   // línea a medio escribir
+            pos += end + 1;
+            foreach (var line in Encoding.UTF8.GetString(buf, 0, end).Split('\n'))
+            {
+                if (line.Trim().Length == 0) continue;
+                try
+                {
+                    var o = Json.ParseObj(line);
+                    long t = Convert.ToInt64(o["t"], CultureInfo.InvariantCulture);
+                    if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - t > 120) continue;   // muy vieja (el launcher estaba cerrado)
+                    Handle(o["nombre"] as string ?? "?", o["texto"] as string ?? "");
+                }
+                catch (Exception e) { Log.W("Chat del juego: línea rara ({0})", e.Message); }
+            }
+        }
+
+        public static void Handle(string who, string text)
+        {
+            var s = Settings.Current;
+            if (!s.GameChat) return;
+            who = Regex.Replace(who ?? "?", @"[\x00-\x1f]+", " ").Trim();
+            if (who.Length > 40) who = who.Substring(0, 40);
+            string q = Regex.Replace(text ?? "", @"^!majin\S*", "", RegexOptions.IgnoreCase).Trim(' ', ':', ',', '.');
+            if (!s.AiEnabled) { Send("MajinBot: la IA está apagada ahora mismo."); return; }
+            if (q.Length == 0) { Send("MajinBot: ¡dime! Escribe !majin y tu pregunta, por ejemplo: !majin ¿dónde está el hierro?"); return; }
+            lock (lastAsk)
+            {
+                DateTime prev;
+                if (lastAsk.TryGetValue(who, out prev) && (DateTime.Now - prev).TotalSeconds < Cooldown) { Send("MajinBot: dame unos segundos, " + who + "."); return; }
+                lastAsk[who] = DateTime.Now;
+            }
+            List<string[]> ctx;
+            lock (lastAsk) { if ((DateTime.Now - pastAt).TotalMinutes > 10) past = new List<string[]>(); ctx = past.ToList(); }
+            var t0 = DateTime.Now;
+            string answer = Ask(q + "\n\n(Pregunta hecha desde el chat de la partida: contesta en una o dos frases cortas, sin listas ni formato.)", who, ctx);
+            Log.W("Chat del juego: pregunta de {0} respondida en {1:0.0} s.", who, (DateTime.Now - t0).TotalSeconds);
+            lock (lastAsk)
+            {
+                ctx.Add(new[] { who + ": " + q, answer });
+                past = ctx.Skip(Math.Max(0, ctx.Count - 3)).ToList(); pastAt = DateTime.Now;
+            }
+            foreach (var part in Parts(who + ", " + Plain(answer))) Send(part);
+        }
+
+        static void Send(string text)
+        {
+            string err = Say(text);
+            if (err != null) Log.W("Chat del juego: no he podido contestar ({0})", err);
+        }
+
+        // Sin formato de Discord: el chat del juego no lo entiende.
+        public static string Plain(string s)
+        {
+            s = Regex.Replace(s ?? "", @"\[([^\]]+)\]\([^)]+\)", "$1");
+            s = Regex.Replace(s, @"(\*\*|__|`|~~|^#+\s*)", "", RegexOptions.Multiline);
+            s = Regex.Replace(s, @"^\s*[-*•]\s+", "", RegexOptions.Multiline);
+            s = Regex.Replace(s, @"\s*\n+\s*", " ");
+            return Regex.Replace(s, @"\s{2,}", " ").Trim();
+        }
+
+        // Trozos que caben en un mensaje del chat (como mucho 3), cortando por espacios.
+        public static List<string> Parts(string s)
+        {
+            var r = new List<string>();
+            s = "MajinBot: " + s;
+            while (s.Length > 0 && r.Count < MaxParts)
+            {
+                if (s.Length <= PartLen) { r.Add(s); break; }
+                int cut = s.LastIndexOf(' ', PartLen);
+                if (cut < PartLen / 2) cut = PartLen;
+                if (r.Count == MaxParts - 1) { r.Add(s.Substring(0, cut).TrimEnd() + "…"); break; }
+                r.Add(s.Substring(0, cut).TrimEnd());
+                s = s.Substring(cut).TrimStart();
+            }
+            return r;
         }
     }
 }

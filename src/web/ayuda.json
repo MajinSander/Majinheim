@@ -146,6 +146,13 @@
           "claves": "bot majinbot ia asistente preguntar discord inteligencia artificial"
         },
         {
+          "p": "¿Puedo preguntarle a MajinBot sin salir del juego?",
+          "r": [
+            "Sí: abre el chat de la partida (Intro) y escribe !majin seguido de tu pregunta, por ejemplo «!majin ¿dónde está el hierro?». Contesta en el mismo chat, en una o dos frases, y lo ven todos los que estén jugando. Tarda unos segundos; si la respuesta es larga, pregúntale lo mismo en Discord."
+          ],
+          "claves": "chat juego partida dentro !majin preguntar bot sin salir"
+        },
+        {
           "p": "¿Dónde veo el mapa y las estadísticas?",
           "r": [
             "En esta web: el mapa del mundo (lo que habéis explorado) y las estadísticas de cada vikingo. Desde el launcher, el botón «Web del server»."

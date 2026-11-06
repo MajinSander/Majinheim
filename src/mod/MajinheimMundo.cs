@@ -17,7 +17,7 @@ using UnityEngine;
 
 namespace MajinheimMundo
 {
-    [BepInPlugin("majinheim.mundo", "Majinheim Mundo", "1.0.0")]
+    [BepInPlugin("majinheim.mundo", "Majinheim Mundo", "1.1.0")]
     public class Plugin : BaseUnityPlugin
     {
         const float WorldEvery = 300f;         // segundos entre vistazos al mundo
@@ -51,6 +51,7 @@ namespace MajinheimMundo
             if (busy || !Ready()) return;
             try
             {
+                if (!chatHooked) HookChat();
                 if (prefabNames == null) Classify();
                 if (!recipesDone) { recipesDone = true; ExportRecipes(); }
             }
@@ -61,6 +62,74 @@ namespace MajinheimMundo
                 busy = true; busySince = Time.realtimeSinceStartup;
                 StartCoroutine(ExportWorld());
             }
+        }
+
+        // ------------------------------------------------------------ chat de la partida: preguntas a MajinBot (!majin)
+        // El server recibe todo lo que se escribe en el chat (va dirigido a todos). Solo se apuntan los mensajes que empiezan
+        // por "!majin": el resto del chat no se guarda. El launcher los lee, pregunta a la IA y contesta en el chat por RCON.
+        // Los tipos del mensaje cambian entre versiones de Valheim: se sacan de Chat.RPC_ChatMessage para no depender de ellos.
+
+        bool chatHooked;
+
+        void HookChat()
+        {
+            chatHooked = true;
+            try
+            {
+                if (ZRoutedRpc.instance == null) { chatHooked = false; return; }
+                var target = typeof(Chat).GetMethod("RPC_ChatMessage", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (target == null) { Logger.LogWarning("Majinheim Mundo: no encuentro el chat de esta versión de Valheim; !majin no funcionará."); return; }
+                var ps = target.GetParameters();
+                if (ps.Length < 2 || ps[0].ParameterType != typeof(long) || ps.Length - 1 > 4) { Logger.LogWarning("Majinheim Mundo: el chat de esta versión es distinto; !majin no funcionará."); return; }
+                var types = new Type[ps.Length - 1];
+                for (int i = 1; i < ps.Length; i++) types[i - 1] = ps[i].ParameterType;
+                var fns = typeof(ZRoutedRpc).GetField("m_functions", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                var dict = fns != null ? fns.GetValue(ZRoutedRpc.instance) as IDictionary : null;
+                if (dict != null && dict.Contains(Hash("ChatMessage"))) { Logger.LogWarning("Majinheim Mundo: otro mod ya escucha el chat; !majin no funcionará."); return; }
+                MethodInfo handler = null, register = null;
+                foreach (var m in typeof(Plugin).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic))
+                    if (m.Name == "OnChat" && m.GetGenericArguments().Length == types.Length) handler = m.MakeGenericMethod(types);
+                foreach (var m in typeof(ZRoutedRpc).GetMethods(BindingFlags.Instance | BindingFlags.Public))
+                    if (m.Name == "Register" && m.IsGenericMethodDefinition && m.GetGenericArguments().Length == types.Length) register = m.MakeGenericMethod(types);
+                if (handler == null || register == null) { Logger.LogWarning("Majinheim Mundo: no puedo escuchar el chat; !majin no funcionará."); return; }
+                var actionType = register.GetParameters()[1].ParameterType;
+                register.Invoke(ZRoutedRpc.instance, new object[] { "ChatMessage", Delegate.CreateDelegate(actionType, this, handler) });
+                Logger.LogInfo("Majinheim Mundo: escuchando !majin en el chat de la partida.");
+            }
+            catch (Exception e) { Logger.LogWarning("Majinheim Mundo: no puedo escuchar el chat: " + e.Message); }
+        }
+
+        void OnChat<A>(long sender, A a) { OnChatLine(new object[] { a }); }
+        void OnChat<A, B>(long sender, A a, B b) { OnChatLine(new object[] { a, b }); }
+        void OnChat<A, B, C>(long sender, A a, B b, C c) { OnChatLine(new object[] { a, b, c }); }
+        void OnChat<A, B, C, D>(long sender, A a, B b, C c, D d) { OnChatLine(new object[] { a, b, c, d }); }
+
+        void OnChatLine(object[] args)
+        {
+            try
+            {
+                // El texto es el último string; el nombre, el primer string antes de él o el campo Name de UserInfo.
+                int ti = -1;
+                for (int i = args.Length - 1; i >= 0; i--) if (args[i] is string) { ti = i; break; }
+                if (ti < 0) return;
+                string text = ((string)args[ti]).Trim();
+                if (!text.StartsWith("!majin", StringComparison.OrdinalIgnoreCase)) return;
+                string name = null;
+                for (int i = 0; i < ti && name == null; i++)
+                {
+                    if (args[i] is string) name = (string)args[i];
+                    else if (args[i] != null && !(args[i] is int) && !(args[i] is Vector3))
+                    {
+                        var f = args[i].GetType().GetField("Name") ?? args[i].GetType().GetField("m_name");
+                        if (f != null) name = f.GetValue(args[i]) as string;
+                    }
+                }
+                string file = Path.Combine(outDir, "chat.jsonl");
+                if (File.Exists(file) && new FileInfo(file).Length > 256 * 1024) File.Delete(file);
+                string line = "{\"t\":" + DateTimeOffset.UtcNow.ToUnixTimeSeconds() + ",\"nombre\":" + Q(name ?? "?") + ",\"texto\":" + Q(text.Length > 300 ? text.Substring(0, 300) : text) + "}\n";
+                File.AppendAllText(file, line, new UTF8Encoding(false));
+            }
+            catch (Exception e) { Logger.LogWarning("Majinheim Mundo: chat: " + e.Message); }
         }
 
         // ------------------------------------------------------------ qué prefabs interesan

@@ -11,7 +11,7 @@ namespace Majinheim
     public partial class MainForm
     {
         Label aiState, aiDetail, aiAnswer, aiModelInfo;
-        CheckBox cAiOn, cAiWorld;
+        CheckBox cAiOn, cAiWorld, cAiGame;
         ComboBox cbAiModel;
         TextBox tAiUrl, tAiQuestion;
         Button bAiPull, bAiAsk;
@@ -43,6 +43,8 @@ namespace Majinheim
                 Log.W("La IA {0} el mundo (mod Majinheim Mundo): se aplica la próxima vez que arranque el server.", s.WorldExport ? "conocerá" : "dejará de conocer");
                 if (runner.Running) Status("Se aplica la próxima vez que arranque el server.");
             };
+            cAiGame = Ui.Chk("Que conteste en el chat de la partida a quien escriba !majin y su pregunta", s.GameChat);
+            cAiGame.CheckedChanged += (o, e) => { if (aiPopulating) return; s.GameChat = cAiGame.Checked; Settings.Save(); };
             var worldInfo = Ui.Lbl("Lo hace un mod propio, solo en el server, que solo lee el mundo (no cambia nada) y que los jugadores no necesitan. Los cofres personales no se miran.", 9f, FontStyle.Regular, Th.Muted);
             worldInfo.MaximumSize = new Size(480, 0);
 
@@ -77,7 +79,7 @@ namespace Majinheim
             };
 
             bAiPull = Ui.Btn("Descargar el modelo", PullAiModel, true);
-            var left = Ui.Col(aiState, aiDetail, cAiOn, cAiWorld, worldInfo,
+            var left = Ui.Col(aiState, aiDetail, cAiOn, cAiWorld, worldInfo, cAiGame,
                 Ui.Lbl("Modelo", 9.5f), cbAiModel, aiModelInfo,
                 Ui.Row(bAiPull, Ui.Btn("Instalar Ollama", () => Ui.Open(AiChat.DownloadPage)), Ui.Btn("Comprobar", RefreshAi)),
                 Ui.Lbl("Dirección de Ollama (no la cambies si está en este PC)", 9.5f), tAiUrl);
