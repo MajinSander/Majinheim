@@ -495,7 +495,7 @@ namespace Majinheim
             return null;
         }
 
-        static string QueryValue(string query, string key)
+        internal static string QueryValue(string query, string key)
         {
             foreach (var part in (query ?? "").Split('&'))
             {

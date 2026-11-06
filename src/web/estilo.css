@@ -184,4 +184,8 @@ code { font: 12px ui-monospace, Consolas, monospace; background: rgba(255,255,25
 .mapa-busqueda .sitio circle { stroke: #14110f; stroke-width: 0.6%; }
 .mapa-busqueda .sitio text { fill: #14110f; font-weight: 700; }
 .mapa-busqueda figcaption { margin-top: 6px; font-size: 0.85rem; }
-.marca { display: inline-block; min-width: 1.4em; height: 1.4em; line-height: 1.4em; margin-right: 6px; border-radius: 50%; color: #14110f; font-size: 0.8rem; font-weight: 700; text-align: center; vertical-align: 0.05em; }
+.num-sitio { display: inline-block; min-width: 1.4em; height: 1.4em; line-height: 1.4em; margin-right: 6px; border-radius: 50%; color: #14110f; font-size: 0.8rem; font-weight: 700; text-align: center; vertical-align: 0.05em; }
+
+/* Página de cada vikingo (2.6) */
+.tabla td.nombre a, .lista a.quien, .fila a.quien { color: inherit; text-decoration: underline dotted var(--tenue); text-underline-offset: 3px; }
+.tabla td.nombre a:hover, .lista a.quien:hover, .fila a.quien:hover { color: var(--ambar); }

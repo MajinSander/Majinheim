@@ -215,7 +215,7 @@
         var li = document.createElement('li'), quien = el('span', 'quien'), xz = /x (-?\d+), z (-?\d+)/.exec(s.coordenadas || '');
         if (xz && r.mapa) {
           num++;
-          var color = COLORES[oi % COLORES.length], marca = el('span', 'marca', String(num));
+          var color = COLORES[oi % COLORES.length], marca = el('span', 'num-sitio', String(num));
           marca.style.background = color;
           quien.appendChild(marca);
           puntos.push({ n: num, x: +xz[1], z: +xz[2], color: color, titulo: num + '. ' + o.objeto + ': ' + s.cantidad.toLocaleString('es-ES') + ', ' + s.donde });

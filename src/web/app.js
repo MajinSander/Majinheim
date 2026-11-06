@@ -4,6 +4,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var datos = null;
 
+  function perfil(n) { return '/jugador?n=' + encodeURIComponent(n); }   // la página de cada vikingo (2.6)
   function el(tag, cls, txt) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -83,7 +84,7 @@
     var ul = $('jugadores'); limpiar(ul);
     js.forEach(function (j) {
       var li = el('li');
-      var q = el('span', 'quien'); q.appendChild(el('span', 'punto')); q.appendChild(document.createTextNode(j.nombre));
+      var q = el('a', 'quien'); q.href = perfil(j.nombre); q.appendChild(el('span', 'punto')); q.appendChild(document.createTextNode(j.nombre));
       li.appendChild(q);
       var min = Math.max(0, Math.round((Date.now() - new Date(j.desde).getTime()) / 60000));
       li.appendChild(el('span', 'cuanto', duracion(min) + (j.muertes ? ' · ' + j.muertes + (j.muertes === 1 ? ' muerte' : ' muertes') : '')));
@@ -96,7 +97,7 @@
     var max = sem.reduce(function (a, x) { return Math.max(a, x.minutos); }, 1);
     sem.forEach(function (x) {
       var li = el('li');
-      var f = el('div', 'fila'); f.appendChild(el('span', null, x.nombre)); f.appendChild(el('span', 'tenue', horas(x.minutos)));
+      var f = el('div', 'fila'), a = el('a', 'quien', x.nombre); a.href = perfil(x.nombre); f.appendChild(a); f.appendChild(el('span', 'tenue', horas(x.minutos)));
       var p = el('div', 'pista'), r = el('div', 'relleno'); r.style.width = Math.max(2, 100 * x.minutos / max) + '%';
       p.appendChild(r); li.appendChild(f); li.appendChild(p); ub.appendChild(li);
     });
@@ -106,7 +107,7 @@
     var us = $('sesiones'); limpiar(us);
     ses.forEach(function (x) {
       var li = el('li');
-      li.appendChild(el('span', 'quien', x.nombre));
+      var a = el('a', 'quien', x.nombre); a.href = perfil(x.nombre); li.appendChild(a);
       var min = Math.max(0, Math.round((new Date(x.fin) - new Date(x.inicio)) / 60000));
       li.appendChild(el('span', 'cuanto', fecha(x.inicio) + ' · ' + duracion(min)));
       us.appendChild(li);

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Majinheim · Vikingo</title>
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/estilo.css">
+</head>
+<body>
+<header>
+  <div class="marca">
+    <a href="/"><img src="/icono.svg" alt="Volver al estado" width="40" height="40"></a>
+    <div>
+      <h1 id="nombre">Vikingo</h1>
+      <p class="sub" id="sub">Cargando…</p>
+    </div>
+  </div>
+  <div class="acciones">
+    <a class="boton secundario" href="/estadisticas">Todos los vikingos</a>
+    <a class="boton secundario" href="/">Estado</a>
+  </div>
+</header>
+
+<main id="contenido" hidden>
+  <section class="tarjeta ancha">
+    <div class="cifras">
+      <div><span class="cifra" id="c-horas">—</span><span class="etiqueta">horas jugadas</span></div>
+      <div><span class="cifra" id="c-semana">—</span><span class="etiqueta">esta semana</span></div>
+      <div><span class="cifra" id="c-sesiones">—</span><span class="etiqueta">partidas</span></div>
+      <div><span class="cifra" id="c-muertes">—</span><span class="etiqueta">muertes</span></div>
+    </div>
+    <p class="tenue" id="c-resumen"></p>
+  </section>
+
+  <section class="tarjeta ancha">
+    <h2>Últimos 30 días</h2>
+    <div class="grafica" id="dias" role="img" aria-label="Horas jugadas cada día de los últimos 30 días"></div>
+    <div class="eje"><span id="dia-ini"></span><span>hoy</span></div>
+    <p class="tenue" id="dias-resumen"></p>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Logros</h2>
+    <ul class="lista apilada" id="logros"></ul>
+    <p class="tenue" id="siguiente"></p>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Con quién juega más</h2>
+    <ul class="lista apilada" id="companeros"></ul>
+    <p class="vacio" id="solo" hidden>Todavía no ha coincidido con nadie.</p>
+  </section>
+
+  <section class="tarjeta ancha">
+    <h2>A qué hora juega <span class="tenue">(últimos 60 días)</span></h2>
+    <div class="grafica horas" id="horas" role="img" aria-label="Minutos jugados por hora del día"></div>
+    <div class="eje horas-eje" id="horas-eje"></div>
+  </section>
+
+  <section class="tarjeta ancha">
+    <h2>Últimas partidas</h2>
+    <div class="tabla-envoltura">
+      <table class="tabla">
+        <thead><tr><th>Cuándo</th><th class="num">Duración</th><th class="num">Muertes</th></tr></thead>
+        <tbody id="recientes"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<main id="noexiste" hidden>
+  <section class="tarjeta">
+    <h2>No encuentro a ese vikingo</h2>
+    <p>No hay partidas guardadas con ese nombre. Mira la lista de <a href="/estadisticas">todos los vikingos</a>.</p>
+  </section>
+</main>
+
+<footer>
+  <span id="aviso" class="aviso" hidden>Sin conexión con el panel. Reintentando…</span>
+  <span>Majinheim Web · se actualiza cada minuto</span>
+</footer>
+<script src="/jugador.js"></script>
+</body>
+</html>

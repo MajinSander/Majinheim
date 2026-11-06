@@ -70,6 +70,8 @@ namespace Majinheim
             { "/ayuda.html", new[] { "ayuda.html", "text/html; charset=utf-8" } },
             { "/ayuda.js", new[] { "ayuda.js", "application/javascript; charset=utf-8" } },
             { "/ayuda.json", new[] { "ayuda.json", "application/json; charset=utf-8" } },
+            { "/jugador.html", new[] { "jugador.html", "text/html; charset=utf-8" } },
+            { "/jugador.js", new[] { "jugador.js", "application/javascript; charset=utf-8" } },
         };
 
         static MiniHttp.Response Route(MiniHttp.Request req)
@@ -82,6 +84,13 @@ namespace Majinheim
             if (path == "/salud") return MiniHttp.Response.Text(200, "ok");
             if (path == "/robots.txt") return MiniHttp.Response.Text(200, "User-agent: *\nDisallow: /\n");   // que los buscadores no guarden la página (salen nombres de jugadores)
             if (path == "/api/estadisticas") return MiniHttp.Response.JsonOf(ServerWatch.Stats(), true);
+            if (path == "/api/jugador")
+            {
+                string n = (WebAdmin.QueryValue(req.Query, "nombre") ?? "").Trim();
+                var pl = n.Length == 0 || n.Length > 40 ? null : ServerWatch.Player(n);
+                return pl == null ? MiniHttp.Response.JsonOf(404, new Dictionary<string, object> { { "error", "No hay partidas de ese vikingo." } }) : MiniHttp.Response.JsonOf(pl, true);
+            }
+            if (path == "/jugador") path = "/jugador.html";
             if (path == "/admin") path = "/admin.html";
             if (path == "/estadisticas") path = "/estadisticas.html";
             if (path == "/ayuda") path = "/ayuda.html";
@@ -1024,6 +1033,90 @@ namespace Majinheim
                         { "dia", WorldDay() },
                     }
                 },
+                { "generado", Iso(now) },
+            };
+        }
+
+        // Página de cada vikingo (2.6): lo suyo, con quién juega más, sus logros y lo que le falta para el siguiente.
+        static readonly int[] HourGoals = { 10, 25, 50, 100, 150, 200, 300, 400, 500, 750, 1000 };
+        static readonly int[] DeathGoals = { 50, 100, 250, 500, 1000 };
+
+        public static Dictionary<string, object> Player(string name)
+        {
+            var now = DateTime.Now;
+            var all = Sessions(DateTime.MinValue);
+            var mine = all.Where(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (mine.Count == 0) return null;
+            name = mine.Last().Name;
+            int total = mine.Sum(x => Minutes(x.Start, x.End)), deaths = mine.Sum(x => x.Deaths);
+            var weekAgo = now.AddDays(-7);
+
+            var ranking = all.GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase).Select(g => new { g.Key, Min = g.Sum(x => Minutes(x.Start, x.End)) })
+                .OrderByDescending(x => x.Min).ToList();
+            int pos = ranking.FindIndex(x => string.Equals(x.Key, name, StringComparison.OrdinalIgnoreCase)) + 1;
+
+            var days = new List<object>();
+            for (int i = 29; i >= 0; i--)
+            {
+                var d0 = now.Date.AddDays(-i); var d1 = d0.AddDays(1);
+                days.Add(new Dictionary<string, object>
+                {
+                    { "fecha", d0.ToString("yyyy-MM-dd") },
+                    { "minutos", mine.Where(x => x.Start < d1 && x.End > d0).Sum(x => Minutes(x.Start < d0 ? d0 : x.Start, x.End > d1 ? d1 : x.End)) },
+                });
+            }
+            var hours = new int[24];
+            var since = now.AddDays(-60);
+            foreach (var x in mine.Where(x => x.End > since))
+                for (var t = x.Start < since ? since : x.Start; t < x.End; t = t.AddMinutes(10)) hours[t.Hour] += (int)Math.Min(10, (x.End - t).TotalMinutes);
+
+            // Con quién coincide más: minutos dentro del server a la vez.
+            var together = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var o in all.Where(x => !string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)))
+                foreach (var m in mine)
+                {
+                    var a = m.Start > o.Start ? m.Start : o.Start; var b = m.End < o.End ? m.End : o.End;
+                    if (b > a) { int v; together.TryGetValue(o.Name, out v); together[o.Name] = v + Minutes(a, b); }
+                }
+            var friends = together.Where(kv => kv.Value >= 10).OrderByDescending(kv => kv.Value).Take(5)
+                .Select(kv => (object)new Dictionary<string, object> { { "nombre", kv.Key }, { "minutos", kv.Value } }).ToList();
+
+            var goals = new List<object>();
+            foreach (int h in HourGoals.Where(h => total >= h * 60)) goals.Add(h + " horas en el server");
+            foreach (int d in DeathGoals.Where(d => deaths >= d)) goals.Add(d + " muertes");
+            var longest = mine.OrderByDescending(x => x.End - x.Start).First();
+            int next = HourGoals.FirstOrDefault(h => total < h * 60);
+
+            int tombs = 0;
+            try
+            {
+                var w = WorldData.GetWorld();
+                if (w != null) tombs = w.Tombs.Count(t => string.Equals(t.Player, name, StringComparison.OrdinalIgnoreCase));
+            }
+            catch (Exception e) { Log.W("Web: tumbas de {0}: {1}", name, e.Message); }
+
+            int best = Enumerable.Range(0, 24).OrderByDescending(i => hours[i]).First();
+            return new Dictionary<string, object>
+            {
+                { "nombre", name },
+                { "jugando", mine.Any(x => x.Live) },
+                { "minutos", total },
+                { "semana", mine.Where(x => x.End > weekAgo).Sum(x => Minutes(x.Start < weekAgo ? weekAgo : x.Start, x.End)) },
+                { "sesiones", mine.Count },
+                { "masLarga", Minutes(longest.Start, longest.End) },
+                { "masLargaFecha", Iso(longest.Start) },
+                { "muertes", deaths },
+                { "primera", Iso(mine.First().Start) },
+                { "ultima", mine.Any(x => x.Live) ? null : Iso(mine.Max(x => x.End)) },
+                { "puesto", pos }, { "de", ranking.Count },
+                { "dias", days }, { "horas", hours },
+                { "horaFavorita", hours[best] > 0 ? (object)best : null },
+                { "companeros", friends },
+                { "logros", goals },
+                { "siguiente", next > 0 ? (object)new Dictionary<string, object> { { "horas", next }, { "faltan", next * 60 - total } } : null },
+                { "tumbas", tombs },
+                { "recientes", mine.AsEnumerable().Reverse().Take(10).Select(x => (object)new Dictionary<string, object>
+                    { { "inicio", Iso(x.Start) }, { "minutos", Minutes(x.Start, x.End) }, { "muertes", x.Deaths }, { "jugando", x.Live } }).ToList() },
                 { "generado", Iso(now) },
             };
         }
