@@ -53,6 +53,18 @@
       <a class="boton secundario" href="/mapa/">Mapa del mundo</a>
     </div>
   </section>
+  <section class="tarjeta estrecha" data-buscador>
+    <h2>Buscar en el mundo</h2>
+    <form class="formulario">
+      <label for="buscar-j">Qué hay guardado en cofres y cajones, y dónde</label>
+      <div class="en-linea">
+        <input id="buscar-j" type="search" maxlength="60" placeholder="Ej.: hierro, madera fina, carne de jabalí" autocomplete="off">
+        <button class="boton" type="submit">Buscar</button>
+      </div>
+    </form>
+    <div class="busqueda" role="status"></div>
+    <p class="tenue">Los cofres personales no se miran. Los datos se apuntan cada 5 minutos con el server encendido.</p>
+  </section>
 </main>
 
 <main id="panel" hidden>
@@ -86,6 +98,19 @@
     <p id="salud-resumen" class="resumen-salud"></p>
     <ul id="salud" class="lista apilada salud"></ul>
     <p id="salud-fecha" class="tenue">Se revisa sola cada 10 minutos. Si algo importante se estropea, avisa en Discord.</p>
+  </section>
+
+  <section class="tarjeta" data-buscador>
+    <h2>Buscar en el mundo</h2>
+    <form class="formulario">
+      <label for="buscar-a">Qué hay guardado en cofres y cajones, y dónde</label>
+      <div class="en-linea">
+        <input id="buscar-a" type="search" maxlength="60" placeholder="Ej.: hierro, madera fina, carne de jabalí" autocomplete="off">
+        <button class="boton" type="submit">Buscar</button>
+      </div>
+    </form>
+    <div class="busqueda" role="status"></div>
+    <p class="tenue">Los cofres personales no se miran. Los datos se apuntan cada 5 minutos con el server encendido.</p>
   </section>
 
   <section class="tarjeta">

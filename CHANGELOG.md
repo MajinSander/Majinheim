@@ -6,6 +6,7 @@
 - **Recetas de verdad**: materiales, mesa y nivel, lo que piden las mejoras y con qué herramienta se construye cada cosa, sacado del propio server con todos sus mods y en español. Si preguntas por un material, dice para qué sirve.
 - **Tumbas**: de quién, cuándo murió, dónde está y qué lleva.
 - Lo hace un mod propio, **Majinheim Mundo**, que va **solo en el server** (los jugadores no instalan nada) y **solo lee**: no cambia nada del mundo. Cada 5 minutos apunta lo que hay, poco a poco para no frenar la partida. El launcher lo prepara solo al arrancar el server, para la versión de Valheim de ese PC, y lo vuelve a preparar si Valheim se actualiza. Si algo falla, el server arranca igual, sin él.
+- **Buscar en el mundo** también en la web: al entrar con cualquier cuenta (también las de jugador) sale la tarjeta "Buscar en el mundo", con lo mismo que contesta la IA. Los invitados sin cuenta no la ven.
 - Se puede apagar en la pestaña **Asistente IA** ("Que sepa qué hay en los cofres...").
 - Salud: nueva línea "La IA conoce el mundo" (si el mod está funcionando y de cuándo son los datos).
 - Consola: `MajinheimCli mundo` (prepara el mod y dice qué sabe), y `buscar <objeto>`, `receta <objeto>` y `tumbas [jugador]` para ver lo mismo que consulta la IA.

@@ -237,6 +237,18 @@ namespace Majinheim
                 if (req.Path == "/api/admin/estado") res = MiniHttp.Response.JsonOf(200, Who(null, null));
                 else res = Err(401, "Tienes que entrar otra vez.");
             }
+            else if (req.Path == "/api/admin/buscar")
+            {
+                // Buscar en el mundo (2.2): para cualquier cuenta, también las de jugador. Solo lee lo que apunta el mod Majinheim Mundo.
+                string q = null;
+                try { var o = Json.ParseObj(req.BodyText); object v; if (o.TryGetValue("objeto", out v)) q = v as string; } catch { }
+                q = System.Text.RegularExpressions.Regex.Replace(q ?? "", @"[\x00-\x1f]+", " ").Trim();
+                if (q.Length == 0 || q.Length > 60) return Err(400, "Escribe qué buscas (como mucho 60 letras).");
+                object found;
+                try { found = WorldData.FindItem(q); }
+                catch (Exception e) { Log.W("Web: buscar en el mundo: {0}", e.Message); found = new Dictionary<string, object> { { "error", "No he podido leer los datos del mundo." } }; }
+                res = MiniHttp.Response.JsonOf(200, found);
+            }
             else if (user.Role != RoleAdmin)
             {
                 // Un jugador no ve nada sensible: ni registro, ni IPs, ni dispositivos.

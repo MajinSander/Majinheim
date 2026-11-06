@@ -167,6 +167,43 @@
     $('salud-fecha').textContent = 'Revisado ' + fechaCorta(sa.fecha) + '. Se revisa sola cada 10 minutos; si algo importante se estropea, avisa en Discord.';
   }
 
+  // Buscar en el mundo (2.2): lo mismo que contesta la IA a "¿dónde está el hierro?", para cualquier cuenta.
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function pintarBusqueda(box, r) {
+    limpiar(box);
+    if (r.error) { box.appendChild(el('p', 'vacio', r.error)); return; }
+    (r.encontrado || []).forEach(function (o) {
+      box.appendChild(el('h3', 'subtitulo', o.objeto + ': ' + (o.total || 0).toLocaleString('es-ES')));
+      if (!o.total) { box.appendChild(el('p', 'vacio', o.nota || 'No hay en ningún cofre ni cajón.')); return; }
+      if (o.reparto) box.appendChild(el('p', 'tenue', o.reparto));
+      var ul = el('ul', 'lista apilada');
+      (o.sitios || []).forEach(function (s) {
+        var li = document.createElement('li');
+        li.appendChild(el('span', 'quien', s.donde.charAt(0).toUpperCase() + s.donde.slice(1)));
+        li.appendChild(el('span', 'cuanto', [s.cantidad.toLocaleString('es-ES') + ' en ' + s.en, s.carteles && s.carteles.length ? 'cartel: «' + s.carteles.join('», «') + '»' : null, s.coordenadas].filter(Boolean).join(' · ')));
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+      if (o.otrosSitios) box.appendChild(el('p', 'tenue', 'Y en ' + o.otrosSitios + (o.otrosSitios === 1 ? ' sitio más.' : ' sitios más.')));
+    });
+    if (r.enTumbas) box.appendChild(el('p', 'tenue', 'En tumbas: ' + r.enTumbas.join(', ') + '.'));
+    if (r.parecidos) box.appendChild(el('p', 'tenue', 'Parecidos: ' + r.parecidos.join(', ') + '.'));
+    if (r.datos) box.appendChild(el('p', 'tenue', 'Son ' + r.datos + '.'));
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-buscador]'), function (sec) {
+    var form = sec.querySelector('form'), input = sec.querySelector('input'), box = sec.querySelector('.busqueda');
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var q = input.value.trim();
+      if (!q) return;
+      limpiar(box); box.appendChild(el('p', 'tenue', 'Buscando...'));
+      api('/api/admin/buscar', { objeto: q }).then(function (r) {
+        if (r._code === 401) { verLogin('Tienes que entrar otra vez.'); return; }
+        pintarBusqueda(box, r._code === 200 ? r : { error: r.mensaje || r.error || 'No se ha podido buscar.' });
+      }).catch(function () { pintarBusqueda(box, { error: 'Sin conexión con el server. Prueba otra vez.' }); });
+    });
+  });
+
   function pintarMantenimiento(d) {
     var m = d.mantenimiento, ul = $('mantenimientos'), b = document.querySelector('[data-accion="actualizar"]');
     b.hidden = !m;
