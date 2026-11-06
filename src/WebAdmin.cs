@@ -210,7 +210,7 @@ namespace Majinheim
 
         public static MiniHttp.Response Handle(MiniHttp.Request req)
         {
-            bool get = req.Path == "/api/sesion" || req.Path == "/api/admin/estado";
+            bool get = req.Path == "/api/sesion" || req.Path == "/api/admin/estado" || req.Path == "/api/admin/problema";
             if (req.Method == "POST" && req.Header("X-Majinheim") != "1") return Err(403, "Petición no permitida.");
             if (get ? req.Method != "GET" && req.Method != "HEAD" : req.Method != "POST") return Err(405, "No permitido.");
 
@@ -265,6 +265,27 @@ namespace Majinheim
                 var ex = AdminExtras;
                 if (ex != null) try { foreach (var kv in ex()) o[kv.Key] = kv.Value; } catch (Exception e) { Log.W("Web: extras del panel: {0}", e.Message); }
                 res = MiniHttp.Response.JsonOf(200, o);
+            }
+            else if (req.Path == "/api/admin/problema")
+            {
+                // Un problema mandado desde el launcher de jugador (2.4): solo lo ve el administrador.
+                var r = SupportDesk.Get(QueryValue(req.Query, "id"));
+                res = r == null ? Err(404, "Ese problema ya no está.") : MiniHttp.Response.JsonOf(200, new Dictionary<string, object>
+                {
+                    { "ok", true }, { "id", r.Id }, { "fecha", r.Fecha }, { "nombre", r.Nombre }, { "texto", r.Texto }, { "pistas", r.Pistas }, { "ia", r.Ia },
+                    { "equipo", r.Launcher + " · " + r.Sistema + " · " + r.Equipo + (r.DiscoLibreGb >= 0 ? " · " + r.DiscoLibreGb + " GB libres" : "") },
+                    { "juego", !r.Juego ? "no encuentra Valheim" : "Valheim " + (r.JuegoVersion != "" ? Support.CleanVersion(r.JuegoVersion) : "(versión desconocida)") + (r.JuegoUltimaVez != "" ? ", abierto por última vez " + r.JuegoUltimaVez : "") + (r.Cargador ? "" : " · sin cargador de mods") },
+                    { "mods", "lista revisión " + r.Revision + ", instalada " + r.Instalada + (r.ModsAlDia ? ", al día" : ", sin terminar de instalar") + (r.ModsUltimaVez != "" ? " · cargados por última vez " + r.ModsUltimaVez : " · nunca se han cargado") },
+                    { "registros", new Dictionary<string, object> { { "mods", r.RegistroMods }, { "juego", r.RegistroJuego }, { "launcher", r.RegistroLauncher } } },
+                });
+            }
+            else if (req.Path == "/api/admin/problema-borrar")
+            {
+                string id = null;
+                try { var o = Json.ParseObj(req.BodyText); object v; if (o.TryGetValue("id", out v)) id = v as string; } catch { }
+                bool done = SupportDesk.Delete(id);
+                if (done) Audit(ip, user.Name + " borró el problema " + id);
+                res = done ? Ok("Borrado.") : Err(404, "Ese problema ya no está.");
             }
             else if (req.Path == "/api/admin/salir-todos")
             {
@@ -339,6 +360,16 @@ namespace Majinheim
 
             if (renew && ses != null) res.Extra.Add(SessionCookie(req, req.Cookie(CookieName), true));
             return res;
+        }
+
+        static string QueryValue(string query, string key)
+        {
+            foreach (var part in (query ?? "").Split('&'))
+            {
+                int i = part.IndexOf('=');
+                if (i > 0 && part.Substring(0, i) == key) { try { return Uri.UnescapeDataString(part.Substring(i + 1).Replace('+', ' ')); } catch { return null; } }
+            }
+            return null;
         }
 
         static Dictionary<string, object> Who(WebUser u, Session s)

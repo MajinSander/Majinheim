@@ -67,12 +67,16 @@ namespace Majinheim
             { "/admin.js", new[] { "admin.js", "application/javascript; charset=utf-8" } },
             { "/estadisticas.html", new[] { "estadisticas.html", "text/html; charset=utf-8" } },
             { "/estadisticas.js", new[] { "estadisticas.js", "application/javascript; charset=utf-8" } },
+            { "/ayuda.html", new[] { "ayuda.html", "text/html; charset=utf-8" } },
+            { "/ayuda.js", new[] { "ayuda.js", "application/javascript; charset=utf-8" } },
+            { "/ayuda.json", new[] { "ayuda.json", "application/json; charset=utf-8" } },
         };
 
         static MiniHttp.Response Route(MiniHttp.Request req)
         {
             string path = req.Path;
             if (path.StartsWith("/api/admin/") || path == "/api/entrar" || path == "/api/salir" || path == "/api/sesion") return WebAdmin.Handle(req);
+            if (path == Support.ApiPath) return SupportDesk.Handle(req);   // "Tengo un problema" del launcher de jugador (2.4)
             if (req.Method == "POST") return MiniHttp.Response.Text(405, "Solo lectura");
             if (path == "/api/estado") return MiniHttp.Response.JsonOf(ServerWatch.Snapshot(), true);
             if (path == "/salud") return MiniHttp.Response.Text(200, "ok");
@@ -80,6 +84,7 @@ namespace Majinheim
             if (path == "/api/estadisticas") return MiniHttp.Response.JsonOf(ServerWatch.Stats(), true);
             if (path == "/admin") path = "/admin.html";
             if (path == "/estadisticas") path = "/estadisticas.html";
+            if (path == "/ayuda") path = "/ayuda.html";
             string[] f;
             if (Files.TryGetValue(path, out f))
             {
@@ -291,10 +296,10 @@ namespace Majinheim
             }
         }
 
-        // Cabeceras hasta la línea en blanco (máx. 8 KB) y cuerpo con Content-Length (máx. 4 KB).
+        // Cabeceras hasta la línea en blanco (máx. 8 KB) y cuerpo con Content-Length (máx. 4 KB; 64 KB solo para "Tengo un problema").
         static Request Read(NetworkStream ns)
         {
-            var buf = new byte[8192 + MaxBody];
+            var buf = new byte[8192];
             int n = 0, end = -1;
             while (end < 0)
             {
@@ -319,16 +324,16 @@ namespace Majinheim
             int len;
             if (int.TryParse(req.Header("Content-Length"), out len) && len > 0)
             {
-                if (len > MaxBody) return null;
-                int have = n - end;
+                if (len > (req.Path == Support.ApiPath ? Support.MaxBody : MaxBody)) return null;
+                req.Body = new byte[len];
+                int have = Math.Min(n - end, len);
+                Array.Copy(buf, end, req.Body, 0, have);
                 while (have < len)
                 {
-                    int r = ns.Read(buf, end + have, len - have);
+                    int r = ns.Read(req.Body, have, len - have);
                     if (r <= 0) return null;
                     have += r;
                 }
-                req.Body = new byte[len];
-                Array.Copy(buf, end, req.Body, 0, len);
             }
             return req;
         }
@@ -947,6 +952,15 @@ namespace Majinheim
             }
             catch { o["mods"] = null; }
             o["mapa"] = mapUp ? MapProxy.Prefix + "/" : null;
+            o["bajoDemanda"] = s.OnDemand;   // el launcher de jugador dice "/encender en Discord" si está apagado
+            o["proximaQuedada"] = null;      // solo cuándo y cuántos van (sin nombres)
+            if (s.Meetups)
+                try
+                {
+                    var q = Community.Meetups().Where(m => !m.Done && !m.Cancelled && m.At != DateTime.MinValue && m.At > now.AddMinutes(-30)).OrderBy(m => m.At).FirstOrDefault();
+                    if (q != null) o["proximaQuedada"] = new Dictionary<string, object> { { "cuando", Iso(q.At) }, { "van", q.People.Count } };
+                }
+                catch { }
             o["jefes"] = Bosses.Public();
             o["generado"] = Iso(now);
             o["panel"] = WebPanel.Version;

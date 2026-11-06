@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "2.3.0";
+        public const string Version = "2.4.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -94,6 +94,7 @@ namespace Majinheim
         public static T Parse<T>(string s) { return S().Deserialize<T>(s.TrimStart('\uFEFF')); }
         public static Dictionary<string, object> ParseObj(string s) { return (Dictionary<string, object>)S().DeserializeObject(s.TrimStart('\uFEFF')); }
         public static string Str(object o) { return Pretty(S().Serialize(o)); }
+        public static string Compact(object o) { return S().Serialize(o); }
         public static void Save(string path, object o)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -250,6 +251,7 @@ namespace Majinheim
         public string GitHubRepo { get; set; }
         // edicion cliente
         public bool AutoConnect { get; set; }
+        public string SupportName { get; set; }    // el nombre que pone en "Tengo un problema" (para no escribirlo cada vez)
 
         public Settings()
         {
@@ -257,7 +259,7 @@ namespace Majinheim
             Port = AppInfo.DefaultGamePort; Public = false; Crossplay = false; ExtraArgs = ""; AutoRestart = true;
             KeepAutoBackups = 40; PublicHost = AppInfo.DefaultHost; LanHost = ""; GitHubToken = "";
             StaleBefore = "2026-06-01";
-            GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; WebEnabled = true; WebPublic = false; WebPort = 8456; MapPort = 3000; WebAdminHash = "";
+            GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; SupportName = ""; WebEnabled = true; WebPublic = false; WebPort = 8456; MapPort = 3000; WebAdminHash = "";
             WebUsers = new List<WebUser>();
             DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true; RconPassword = ""; WarnBeforeStop = true;
             BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5; OffsiteDir = "";
@@ -326,6 +328,23 @@ namespace Majinheim
             using (var resp = Req(url, timeout).GetResponse())
             using (var sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
                 return sr.ReadToEnd();
+        }
+        // POST con JSON y la cabecera propia de Majinheim. Devuelve el código HTTP y el cuerpo, también si es un error con cuerpo (como un 429).
+        public static int PostJson(string url, string json, int timeout, out string body)
+        {
+            var r = Req(url, timeout);
+            r.Method = "POST";
+            r.ContentType = "application/json; charset=utf-8";
+            r.Headers["X-Majinheim"] = "1";
+            r.ReadWriteTimeout = timeout;
+            var data = Encoding.UTF8.GetBytes(json);
+            r.ContentLength = data.Length;
+            using (var st = r.GetRequestStream()) st.Write(data, 0, data.Length);
+            HttpWebResponse resp;
+            try { resp = (HttpWebResponse)r.GetResponse(); }
+            catch (WebException e) { resp = e.Response as HttpWebResponse; if (resp == null) throw; }
+            using (resp)
+            using (var sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) { body = sr.ReadToEnd(); return (int)resp.StatusCode; }
         }
         public static void Download(string url, string dest, Action<long, long> progress)
         {

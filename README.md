@@ -13,6 +13,10 @@ Si Windows avisa (SmartScreen): *Más información → Ejecutar de todas formas*
 Abrir Valheim normal desde Steam = sin mods. Para jugar con mods, siempre desde Majinheim.exe.
 En el juego, **F1** abre el menú de ajustes de los mods.
 
+Arriba, el launcher dice si el server está encendido y quién está dentro. Si algo no va, el botón **Ayuda** abre la página de
+ayuda de la web, y **Tengo un problema** le manda a Majin los registros del juego y de los mods (sin datos personales: ni usuario
+de Windows, ni IPs, ni IDs de Steam; con «Ver lo que se manda» se ve antes) y te da un primer diagnóstico.
+
 ## Web del server
 
 En el launcher, el botón **Web del server** abre una página con el estado del server: si está encendido,
@@ -20,6 +24,8 @@ quién está jugando y desde cuándo, el día en el mundo, las horas de la seman
 y el mapa del mundo (lo explorado, que se guarda también en los backups).
 Se puede entrar como invitado (solo mirar) o con una cuenta; solo las cuentas de administrador ven los controles del server.
 La opción **Recordarme en este dispositivo** evita tener que entrar cada vez.
+La página **Ayuda** (`/ayuda`) resuelve lo típico (instalar, versión incompatible, no conecta, faltan mods...). Los administradores ven
+además la tarjeta **Problemas de los amigos**, con lo que llega desde el botón "Tengo un problema" de cada launcher.
 
 ## Discord y tareas automáticas
 En el launcher del server, pestaña **Automático**: pega el token del bot y el ID del canal y pulsa "Guardar y probar". Ahí también se eligen los backups automáticos y el reinicio diario.

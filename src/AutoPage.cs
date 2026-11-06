@@ -472,6 +472,7 @@ namespace Majinheim
                 },
             };
             foreach (var kv in HealthExtras()) o[kv.Key] = kv.Value;
+            o["problemas"] = SupportDesk.Recent(10);   // "Tengo un problema" de los launchers de jugador (2.4)
             return o;
         }
     }

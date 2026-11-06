@@ -200,8 +200,28 @@ namespace Majinheim
                             Console.WriteLine(Community.ParseWhen(q, DateTime.Now, out when, out err) ? when.ToString("dddd d 'de' MMMM yyyy, HH:mm", new System.Globalization.CultureInfo("es-ES")) : "No lo entiendo: " + err);
                             return 0;
                         }
+                    case "problemas":
+                        {
+                            // problemas: los últimos "Tengo un problema" de los amigos. problemas <id>: uno entero.
+                            if (args.Length > 1)
+                            {
+                                var r = SupportDesk.Get(args[1]);
+                                Console.WriteLine(r == null ? "No existe: " + args[1] : Support.Plain(r));
+                                return r == null ? 1 : 0;
+                            }
+                            var l = SupportDesk.Recent(50);
+                            if (l.Count == 0) Console.WriteLine("No ha llegado ninguno.");
+                            foreach (var x in l) Console.WriteLine("{0}  {1}  {2}: {3}", x["id"], x["fecha"], x["nombre"], x["texto"]);
+                            return 0;
+                        }
+                    case "ayuda":
+                        {
+                            // ayuda <texto>: lo que encuentra la IA en la página de ayuda para eso.
+                            Console.WriteLine(Json.Str(Help.Tool(string.Join(" ", args.Skip(1)))));
+                            return 0;
+                        }
                     default:
-                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | ia [descargar] | salud | comprobar-backups | errores | actualizar [reintentar] | mundo | buscar <objeto> | receta <objeto> | tumbas [jugador] | resumen [enviar] | cuando <texto>");
+                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | ia [descargar] | salud | comprobar-backups | errores | actualizar [reintentar] | mundo | buscar <objeto> | receta <objeto> | tumbas [jugador] | resumen [enviar] | cuando <texto> | problemas [id] | ayuda <texto>");
                         return 1;
                 }
             }

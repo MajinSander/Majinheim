@@ -225,9 +225,77 @@
     });
     if (!ul.firstChild) { var li1 = document.createElement('li'); li1.className = 'tenue'; li1.textContent = 'Todavía no se ha hecho ninguno.'; ul.appendChild(li1); }
   }
+  // Problemas de los amigos (2.4): lo que llega del botón «Tengo un problema» del launcher de jugador.
+  var problemaAbierto = null;
+  function pintarProblemas(d) {
+    var ps = d.problemas, ul = $('problemas');
+    $('t-problemas').hidden = !ps;   // launcher antiguo: sin tarjeta
+    if (!ps) return;
+    $('n-problemas').textContent = ps.length;
+    var clave = ps.map(function (p) { return p.id + (p.ia ? '+' : ''); }).join('|');
+    if (ul.getAttribute('data-clave') === clave) return;
+    ul.setAttribute('data-clave', clave);
+    limpiar(ul);
+    ps.forEach(function (p) {
+      var li = document.createElement('li');
+      var arriba = el('span', 'quien');
+      arriba.appendChild(document.createTextNode((p.nombre || 'Sin nombre') + ' · ' + p.fecha.slice(8, 10) + '/' + p.fecha.slice(5, 7) + ' ' + p.fecha.slice(11, 16) + ' '));
+      var b = el('button', 'boton chico secundario', 'Ver'); b.type = 'button';
+      b.addEventListener('click', function () { verProblema(p.id); });
+      arriba.appendChild(b);
+      li.appendChild(arriba);
+      li.appendChild(el('span', 'cuanto', '«' + p.texto + '»' + (p.pista ? ' · ' + p.pista : '')));
+      ul.appendChild(li);
+    });
+    if (!ul.firstChild) ul.appendChild(el('li', 'tenue', 'Ninguno. Cuando un amigo pulse «Tengo un problema» en su launcher, sale aquí y te avisa en Discord.'));
+  }
+  function verProblema(id) {
+    var box = $('problema');
+    problemaAbierto = id;
+    box.hidden = false; limpiar(box); box.appendChild(el('p', 'tenue', 'Cargando…'));
+    api('/api/admin/problema?id=' + encodeURIComponent(id)).then(function (r) {
+      if (problemaAbierto !== id) return;
+      if (r._code === 401) { verLogin('Tu sesión ha caducado. Entra otra vez.'); return; }
+      limpiar(box);
+      if (!r.ok) { box.appendChild(el('p', 'vacio', r.mensaje || 'No se ha podido abrir.')); return; }
+      box.appendChild(el('h3', 'subtitulo', (r.nombre || 'Sin nombre') + ' · ' + r.fecha));
+      box.appendChild(el('p', 'cita', r.texto));
+      var dl = el('dl', 'datos');
+      [['Su PC', r.equipo], ['Valheim', r.juego], ['Mods', r.mods]].forEach(function (x) {
+        var div = document.createElement('div'); div.appendChild(el('dt', null, x[0])); div.appendChild(el('dd', null, x[1])); dl.appendChild(div);
+      });
+      box.appendChild(dl);
+      box.appendChild(el('h3', 'subtitulo', 'Lo que se vio'));
+      var ul = el('ul', 'lista apilada');
+      (r.pistas || []).forEach(function (p) { ul.appendChild(el('li', null, p)); });
+      box.appendChild(ul);
+      if (r.ia) { box.appendChild(el('h3', 'subtitulo', 'Lo que le dijo la IA')); box.appendChild(el('p', 'cita', r.ia)); }
+      [['mods', 'Registro de los mods (BepInEx)'], ['juego', 'Registro de Valheim (Player.log)'], ['launcher', 'Registro del launcher']].forEach(function (x) {
+        var det = el('details', 'registro-plegable'), sum = el('summary', null, x[1]);
+        det.appendChild(sum); det.appendChild(el('pre', 'registro', (r.registros && r.registros[x[0]]) || '(vacío)'));
+        box.appendChild(det);
+      });
+      var bot = el('div', 'botonera');
+      var cerrar = el('button', 'boton secundario', 'Cerrar'); cerrar.type = 'button';
+      cerrar.addEventListener('click', function () { problemaAbierto = null; box.hidden = true; limpiar(box); });
+      var borrar = el('button', 'boton peligro', 'Borrar'); borrar.type = 'button';
+      borrar.addEventListener('click', function () {
+        if (!window.confirm('¿Borrar este problema? No se puede recuperar.')) return;
+        api('/api/admin/problema-borrar', { id: id }).then(function (x) {
+          if (x._code === 401) { verLogin('Tu sesión ha caducado. Entra otra vez.'); return; }
+          problemaAbierto = null; box.hidden = true; limpiar(box);
+          refrescar();
+        });
+      });
+      bot.appendChild(cerrar); bot.appendChild(borrar);
+      box.appendChild(bot);
+    }).catch(function () { limpiar(box); box.appendChild(el('p', 'vacio', 'Sin conexión con el server.')); });
+  }
+
   function pintarExtras(d) {
     pintarSalud(d);
     pintarMantenimiento(d);
+    pintarProblemas(d);
     var t = d.tareas || {};
     $('a-tarea-backup').textContent = t.backupHoras ? 'cada ' + t.backupHoras + ' h' + (t.ultimoBackupAuto ? ' · último ' + new Date(t.ultimoBackupAuto).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '') : (d.tareas ? 'solo al arrancar' : '—');
     $('a-tarea-reinicio').textContent = t.reinicioDiario ? 'a las ' + t.reinicioDiario + ' si no hay nadie' : (d.tareas ? 'desactivado' : '—');
