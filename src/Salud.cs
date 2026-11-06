@@ -576,6 +576,8 @@ namespace Majinheim
                 return WorldData.Check(ps.Length > 0, ps.Length > 0 ? ps[0].StartTime : DateTime.MinValue);
             });
 
+            add(() => LagWatch.Check(r != null ? r.Running : System.Diagnostics.Process.GetProcessesByName("valheim_server").Length > 0));
+
             add(() =>
             {
                 var h = Maintenance.History().FirstOrDefault();

@@ -12,7 +12,7 @@ namespace Majinheim
     public partial class MainForm
     {
         TextBox tDiscToken, tDiscChannel;
-        CheckBox cDiscJoins, cDiscUpdates, cDiscCommands, cNightly, cWarn;
+        CheckBox cDiscJoins, cDiscUpdates, cDiscLag, cDiscCommands, cNightly, cWarn;
         ComboBox cbBackupHours, cbNightlyHour;
         Label discState, autoState, rconState, offsiteState;
         DateTime nextBossPoll = DateTime.MinValue;
@@ -56,6 +56,8 @@ namespace Majinheim
             cDiscCommands.CheckedChanged += (o, e) => { if (autoPopulating) return; s.DiscordCommands = cDiscCommands.Checked; Settings.Save(); DiscordBot.Apply(); UpdateAutoState(); };
             cDiscJoins.CheckedChanged += (o, e) => { if (autoPopulating) return; s.DiscordJoins = cDiscJoins.Checked; Settings.Save(); };
             cDiscUpdates.CheckedChanged += (o, e) => { if (autoPopulating) return; s.DiscordUpdates = cDiscUpdates.Checked; Settings.Save(); };
+            cDiscLag = Ui.Chk("Avisar si el server va con lag mientras se juega (con la causa más probable)", s.LagAlerts);
+            cDiscLag.CheckedChanged += (o, e) => { if (autoPopulating) return; s.LagAlerts = cDiscLag.Checked; Settings.Save(); };
             discState = Ui.Lbl("", 10, FontStyle.Regular, Th.Muted);
             discState.MaximumSize = new Size(540, 0);
             var help = Ui.Lbl("Cómo se consigue (una sola vez):\n" +
@@ -67,7 +69,7 @@ namespace Majinheim
             var disc = Ui.Col(Ui.Lbl("Avisos en Discord", 11, FontStyle.Bold), discState,
                 Ui.Lbl("Token del bot (déjalo vacío para mantener el guardado)", 9.5f), tDiscToken,
                 Ui.Lbl("ID del canal", 9.5f), tDiscChannel,
-                cDiscJoins, cDiscUpdates, cDiscCommands,
+                cDiscJoins, cDiscUpdates, cDiscLag, cDiscCommands,
                 Ui.Row(Ui.Btn("Guardar y probar", SaveDiscord, true),
                        Ui.Btn("Quitar", () => { if (!Confirm("¿Quitar el bot de Discord? Dejará de avisar.")) return; s.DiscordToken = ""; Settings.Save(); DiscordBot.Stop(); UpdateAutoState(); })),
                 help);

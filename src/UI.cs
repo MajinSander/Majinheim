@@ -908,6 +908,8 @@ namespace Majinheim
             WebAdmin.Say = SayInGame;
             GameChat.Say = t => runner.Running && Rcon.Ready ? Rcon.Say(t) : "el server o los mensajes en el juego no están listos";
             GameChat.Start();
+            LagWatch.Running = () => runner.Running;
+            LagWatch.Start();
             InitAuto();
             WebPanel.Apply();
             CheckUpdatesQuiet();

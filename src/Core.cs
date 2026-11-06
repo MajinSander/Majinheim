@@ -240,6 +240,7 @@ namespace Majinheim
         // Vida en el Discord (2.3)
         public bool WeeklySummary { get; set; }    // resumen de la semana los domingos a las 21:00 (escrito por la IA si está)
         public string WeeklyDone { get; set; }     // último domingo (yyyy-MM-dd) en que se mandó
+        public bool LagAlerts { get; set; }        // aviso en Discord si el server va con lag mientras se juega (2.6)
         public bool Milestones { get; set; }       // hitos: horas de cada uno y del grupo, récords, primera vez...
         public List<string> MilestonesSeen { get; set; }
         public bool MilestonesReady { get; set; }  // la primera vez solo se apunta lo ya conseguido, sin avisar
@@ -264,7 +265,7 @@ namespace Majinheim
             WebUsers = new List<WebUser>();
             DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true; RconPassword = ""; WarnBeforeStop = true;
             BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5; OffsiteDir = "";
-            AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:14b"; WorldExport = true; GameChat = true;
+            AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:14b"; WorldExport = true; GameChat = true; LagAlerts = true;
             WeeklySummary = true; WeeklyDone = ""; Milestones = true; MilestonesSeen = new List<string>(); Meetups = true; MeetupStart = true; OnDemand = false; OnDemandIdleMinutes = 30;
             AutoUpdateMods = true; MaintenanceDay = ""; VerifiedBuild = ""; BackupCheckAt = ""; BackupCheckText = "";
             SkippedUpdates = new List<string>(); ModNotices = new List<string>(); HealthAlerts = new List<string>();

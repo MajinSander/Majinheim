@@ -21,7 +21,7 @@ namespace Majinheim
 
     public static class WorldMod
     {
-        public const string Version = "1.2.0";
+        public const string Version = "1.3.0";
         const string Folder = "Majinheim-Mundo", DllName = "MajinheimMundo.dll", SourceName = "MajinheimMundo.cs";
         static readonly object lk = new object();
 
@@ -775,6 +775,148 @@ namespace Majinheim
             if (w == null) return new Health.Item { Key = key, Name = name, State = "info", Detail = "Sin datos todavía: se apuntan solos unos minutos después de encender el server." };
             string what = w.Chests.Count + " cofres, " + w.Drawers.Count + " cajones y " + w.Tombs.Count + (w.Tombs.Count == 1 ? " tumba" : " tumbas");
             return new Health.Item { Key = key, Name = name, State = "ok", Detail = "Sabe qué hay en " + what + " (" + AiChat.Ago(at) + ")." };
+        }
+    }
+
+    // Aviso de lag (2.6). El mod Majinheim Mundo apunta cada 15 s a cuántos fotogramas por segundo va el server
+    // (rendimiento.json). Si con gente jugando se queda por debajo de 20 durante 2 minutos, avisa en Discord con la causa
+    // más probable de las que se pueden ver desde aquí; y otra vez cuando se pasa. Como mucho un aviso cada 30 minutos.
+    public static class LagWatch
+    {
+        public const double Bad = 20, Good = 28;   // por debajo de Bad, lag; vuelve a estar bien por encima de Good
+        public class Reading { public long T; public double Fps; public int WorstMs, Objects; }
+        static string FileName { get { return Path.Combine(WorldMod.OutDir, "rendimiento.json"); } }
+        static readonly List<Reading> recent = new List<Reading>();
+        static readonly object lk = new object();
+        static System.Threading.Thread th;
+        static bool alerted;
+        static DateTime lastAlert = DateTime.MinValue;
+        static TimeSpan lastCpu; static DateTime lastCpuAt; static double cores = -1;
+        public static Func<bool> Running = () => System.Diagnostics.Process.GetProcessesByName("valheim_server").Length > 0;
+
+        public static Reading Read()
+        {
+            try
+            {
+                if (!File.Exists(FileName)) return null;
+                var o = Json.ParseObj(File.ReadAllText(FileName, Encoding.UTF8));
+                var r = new Reading
+                {
+                    T = Convert.ToInt64(o["t"], CultureInfo.InvariantCulture),
+                    Fps = Convert.ToDouble(o["fps"], CultureInfo.InvariantCulture),
+                    WorstMs = Convert.ToInt32(o["peor"], CultureInfo.InvariantCulture),
+                    Objects = o.ContainsKey("objetos") ? Convert.ToInt32(o["objetos"], CultureInfo.InvariantCulture) : -1,
+                };
+                return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - r.T <= 60 ? r : null;   // de hace más de un minuto: el server no va
+            }
+            catch { return null; }
+        }
+
+        public static void Start()
+        {
+            if (th != null) return;
+            th = new System.Threading.Thread(() =>
+            {
+                while (true)
+                {
+                    try { Poll(); } catch (Exception e) { Log.W("Aviso de lag: {0}", e.Message); }
+                    System.Threading.Thread.Sleep(30000);
+                }
+            }) { IsBackground = true, Name = "Aviso de lag" };
+            th.Start();
+        }
+
+        static void Poll()
+        {
+            SampleCpu();
+            var r = Read();
+            bool on = Running();
+            string msg = null;
+            lock (lk)
+            {
+                if (r == null || !on) { recent.Clear(); return; }
+                if (recent.Count == 0 || recent[recent.Count - 1].T != r.T) recent.Add(r);
+                recent.RemoveAll(x => r.T - x.T > 125);
+                msg = Decide(recent, ServerWatch.OnlineCount, DateTime.Now);
+            }
+            if (msg != null && Settings.Current.LagAlerts) Discord.Send(msg);
+        }
+
+        // Separado para probarlo sin server: devuelve el aviso que toca mandar (o null).
+        public static string Decide(List<Reading> rs, int players, DateTime now)
+        {
+            if (rs.Count == 0) return null;
+            var last = rs[rs.Count - 1];
+            if (!alerted && players > 0 && rs.Count >= 4 && rs.All(x => x.Fps < Bad) && (now - lastAlert).TotalMinutes >= 30)
+            {
+                alerted = true; lastAlert = now;
+                double avg = rs.Average(x => x.Fps);
+                Log.W("Aviso de lag: {0:0} fps de media en 2 minutos con {1} jugando.", avg, players);
+                return "🐢 **El server va con lag**: " + avg.ToString("0", CultureInfo.InvariantCulture) + " fotogramas por segundo en los últimos 2 minutos (cuando va bien pasa de 30), con " +
+                    players + (players == 1 ? " persona" : " personas") + " jugando. " + Cause(last);
+            }
+            if (alerted && rs.Count >= 2 && rs.Skip(rs.Count - 2).All(x => x.Fps >= Good))
+            {
+                alerted = false;
+                return "✅ **El lag se ha pasado**: el server vuelve a ir a " + last.Fps.ToString("0", CultureInfo.InvariantCulture) + " fotogramas por segundo.";
+            }
+            if (alerted && players == 0) alerted = false;   // se fueron todos: el siguiente lag es otro aviso
+            return null;
+        }
+
+        // Lo que se puede ver desde el launcher. No es seguro, por eso "lo más probable".
+        public static string Cause(Reading r)
+        {
+            var c = new List<string>();
+            if (AiChat.Busy || (DateTime.Now - AiChat.LastBusy).TotalMinutes < 2)
+                c.Add("la IA estaba contestando a la vez y usa mucho el PC (si pasa a menudo, se puede elegir un modelo más pequeño en la pestaña Asistente IA)");
+            if (cores >= 0.9) c.Add("Valheim tiene un núcleo del procesador al límite (pasa con bases muy grandes o mucha gente en sitios distintos a la vez)");
+            int load = MemoryLoad();
+            if (load >= 90) c.Add("la memoria del PC está casi llena (" + load + " %): cierra programas que no hagan falta");
+            if (r != null && r.WorstMs >= 2000) c.Add("hubo un parón de " + (r.WorstMs / 1000.0).ToString("0.#", CultureInfo.GetCultureInfo("es-ES")) + " s (suele ser al guardar el mundo o al hacer un backup)");
+            if (c.Count == 0) return "No veo una causa clara desde el PC del server. Si dura, reiniciar el server cuando no moleste suele arreglarlo.";
+            return "Lo más probable: " + string.Join("; ", c) + ".";
+        }
+
+        static void SampleCpu()
+        {
+            try
+            {
+                var p = System.Diagnostics.Process.GetProcessesByName("valheim_server").FirstOrDefault();
+                if (p == null) { cores = -1; lastCpuAt = DateTime.MinValue; return; }
+                var t = p.TotalProcessorTime; var now = DateTime.Now;
+                if (lastCpuAt != DateTime.MinValue && now > lastCpuAt) cores = (t - lastCpu).TotalSeconds / (now - lastCpuAt).TotalSeconds;
+                lastCpu = t; lastCpuAt = now;
+            }
+            catch { cores = -1; }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        class MemStatus
+        {
+            public uint Length = (uint)Marshal.SizeOf(typeof(MemStatus));
+            public uint Load;
+            public ulong TotalPhys, AvailPhys, TotalPageFile, AvailPageFile, TotalVirtual, AvailVirtual, AvailExtendedVirtual;
+        }
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool GlobalMemoryStatusEx([In, Out] MemStatus m);
+        static int MemoryLoad()
+        {
+            try { var m = new MemStatus(); return GlobalMemoryStatusEx(m) ? (int)m.Load : 0; }
+            catch { return 0; }
+        }
+
+        public static Health.Item Check(bool serverOn)
+        {
+            const string key = "rendimiento", name = "Rendimiento del server";
+            if (!serverOn) return new Health.Item { Key = key, Name = name, State = "info", Detail = "El server está apagado." };
+            var r = Read();
+            if (r == null) return new Health.Item { Key = key, Name = name, State = "info", Detail = "Sin datos todavía (los apunta el mod Majinheim Mundo cada 15 segundos)." };
+            string fps = r.Fps.ToString("0", CultureInfo.InvariantCulture) + " fotogramas por segundo";
+            string objs = r.Objects > 0 ? "; " + r.Objects.ToString("N0", CultureInfo.GetCultureInfo("es-ES")) + " objetos en el mundo" : "";
+            if (r.Fps < Bad) return new Health.Item { Key = key, Name = name, State = "aviso", Detail = "Va con lag: " + fps + objs + ". " + Cause(r) };
+            return new Health.Item { Key = key, Name = name, State = "ok", Detail = "Va bien: " + fps + objs + "." };
         }
     }
 

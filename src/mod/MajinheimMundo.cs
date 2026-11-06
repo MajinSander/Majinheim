@@ -1,6 +1,7 @@
 // Majinheim Mundo: mod propio que va SOLO en el server. Solo lee: no cambia nada del mundo ni de los jugadores.
 // Cada pocos minutos apunta en BepInEx\majinheim\mundo.json qué hay en los cofres, los cajones y las tumbas, y dónde están
-// los carteles y los portales; en mapa.bin, el terreno de lo explorado (para el mapa de "Buscar en el mundo" de la web);
+// los carteles y los portales; cada 15 s, en rendimiento.json, a cuántos fotogramas por segundo va el server (para el
+// aviso de lag); en mapa.bin, el terreno de lo explorado (para el mapa de "Buscar en el mundo" de la web);
 // y una vez al arrancar, en recetas.json, las recetas y construcciones del juego con los mods,
 // en español. El launcher del server lo lee para que el asistente de Discord conteste "¿dónde está el hierro?" o
 // "¿cómo se hace X?" con datos de verdad.
@@ -18,7 +19,7 @@ using UnityEngine;
 
 namespace MajinheimMundo
 {
-    [BepInPlugin("majinheim.mundo", "Majinheim Mundo", "1.2.0")]
+    [BepInPlugin("majinheim.mundo", "Majinheim Mundo", "1.3.0")]
     public class Plugin : BaseUnityPlugin
     {
         const float WorldEvery = 300f;         // segundos entre vistazos al mundo
@@ -46,9 +47,45 @@ namespace MajinheimMundo
             return ZNet.instance != null && ZNet.instance.IsServer() && ZDOMan.instance != null && ZNetScene.instance != null && ObjectDB.instance != null && ObjectDB.instance.m_items.Count > 0;
         }
 
+        // ------------------------------------------------------------ rendimiento: fotogramas por segundo del server
+        // Un server de Valheim sano pasa de 30 fotogramas por segundo; cuando no da abasto baja, y los jugadores lo notan
+        // como lag (enemigos que se teletransportan, puertas que tardan en abrirse...).
+        int frames; float worst, perfSince = -1f;
+
+        void Update()
+        {
+            frames++;
+            float dt = Time.unscaledDeltaTime;
+            if (dt > worst) worst = dt;
+        }
+
+        FieldInfo zdoField;
+
+        void SavePerf()
+        {
+            float now = Time.realtimeSinceStartup;
+            if (perfSince < 0f) { perfSince = now; frames = 0; worst = 0f; return; }
+            float span = now - perfSince;
+            if (span < 5f) return;
+            int zdos = -1;
+            try
+            {
+                if (zdoField == null) zdoField = typeof(ZDOMan).GetField("m_objectsByID", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                var c = zdoField != null && ZDOMan.instance != null ? zdoField.GetValue(ZDOMan.instance) as ICollection : null;
+                if (c != null) zdos = c.Count;
+            }
+            catch { }
+            string json = "{\"t\":" + (long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds +
+                ",\"fps\":" + (frames / span).ToString("0.0", Inv) + ",\"peor\":" + ((int)(worst * 1000f)).ToString(Inv) +
+                ",\"objetos\":" + zdos.ToString(Inv) + "}";
+            perfSince = now; frames = 0; worst = 0f;
+            Save("rendimiento.json", json);
+        }
+
         void Tick()
         {
             if (busy && Time.realtimeSinceStartup - busySince > 600f) busy = false;   // un vistazo que se quedó a medias
+            if (Ready()) try { SavePerf(); } catch (Exception e) { Logger.LogWarning("Majinheim Mundo: rendimiento: " + e.Message); }
             if (busy || !Ready()) return;
             try
             {

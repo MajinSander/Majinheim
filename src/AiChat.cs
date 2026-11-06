@@ -111,6 +111,8 @@ namespace Majinheim
         // ------------------------------------------------------------ preguntar
 
         static readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);   // una pregunta a la vez: la gráfica es una
+        public static bool Busy { get { return gate.CurrentCount == 0; } }   // contestando ahora (para el aviso de lag)
+        public static DateTime LastBusy { get; private set; }
         static readonly Regex rxThink = new Regex(@"<think>.*?</think>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
         static readonly Regex rxSteam = new Regex(@"\b\d{15,20}\b");
         static readonly Regex rxIp4 = new Regex(@"\b(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}\b");
@@ -142,7 +144,7 @@ namespace Majinheim
                     ? "La IA ha tardado demasiado en responder. Prueba otra vez en un momento."
                     : "La IA no está disponible ahora mismo (Ollama no responde en el PC del server).";
             }
-            finally { gate.Release(); }
+            finally { LastBusy = DateTime.Now; gate.Release(); }
         }
 
         // Texto escrito por la IA a partir de unos datos (el resumen de la semana...). Sin herramientas. Devuelve null si la IA no
@@ -170,7 +172,7 @@ namespace Majinheim
                 return null;
             }
             catch (Exception e) { Log.W("Asistente IA: no pude escribir el texto: {0}", e.GetBaseException().Message); return null; }
-            finally { gate.Release(); }
+            finally { LastBusy = DateTime.Now; gate.Release(); }
         }
 
         static string Run(string question, string asker, bool admin, List<string[]> past)
