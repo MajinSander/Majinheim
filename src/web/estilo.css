@@ -175,3 +175,13 @@ code { font: 12px ui-monospace, Consolas, monospace; background: rgba(255,255,25
 #backups .cuanto { white-space: normal; font-size: 13px; }
 #backups .boton { flex-shrink: 0; }
 .clave-totp .grupo { white-space: nowrap; }
+
+/* Mapa de "Buscar en el mundo" (2.6) */
+.mapa-busqueda { margin: 14px 0 0; }
+.mapa-busqueda svg { display: block; width: 100%; height: auto; max-height: 460px; background: var(--fondo); border: 1px solid var(--borde); border-radius: 10px; }
+.mapa-busqueda .portal rect { fill: #b48ad8; stroke: #14110f; stroke-width: 0.6%; }
+.mapa-busqueda .portal text { fill: #efe6da; paint-order: stroke; stroke: #14110f; stroke-width: 0.5%; }
+.mapa-busqueda .sitio circle { stroke: #14110f; stroke-width: 0.6%; }
+.mapa-busqueda .sitio text { fill: #14110f; font-weight: 700; }
+.mapa-busqueda figcaption { margin-top: 6px; font-size: 0.85rem; }
+.marca { display: inline-block; min-width: 1.4em; height: 1.4em; line-height: 1.4em; margin-right: 6px; border-radius: 50%; color: #14110f; font-size: 0.8rem; font-weight: 700; text-align: center; vertical-align: 0.05em; }

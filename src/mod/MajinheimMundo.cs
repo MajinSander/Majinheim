@@ -1,6 +1,7 @@
 // Majinheim Mundo: mod propio que va SOLO en el server. Solo lee: no cambia nada del mundo ni de los jugadores.
 // Cada pocos minutos apunta en BepInEx\majinheim\mundo.json qué hay en los cofres, los cajones y las tumbas, y dónde están
-// los carteles y los portales; y una vez al arrancar, en recetas.json, las recetas y construcciones del juego con los mods,
+// los carteles y los portales; en mapa.bin, el terreno de lo explorado (para el mapa de "Buscar en el mundo" de la web);
+// y una vez al arrancar, en recetas.json, las recetas y construcciones del juego con los mods,
 // en español. El launcher del server lo lee para que el asistente de Discord conteste "¿dónde está el hierro?" o
 // "¿cómo se hace X?" con datos de verdad.
 // El launcher lo compila en el PC del server contra el Valheim instalado (así sigue funcionando cuando Valheim se actualiza).
@@ -17,7 +18,7 @@ using UnityEngine;
 
 namespace MajinheimMundo
 {
-    [BepInPlugin("majinheim.mundo", "Majinheim Mundo", "1.1.0")]
+    [BepInPlugin("majinheim.mundo", "Majinheim Mundo", "1.2.0")]
     public class Plugin : BaseUnityPlugin
     {
         const float WorldEvery = 300f;         // segundos entre vistazos al mundo
@@ -62,6 +63,121 @@ namespace MajinheimMundo
                 busy = true; busySince = Time.realtimeSinceStartup;
                 StartCoroutine(ExportWorld());
             }
+            else if (!mapBusy && Time.realtimeSinceStartup >= nextMap)
+            {
+                nextMap = Time.realtimeSinceStartup + WorldEvery;
+                mapBusy = true;
+                StartCoroutine(ExportMap());
+            }
+        }
+
+        // ------------------------------------------------------------ terreno de lo explorado (mapa.bin)
+        // Las zonas (64 x 64 m) que el juego ya ha generado son las que alguien ha tenido cerca: eso es "lo explorado".
+        // De cada una se apunta el bioma y la altura cada 16 m, calculados con el generador del mundo (no se toca nada).
+        // Solo se vuelve a escribir si hay zonas nuevas. Por reflexión, para que un cambio de Valheim no rompa el resto del mod.
+        const int MapStep = 16, MapPer = 4;    // 4 x 4 muestras por zona
+        const int ZonesPerFrame = 150;
+        bool mapBusy, mapBroken;
+        float nextMap = 150f;
+        int mapZones = -1;
+
+        static MethodInfo Sampler(string name)
+        {
+            foreach (var m in typeof(WorldGenerator).GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                if (m.Name != name) continue;
+                var ps = m.GetParameters();
+                if (ps.Length < 2 || ps[0].ParameterType != typeof(float) || ps[1].ParameterType != typeof(float)) continue;
+                bool ok = true;
+                for (int i = 2; i < ps.Length; i++) if (ps[i].IsOut || ps[i].ParameterType.IsByRef || !ps[i].IsOptional) ok = false;
+                if (ok) return m;
+            }
+            return null;
+        }
+
+        static object[] Args(MethodInfo m)
+        {
+            var ps = m.GetParameters(); var a = new object[ps.Length];
+            for (int i = 2; i < ps.Length; i++) a[i] = ps[i].DefaultValue;
+            return a;
+        }
+
+        static int BiomeIndex(int flag)
+        {
+            if (flag <= 0) return 0;
+            int i = 1; while ((flag & 1) == 0) { flag >>= 1; i++; }
+            return i;   // 1 Pradera, 2 Pantano, 3 Montaña, 4 Selva Negra, 5 Llanuras, 6 Tierras de ceniza, 7 Norte profundo, 9 Océano, 10 Tierras de niebla
+        }
+
+        IEnumerator ExportMap()
+        {
+            var zones = new List<int>();
+            MethodInfo biome = null, height = null;
+            try
+            {
+                if (mapBroken || ZoneSystem.instance == null || WorldGenerator.instance == null) { mapBusy = false; yield break; }
+                var f = typeof(ZoneSystem).GetField("m_generatedZones", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                var set = f != null ? f.GetValue(ZoneSystem.instance) as IEnumerable : null;
+                biome = Sampler("GetBiome"); height = Sampler("GetHeight");
+                if (set == null || biome == null || height == null)
+                {
+                    mapBroken = true;
+                    Logger.LogWarning("Majinheim Mundo: esta versión de Valheim no deja leer el terreno; el mapa de la web no tendrá fondo.");
+                    mapBusy = false; yield break;
+                }
+                FieldInfo fx = null, fy = null;
+                foreach (var v in set)
+                {
+                    if (fx == null) { fx = v.GetType().GetField("x"); fy = v.GetType().GetField("y"); }
+                    if (fx == null || fy == null) break;
+                    zones.Add((int)fx.GetValue(v)); zones.Add((int)fy.GetValue(v));
+                }
+            }
+            catch (Exception e) { Logger.LogWarning("Majinheim Mundo: no puedo leer las zonas: " + e.Message); mapBroken = true; mapBusy = false; yield break; }
+            int n = zones.Count / 2;
+            if (n == 0 || n == mapZones) { mapBusy = false; yield break; }
+
+            var data = new byte[12 + n * (4 + MapPer * MapPer * 2)];
+            var bw = new BinaryWriter(new MemoryStream(data));
+            bw.Write(Encoding.ASCII.GetBytes("MHM1")); bw.Write(n); bw.Write((short)MapStep); bw.Write((short)MapPer);
+            var ab = Args(biome); var ah = Args(height);
+            var gen = WorldGenerator.instance;
+            for (int k = 0; k < n; k++)
+            {
+                if (k > 0 && k % ZonesPerFrame == 0) yield return null;
+                int zx = zones[k * 2], zy = zones[k * 2 + 1];
+                bw.Write((short)zx); bw.Write((short)zy);
+                for (int j = 0; j < MapPer; j++)
+                    for (int i = 0; i < MapPer; i++)
+                    {
+                        float x = zx * 64f - 32f + MapStep / 2f + i * MapStep, z = zy * 64f - 32f + MapStep / 2f + j * MapStep;
+                        int b = 0; float h = 0f;
+                        try
+                        {
+                            ab[0] = x; ab[1] = z; b = BiomeIndex(Convert.ToInt32(biome.Invoke(gen, ab)));
+                            ah[0] = x; ah[1] = z; h = Convert.ToSingle(height.Invoke(gen, ah));
+                        }
+                        catch (Exception e)
+                        {
+                            Logger.LogWarning("Majinheim Mundo: no puedo leer el terreno: " + (e.InnerException ?? e).Message);
+                            mapBroken = true; mapBusy = false; yield break;
+                        }
+                        bw.Write((byte)b); bw.Write((byte)Mathf.Clamp(Mathf.RoundToInt(h), 0, 255));
+                    }
+            }
+            mapZones = n;
+            string path = Path.Combine(outDir, "mapa.bin");
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    File.WriteAllBytes(path + ".tmp", data);
+                    if (File.Exists(path)) File.Delete(path);
+                    File.Move(path + ".tmp", path);
+                }
+                catch (Exception e) { Logger.LogWarning("Majinheim Mundo: no pude guardar mapa.bin: " + e.Message); }
+            });
+            mapBusy = false;
         }
 
         // ------------------------------------------------------------ chat de la partida: preguntas a MajinBot (!majin)

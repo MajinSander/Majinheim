@@ -231,7 +231,7 @@ namespace Majinheim
 
         public static MiniHttp.Response Handle(MiniHttp.Request req)
         {
-            bool get = req.Path == "/api/sesion" || req.Path == "/api/admin/estado" || req.Path == "/api/admin/problema" || req.Path == "/api/admin/ajustes";
+            bool get = req.Path == "/api/sesion" || req.Path == "/api/admin/estado" || req.Path == "/api/admin/problema" || req.Path == "/api/admin/ajustes" || req.Path == "/api/admin/mapa.png";
             if (req.Method == "POST" && req.Header("X-Majinheim") != "1") return Err(403, "Petición no permitida.");
             if (get ? req.Method != "GET" && req.Method != "HEAD" : req.Method != "POST") return Err(405, "No permitido.");
 
@@ -268,7 +268,17 @@ namespace Majinheim
                 object found;
                 try { found = WorldData.FindItem(q); }
                 catch (Exception e) { Log.W("Web: buscar en el mundo: {0}", e.Message); found = new Dictionary<string, object> { { "error", "No he podido leer los datos del mundo." } }; }
+                var dict = found as Dictionary<string, object>;
+                if (dict != null && !dict.ContainsKey("error"))
+                    try { var meta = WorldData.MapMeta(); if (meta != null) dict["mapa"] = meta; } catch (Exception e) { Log.W("Web: mapa de la búsqueda: {0}", e.Message); }
                 res = MiniHttp.Response.JsonOf(200, found);
+            }
+            else if (req.Path == "/api/admin/mapa.png")
+            {
+                // El fondo del mapa de "Buscar en el mundo": solo lo explorado, para cualquier cuenta.
+                WorldData.MapImage m = null;
+                try { m = WorldData.GetMap(); } catch (Exception e) { Log.W("Web: mapa de la búsqueda: {0}", e.Message); }
+                res = m == null ? Err(404, "Todavía no hay mapa.") : new MiniHttp.Response(200, "image/png", m.Png, false);
             }
             else if (user.Role != RoleAdmin)
             {

@@ -169,17 +169,59 @@
 
   // Buscar en el mundo (2.2): lo mismo que contesta la IA a "¿dónde está el hierro?", para cualquier cuenta.
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  // Mapa de la búsqueda (2.6): lo explorado, con un número en cada sitio de la lista y los portales con nombre para orientarse.
+  var SVGNS = 'http://www.w3.org/2000/svg', COLORES = ['#e0a54a', '#6fbf73', '#6fa8dc'];
+  function svg(tag, attrs, text) {
+    var n = document.createElementNS(SVGNS, tag);
+    Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function pintarMapa(box, m, puntos) {
+    var w = m.x1 - m.x0, h = m.z1 - m.z0, u = Math.max(w, h) / 100;
+    var fig = el('figure', 'mapa-busqueda');
+    var s = svg('svg', { viewBox: '0 0 ' + w + ' ' + h, role: 'img', 'aria-label': 'Mapa de lo explorado con los sitios encontrados' });
+    s.appendChild(svg('image', { href: '/api/admin/mapa.png?v=' + m.v, x: 0, y: 0, width: w, height: h, preserveAspectRatio: 'none' }));
+    function xy(x, z) { return [x - m.x0, m.z1 - z]; }
+    (m.portales || []).forEach(function (p) {
+      var c = xy(p.x, p.z), g = svg('g', { 'class': 'portal' });
+      g.appendChild(svg('title', {}, 'Portal «' + p.nombre + '»'));
+      g.appendChild(svg('rect', { x: c[0] - u * 0.7, y: c[1] - u * 0.7, width: u * 1.4, height: u * 1.4, transform: 'rotate(45 ' + c[0] + ' ' + c[1] + ')' }));
+      g.appendChild(svg('text', { x: c[0] + u * 1.4, y: c[1] + u * 0.6, 'font-size': u * 2.8 }, p.nombre));
+      s.appendChild(g);
+    });
+    puntos.forEach(function (p) {
+      var c = xy(p.x, p.z), g = svg('g', { 'class': 'sitio' });
+      g.appendChild(svg('title', {}, p.titulo));
+      g.appendChild(svg('circle', { cx: c[0], cy: c[1], r: u * 2.6, fill: p.color }));
+      g.appendChild(svg('text', { x: c[0], y: c[1] + u * 1.0, 'font-size': u * 2.8, 'text-anchor': 'middle' }, String(p.n)));
+      s.appendChild(g);
+    });
+    fig.appendChild(s);
+    fig.appendChild(el('figcaption', 'tenue', 'Solo sale lo que alguien ha explorado. Norte arriba. Los rombos morados son portales con nombre.'));
+    box.appendChild(fig);
+  }
+
   function pintarBusqueda(box, r) {
     limpiar(box);
     if (r.error) { box.appendChild(el('p', 'vacio', r.error)); return; }
-    (r.encontrado || []).forEach(function (o) {
+    var puntos = [], num = 0;
+    (r.encontrado || []).forEach(function (o, oi) {
       box.appendChild(el('h3', 'subtitulo', o.objeto + ': ' + (o.total || 0).toLocaleString('es-ES')));
       if (!o.total) { box.appendChild(el('p', 'vacio', o.nota || 'No hay en ningún cofre ni cajón.')); return; }
       if (o.reparto) box.appendChild(el('p', 'tenue', o.reparto));
       var ul = el('ul', 'lista apilada');
       (o.sitios || []).forEach(function (s) {
-        var li = document.createElement('li');
-        li.appendChild(el('span', 'quien', s.donde.charAt(0).toUpperCase() + s.donde.slice(1)));
+        var li = document.createElement('li'), quien = el('span', 'quien'), xz = /x (-?\d+), z (-?\d+)/.exec(s.coordenadas || '');
+        if (xz && r.mapa) {
+          num++;
+          var color = COLORES[oi % COLORES.length], marca = el('span', 'marca', String(num));
+          marca.style.background = color;
+          quien.appendChild(marca);
+          puntos.push({ n: num, x: +xz[1], z: +xz[2], color: color, titulo: num + '. ' + o.objeto + ': ' + s.cantidad.toLocaleString('es-ES') + ', ' + s.donde });
+        }
+        quien.appendChild(document.createTextNode(s.donde.charAt(0).toUpperCase() + s.donde.slice(1)));
+        li.appendChild(quien);
         li.appendChild(el('span', 'cuanto', [s.cantidad.toLocaleString('es-ES') + ' en ' + s.en, s.carteles && s.carteles.length ? 'cartel: «' + s.carteles.join('», «') + '»' : null, s.coordenadas].filter(Boolean).join(' · ')));
         ul.appendChild(li);
       });
@@ -189,6 +231,7 @@
     if (r.enTumbas) box.appendChild(el('p', 'tenue', 'En tumbas: ' + r.enTumbas.join(', ') + '.'));
     if (r.parecidos) box.appendChild(el('p', 'tenue', 'Parecidos: ' + r.parecidos.join(', ') + '.'));
     if (r.datos) box.appendChild(el('p', 'tenue', 'Son ' + r.datos + '.'));
+    if (r.mapa && puntos.length) pintarMapa(box, r.mapa, puntos);
   }
   Array.prototype.forEach.call(document.querySelectorAll('[data-buscador]'), function (sec) {
     var form = sec.querySelector('form'), input = sec.querySelector('input'), box = sec.querySelector('.busqueda');

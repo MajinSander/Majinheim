@@ -21,7 +21,7 @@ namespace Majinheim
 
     public static class WorldMod
     {
-        public const string Version = "1.1.0";
+        public const string Version = "1.2.0";
         const string Folder = "Majinheim-Mundo", DllName = "MajinheimMundo.dll", SourceName = "MajinheimMundo.cs";
         static readonly object lk = new object();
 
@@ -458,6 +458,131 @@ namespace Majinheim
             if (!Settings.Current.WorldExport) return "Esta función está apagada en el launcher del server (pestaña Asistente IA).";
             if (WorldMod.LastError != null) return "El mod que lee el mundo no se ha podido preparar en el PC del server; un administrador lo puede mirar en la pestaña Salud.";
             return "Todavía no tengo esos datos: se apuntan solos unos minutos después de encender el server.";
+        }
+
+        // ------------------------------------------------------------ mapa de "Buscar en el mundo" (2.6)
+        // El mod apunta en mapa.bin el bioma y la altura de lo explorado (cada 16 m). Aquí se pinta en un PNG, con lo no
+        // explorado en oscuro (no se adelanta nada del mundo que nadie ha visto). Norte arriba: fila 0 = la z más alta.
+
+        public class MapImage { public int X0, Z0, X1, Z1; public byte[] Png; public long Stamp; }
+        static MapImage mapImg; static DateTime mapImgAt;
+        static string MapFile { get { return Path.Combine(WorldMod.OutDir, "mapa.bin"); } }
+
+        public static MapImage GetMap()
+        {
+            lock (lk)
+            {
+                if (!File.Exists(MapFile)) return null;
+                var t = File.GetLastWriteTimeUtc(MapFile);
+                if (mapImg == null || t != mapImgAt)
+                {
+                    mapImg = RenderMap(File.ReadAllBytes(MapFile));
+                    if (mapImg != null) mapImg.Stamp = t.Ticks / TimeSpan.TicksPerSecond;
+                    mapImgAt = t;
+                }
+                return mapImg;
+            }
+        }
+
+        // 1 Pradera, 2 Pantano, 3 Montaña, 4 Selva Negra, 5 Llanuras, 6 Tierras de ceniza, 7 Norte profundo, 9 Océano, 10 Tierras de niebla
+        static readonly int[] BiomeColor = { 0x6d7a5a, 0x7ea04c, 0x5e5636, 0xd6dbe2, 0x2f4d2c, 0xc8b25a, 0x7c3b2c, 0xe7eef6, 0x2d5f86, 0x2d5f86, 0x6c6a86 };
+        const int Unexplored = 0x14110f;   // el fondo de la web
+
+        public static MapImage RenderMap(byte[] data)
+        {
+            if (data == null || data.Length < 12 || Encoding.ASCII.GetString(data, 0, 4) != "MHM1") return null;
+            var r = new BinaryReader(new MemoryStream(data));
+            r.ReadBytes(4);
+            int n = r.ReadInt32(), step = r.ReadInt16(), per = r.ReadInt16();
+            if (n <= 0 || per <= 0 || per > 16 || step <= 0 || data.Length < 12 + (long)n * (4 + per * per * 2)) return null;
+            var zx = new int[n]; var zy = new int[n]; var cells = new byte[n][];
+            int minX = int.MaxValue, maxX = int.MinValue, minY = int.MaxValue, maxY = int.MinValue;
+            for (int k = 0; k < n; k++)
+            {
+                zx[k] = r.ReadInt16(); zy[k] = r.ReadInt16(); cells[k] = r.ReadBytes(per * per * 2);
+                minX = Math.Min(minX, zx[k]); maxX = Math.Max(maxX, zx[k]); minY = Math.Min(minY, zy[k]); maxY = Math.Max(maxY, zy[k]);
+            }
+            minX--; minY--; maxX++; maxY++;   // un poco de borde
+            // Que no quede muy alargado: se completa hasta una proporción razonable.
+            while ((maxX - minX + 1) * 2 < (maxY - minY + 1)) { minX--; maxX++; }
+            while ((maxY - minY + 1) * 2 < (maxX - minX + 1)) { minY--; maxY++; }
+            int w = (maxX - minX + 1) * per, h = (maxY - minY + 1) * per;
+            if ((long)w * h > 9000000) return null;   // más de 3000 x 3000: no debería pasar nunca
+            var biome = new byte[w * h]; var height = new byte[w * h]; var known = new bool[w * h];
+            for (int k = 0; k < n; k++)
+                for (int j = 0; j < per; j++)
+                    for (int i = 0; i < per; i++)
+                    {
+                        int px = (zx[k] - minX) * per + i, py = h - 1 - ((zy[k] - minY) * per + j);
+                        int o = py * w + px, c = (j * per + i) * 2;
+                        biome[o] = cells[k][c]; height[o] = cells[k][c + 1]; known[o] = true;
+                    }
+            var px32 = new int[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    int o = y * w + x;
+                    if (!known[o]) { px32[o] = unchecked((int)0xFF000000) | Unexplored; continue; }
+                    int hh = height[o], col;
+                    if (hh < 30)
+                    {
+                        // Agua: más oscura cuanto más honda.
+                        double d = Math.Min(1.0, (30 - hh) / 30.0);
+                        col = Mix(0x4f86ad, 0x1c3d5a, d);
+                    }
+                    else
+                    {
+                        int b = biome[o] < BiomeColor.Length ? biome[o] : 0;
+                        col = BiomeColor[b];
+                        if (b == 9) col = 0x7ea04c;   // tierra que el juego cuenta como océano: orilla
+                        // Relieve: luz desde el noroeste.
+                        int nw = (x > 0 && y > 0 && known[o - w - 1]) ? height[o - w - 1] : hh;
+                        double shade = Math.Max(0.7, Math.Min(1.3, 1 + (nw - hh) * 0.035));
+                        if (hh < 32) col = Mix(col, 0xc9b98a, 0.5);   // playa
+                        col = Scale(col, shade);
+                    }
+                    px32[o] = unchecked((int)0xFF000000) | col;
+                }
+            byte[] png;
+            using (var bmp = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+            {
+                var bd = bmp.LockBits(new System.Drawing.Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                for (int y = 0; y < h; y++) Marshal.Copy(px32, y * w, bd.Scan0 + y * bd.Stride, w);
+                bmp.UnlockBits(bd);
+                var ms = new MemoryStream();
+                bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                png = ms.ToArray();
+            }
+            int zone = step * per;
+            return new MapImage { X0 = minX * zone - zone / 2, X1 = (maxX + 1) * zone - zone / 2, Z0 = minY * zone - zone / 2, Z1 = (maxY + 1) * zone - zone / 2, Png = png };
+        }
+
+        static int Mix(int a, int b, double t)
+        {
+            Func<int, int> ch = sh => (int)Math.Round(((a >> sh) & 255) * (1 - t) + ((b >> sh) & 255) * t);
+            return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+        }
+        static int Scale(int a, double f)
+        {
+            Func<int, int> ch = sh => Math.Max(0, Math.Min(255, (int)Math.Round(((a >> sh) & 255) * f)));
+            return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+        }
+
+        // Lo que la web necesita para dibujar encima: los límites del dibujo y los portales con nombre (para orientarse).
+        public static Dictionary<string, object> MapMeta()
+        {
+            MapImage m;
+            try { m = GetMap(); } catch (Exception e) { Log.W("Mapa de búsqueda: {0}", e.Message); return null; }
+            if (m == null) return null;
+            var w = GetWorld();
+            var portals = w == null ? new List<object>() : w.Portals
+                .Where(p => p.Value != "" && p.X >= m.X0 && p.X <= m.X1 && p.Z >= m.Z0 && p.Z <= m.Z1)
+                .GroupBy(p => p.Value, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Take(60)
+                .Select(p => (object)new Dictionary<string, object> { { "x", p.X }, { "z", p.Z }, { "nombre", p.Value.Length > 30 ? p.Value.Substring(0, 30) : p.Value } }).ToList();
+            return new Dictionary<string, object>
+            {
+                { "x0", m.X0 }, { "x1", m.X1 }, { "z0", m.Z0 }, { "z1", m.Z1 }, { "v", m.Stamp }, { "portales", portals },
+            };
         }
 
         // ------------------------------------------------------------ herramientas de la IA
