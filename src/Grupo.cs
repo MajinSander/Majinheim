@@ -233,7 +233,7 @@ namespace Majinheim
             }
             int wd = -1;
             for (int i = 0; i < 7; i++) if (Regex.IsMatch(t, @"\b" + WeekDays[i] + @"\b")) { wd = i; break; }
-            bool morning = Regex.IsMatch(t, @"\b(de|por) la manana\b");
+            string noMorning = Regex.Replace(t, @"\b(de|por) la manana\b", " ");   // en "mañana por la mañana", solo la primera es el día
             if (day == null)
             {
                 if (wd >= 0)
@@ -241,9 +241,11 @@ namespace Majinheim
                     int ahead = (wd - (int)now.DayOfWeek + 7) % 7;
                     day = now.Date.AddDays(ahead);
                 }
-                else if (Regex.IsMatch(t, @"\bpasado manana\b")) day = now.Date.AddDays(2);
-                else if (Regex.IsMatch(t, @"\bmanana\b") && !morning) day = now.Date.AddDays(1);
+                else if (Regex.IsMatch(noMorning, @"\bpasado manana\b")) day = now.Date.AddDays(2);
+                else if (Regex.IsMatch(noMorning, @"\bmanana\b")) day = now.Date.AddDays(1);
                 else if (Regex.IsMatch(t, @"\bhoy\b|\besta (tarde|noche)\b")) day = now.Date;
+                // Un día que no se sabe calcular no se deja pasar como si fuera hoy.
+                else if (Regex.IsMatch(t, @"\b(ayer|anoche|anteayer|semana|finde|dentro|dias?|mes)\b")) { err = "No sé qué día es ese. Prueba con viernes 22:00, mañana 21:00 o 14/11 20:30."; return false; }
             }
 
             int hh = -1, mi = 0;
@@ -257,12 +259,16 @@ namespace Majinheim
                 if (mt.Groups.Count > 2 && mt.Groups[2].Success) mi = int.Parse(mt.Groups[2].Value);
             }
             if (hh < 0) { err = "Dime también la hora, por ejemplo: viernes 22:00."; return false; }
-            if (Regex.IsMatch(t, @"\bde la (tarde|noche)\b") && hh >= 1 && hh < 12) hh += 12;
+            // "de la noche": las 12 y de la 1 a las 5 ya son la madrugada del día siguiente.
+            bool night = Regex.IsMatch(t, @"\b(de|por) la noche\b|\besta noche\b");
+            bool afterMidnight = night && (hh == 12 || (hh >= 1 && hh <= 5));
+            if (night && hh == 12) hh = 0;
+            else if (!afterMidnight && (night || Regex.IsMatch(t, @"\b(de|por) la tarde\b|\besta tarde\b")) && hh >= 1 && hh < 12) hh += 12;
             if (hh > 23 || mi > 59) { err = "Esa hora no existe."; return false; }
 
             if (day == null) day = now.Date;
-            when = day.Value.AddHours(hh).AddMinutes(mi);
-            if (when <= now && md.Success == false && (wd >= 0 || !Regex.IsMatch(t, @"\bhoy\b"))) when = when.AddDays(wd >= 0 ? 7 : 1);   // "viernes 22:00" con el viernes ya pasado: el siguiente
+            when = day.Value.AddDays(afterMidnight ? 1 : 0).AddHours(hh).AddMinutes(mi);
+            if (when <= now && md.Success == false && (wd >= 0 || !Regex.IsMatch(t, @"\bhoy\b|\besta (tarde|noche)\b"))) when = when.AddDays(wd >= 0 ? 7 : 1);   // "viernes 22:00" con el viernes ya pasado: el siguiente
             if (when <= now.AddMinutes(1)) { err = "Esa hora ya ha pasado."; return false; }
             if (when > now.AddDays(45)) { err = "Como mucho, con mes y medio de antelación."; return false; }
             return true;
