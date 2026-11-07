@@ -526,7 +526,8 @@ namespace Majinheim
                 // así un cambio de IP que el router no apunta en la DDNS se avisa en unos 20 minutos, no en horas.
                 string ip = Net.PublicIp();
                 bool changed = ip != null && !string.IsNullOrEmpty(s.LastPublicIp) && ip != s.LastPublicIp;
-                if (ip != null && ip != s.LastPublicIp) { s.LastPublicIp = ip; Settings.Save(); }
+                // Desde la consola (r == null) no se guarda: con el launcher abierto se pisarían sus ajustes, y "salud" solo mira.
+                if (ip != null && ip != s.LastPublicIp) { s.LastPublicIp = ip; if (r != null) Settings.Save(); }
                 if (ip == null) return I("ddns", "Dirección de internet (DDNS)", "info", "Ahora no he podido saber la IP de casa (¿sin internet?). Lo vuelvo a mirar en 10 minutos.");
                 if (changed) Log.W("La IP pública de casa ha cambiado: compruebo la DDNS.");
                 if (changed || !ddnsOk || (DateTime.Now - ddnsAt).TotalMinutes >= 60) { ddnsOk = Net.SamePublicIp(WebPanel.PublicHost, ip); ddnsAt = DateTime.Now; }
@@ -679,7 +680,7 @@ namespace Majinheim
     // ---------------------------------------------------------------- apagones (2.6)
 
     // Cuando el PC se apaga de golpe (corte de luz, cuelgue, alguien que lo desenchufa), Windows lo apunta al volver a
-    // encender: suceso 41 (Kernel-Power) y 6008 (con la hora a la que se apagó). Se avisa una vez en Discord de cada uno.
+    // encender: suceso 41 (Kernel-Power) y 6008 (con su última señal de vida, que no es la hora exacta). Se avisa una vez en Discord de cada uno.
     public static class PowerWatch
     {
         public class Loss { public DateTime Back; public DateTime Down = DateTime.MinValue; }
@@ -701,12 +702,10 @@ namespace Majinheim
                             if (e.TimeCreated == null) continue;
                             var at = e.TimeCreated.Value;
                             if (e.Id == 41) res.Add(new Loss { Back = at });
-                            else if (e.Id == 6008 && e.Properties.Count >= 2)
+                            else if (e.Id == 6008)
                             {
-                                // Hora y fecha en el formato de Windows, a veces con marcas de dirección de texto (U+200E).
-                                string txt = (Convert.ToString(e.Properties[1].Value) + " " + Convert.ToString(e.Properties[0].Value)).Replace("\u200e", "").Replace("\u200f", "").Trim();
                                 DateTime d;
-                                if (DateTime.TryParse(txt, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out d) && d <= at)
+                                if (LastAlive(e, out d) && d <= at)
                                     downs.Add(new KeyValuePair<DateTime, DateTime>(at, d));
                             }
                         }
@@ -721,12 +720,33 @@ namespace Majinheim
             return res.OrderBy(x => x.Back).ToList();
         }
 
+        // La última señal de vida que Windows apuntó: el PC pudo seguir encendido un buen rato después. Se lee de los datos binarios del
+        // suceso porque su texto va en el idioma del sistema (mes/día en un Windows en-US), y leído en español "11/6" sería el 11 de junio.
+        // Son fechas SYSTEMTIME de 16 bytes: primero la local y luego la UTC.
+        static bool LastAlive(System.Diagnostics.Eventing.Reader.EventRecord e, out DateTime d)
+        {
+            d = DateTime.MinValue;
+            foreach (var p in e.Properties)
+            {
+                var b = p.Value as byte[];
+                if (b == null || b.Length < 16) continue;
+                try
+                {
+                    d = new DateTime(BitConverter.ToUInt16(b, 0), BitConverter.ToUInt16(b, 2), BitConverter.ToUInt16(b, 6),
+                        BitConverter.ToUInt16(b, 8), BitConverter.ToUInt16(b, 10), BitConverter.ToUInt16(b, 12));
+                    return true;
+                }
+                catch (ArgumentOutOfRangeException) { }
+            }
+            return false;
+        }
+
         static string When(DateTime d) { return d.ToString("dd/MM 'a las' HH:mm", CultureInfo.GetCultureInfo("es-ES")); }
 
         public static string Describe(Loss l)
         {
             return l.Down != DateTime.MinValue
-                ? "se apagó de golpe el " + When(l.Down) + " y volvió a encenderse el " + When(l.Back) + " (" + Gap(l.Back - l.Down) + " apagado)"
+                ? "se apagó de golpe (última señal de vida el " + When(l.Down) + ") y volvió a encenderse el " + When(l.Back) + " (como mucho " + Gap(l.Back - l.Down) + " apagado)"
                 : "se apagó de golpe y volvió a encenderse el " + When(l.Back);
         }
 
