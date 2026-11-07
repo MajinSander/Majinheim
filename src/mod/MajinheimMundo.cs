@@ -511,6 +511,8 @@ namespace MajinheimMundo
                     if (containerHashes.Contains(h) || tombHashes.Contains(h))
                     {
                         bool tomb = tombHashes.Contains(h);
+                        // Solo lo que ha construido alguien: decir qué llevan los cofres de las mazmorras estropearía el juego.
+                        if (!tomb && z.GetLong("creator", 0L) == 0L) continue;
                         var list = ReadItems(z);
                         if (!tomb && list.Count == 0) continue;
                         var sb = tomb ? tombs : chests;

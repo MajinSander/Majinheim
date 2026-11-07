@@ -488,6 +488,7 @@ namespace Majinheim
         // 1 Pradera, 2 Pantano, 3 Montaña, 4 Selva Negra, 5 Llanuras, 6 Tierras de ceniza, 7 Norte profundo, 9 Océano, 10 Tierras de niebla
         static readonly int[] BiomeColor = { 0x6d7a5a, 0x7ea04c, 0x5e5636, 0xd6dbe2, 0x2f4d2c, 0xc8b25a, 0x7c3b2c, 0xe7eef6, 0x2d5f86, 0x2d5f86, 0x6c6a86 };
         const int Unexplored = 0x14110f;   // el fondo de la web
+        const int MaxZone = 180;           // el mundo acaba a unos 10,5 km (164 zonas); el juego tiene además zonas auxiliares a un millón de metros
 
         public static MapImage RenderMap(byte[] data)
         {
@@ -498,11 +499,17 @@ namespace Majinheim
             if (n <= 0 || per <= 0 || per > 16 || step <= 0 || data.Length < 12 + (long)n * (4 + per * per * 2)) return null;
             var zx = new int[n]; var zy = new int[n]; var cells = new byte[n][];
             int minX = int.MaxValue, maxX = int.MinValue, minY = int.MaxValue, maxY = int.MinValue;
+            int kept = 0;
             for (int k = 0; k < n; k++)
             {
-                zx[k] = r.ReadInt16(); zy[k] = r.ReadInt16(); cells[k] = r.ReadBytes(per * per * 2);
-                minX = Math.Min(minX, zx[k]); maxX = Math.Max(maxX, zx[k]); minY = Math.Min(minY, zy[k]); maxY = Math.Max(maxY, zy[k]);
+                int x = r.ReadInt16(), y = r.ReadInt16();
+                var c = r.ReadBytes(per * per * 2);
+                if (Math.Abs(x) > MaxZone || Math.Abs(y) > MaxZone) continue;
+                zx[kept] = x; zy[kept] = y; cells[kept] = c; kept++;
+                minX = Math.Min(minX, x); maxX = Math.Max(maxX, x); minY = Math.Min(minY, y); maxY = Math.Max(maxY, y);
             }
+            if (kept == 0) return null;
+            n = kept;
             minX--; minY--; maxX++; maxY++;   // un poco de borde
             // Que no quede muy alargado: se completa hasta una proporción razonable.
             while ((maxX - minX + 1) * 2 < (maxY - minY + 1)) { minX--; maxX++; }
