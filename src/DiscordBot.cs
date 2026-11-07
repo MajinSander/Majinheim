@@ -200,6 +200,9 @@ namespace Majinheim
                 cmd("salud", "Revisión del server: backups, disco, HTTPS, mods, Valheim... (solo administradores)", true),
                 cmd("actualizar", "Actualiza mods y Valheim con backup, prueba de arranque y vuelta atrás (solo administradores)", true),
             };
+            var vik = cmd("vikingo", "Lo de un vikingo: horas, logros, con quién juega más y su página en la web", false);
+            vik["options"] = new[] { new Dictionary<string, object> { { "type", 3 }, { "name", "nombre" }, { "description", "Su nombre en el juego" }, { "required", true }, { "max_length", 40 } } };
+            list.Add(vik);
             var avisar = cmd("avisar", "Manda un mensaje al chat del juego (solo administradores)", true);
             avisar["options"] = new[] { new Dictionary<string, object> { { "type", 3 }, { "name", "mensaje" }, { "description", "Lo que verán los jugadores" }, { "required", true }, { "max_length", 200 } } };
             list.Add(avisar);
@@ -278,6 +281,7 @@ namespace Majinheim
                         if (reply.Length > 2000) reply = reply.Substring(0, 1999) + "…";
                     }
                 }
+                else if (name == "vikingo") reply = Viking(Option(data, "nombre"));
                 else reply = Answer(name);
                 var resp = new Dictionary<string, object>
                 {
@@ -553,6 +557,34 @@ namespace Majinheim
 
         static string Esc(string s) { return (s ?? "").Replace("*", "\\*").Replace("_", "\\_").Replace("`", "\\`").Replace("~", "\\~").Replace("|", "\\|").Replace("@", "@​"); }
         static string Dur(int min) { return min < 60 ? min + " min" : (min / 60) + " h " + (min % 60).ToString("00") + " min"; }
+
+        // /vikingo nombre (2.6): lo mismo que su página de la web, en corto.
+        public static string Viking(string name)
+        {
+            name = Regex.Replace(name ?? "", @"[\x00-\x1f]+", " ").Trim();
+            if (name.Length == 0) return "Dime el nombre del vikingo, por ejemplo `/vikingo Fran`.";
+            var known = ServerWatch.Stats()["jugadores"] as IEnumerable<Dictionary<string, object>>;
+            var names = known == null ? new List<string>() : known.Select(p => (string)p["nombre"]).ToList();
+            string real = names.FirstOrDefault(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase))
+                ?? names.FirstOrDefault(n => n.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0);
+            var d = real == null ? null : ServerWatch.Player(real);
+            if (d == null) return "No hay partidas de ningún vikingo que se llame «" + Esc(name) + "»." + (names.Count > 0 ? " Conocidos: " + string.Join(", ", names.Take(15).Select(Esc)) + "." : "");
+            var sb = new StringBuilder();
+            sb.Append("🪓 **" + Esc((string)d["nombre"]) + "**" + ((bool)d["jugando"] ? " (jugando ahora)" : "") + ": **" + Dur((int)d["minutos"]) + "** en " + d["sesiones"] + " partidas");
+            if ((int)d["de"] > 1) sb.Append(", " + d["puesto"] + "º de " + d["de"]);
+            sb.Append(".\n");
+            sb.Append("Esta semana " + Dur((int)d["semana"]) + " · " + d["muertes"] + " muertes · la partida más larga " + Dur((int)d["masLarga"]) + ".\n");
+            var friends = (List<object>)d["companeros"];
+            if (friends.Count > 0) sb.Append("Con quien más juega: " + string.Join(", ", friends.Cast<Dictionary<string, object>>().Take(3).Select(f => Esc((string)f["nombre"]) + " (" + Dur((int)f["minutos"]) + ")")) + ".\n");
+            var goals = (List<object>)d["logros"];
+            if (goals.Count > 0) sb.Append("🏅 " + string.Join(" · ", goals.Cast<string>().Reverse().Take(3)) + ".\n");
+            var next = d["siguiente"] as Dictionary<string, object>;
+            if (next != null) sb.Append("Le faltan " + Dur((int)next["faltan"]) + " para las " + next["horas"] + " horas.\n");
+            if ((int)d["tumbas"] > 0) sb.Append("💀 Tiene " + ((int)d["tumbas"] == 1 ? "una tumba" : d["tumbas"] + " tumbas") + " sin recoger.\n");
+            string web = Settings.Current.WebEnabled && Settings.Current.WebPublic ? WebPanel.PublicUrl : null;
+            if (web != null) sb.Append(web + "jugador?n=" + Uri.EscapeDataString((string)d["nombre"]));
+            return sb.ToString().TrimEnd();
+        }
 
         // Respuestas públicas: lo mismo que ve cualquiera en la web, nada de red.
         public static string Answer(string name)

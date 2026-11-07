@@ -51,7 +51,7 @@ namespace Majinheim
             tDiscChannel = Ui.Txt(s.DiscordChannel, 220);
             cDiscJoins = Ui.Chk("Avisar cuando alguien entra o sale (con el tiempo que ha jugado)", s.DiscordJoins);
             cDiscUpdates = Ui.Chk("Avisar cuando un mod tiene versión nueva", s.DiscordUpdates);
-            cDiscCommands = Ui.Chk("Comandos del bot: /estado, /jugadores, /estadisticas, /web y /quedada para todos; /encender, /apagar, /reiniciar, /backup, /salud, /actualizar solo para administradores del Discord", s.DiscordCommands);
+            cDiscCommands = Ui.Chk("Comandos del bot: /estado, /jugadores, /estadisticas, /vikingo, /web y /quedada para todos; /encender, /apagar, /reiniciar, /backup, /salud, /actualizar solo para administradores del Discord", s.DiscordCommands);
             cDiscCommands.MaximumSize = new Size(540, 0);
             cDiscCommands.CheckedChanged += (o, e) => { if (autoPopulating) return; s.DiscordCommands = cDiscCommands.Checked; Settings.Save(); DiscordBot.Apply(); UpdateAutoState(); };
             cDiscJoins.CheckedChanged += (o, e) => { if (autoPopulating) return; s.DiscordJoins = cDiscJoins.Checked; Settings.Save(); };

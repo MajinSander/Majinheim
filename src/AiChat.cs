@@ -574,6 +574,14 @@ namespace Majinheim
             var mods = snap["mods"] as Dictionary<string, object>;
             if (mods != null) o["mods"] = ((IEnumerable<object>)mods["lista"]).Cast<Dictionary<string, object>>().Select(m => m["nombre"] + " " + m["version"]).ToList();
             o["mapaWebEncendido"] = snap["mapa"] != null;
+            // Rendimiento (2.6): para "¿por qué va con lag?".
+            var perf = LagWatch.Read();
+            if (perf != null)
+                o["rendimiento"] = new Dictionary<string, object>
+                {
+                    { "fotogramasPorSegundo", Math.Round(perf.Fps) }, { "peorParonMs", perf.WorstMs }, { "objetosEnElMundo", perf.Objects },
+                    { "valoracion", perf.Fps < LagWatch.Bad ? "va con lag. " + LagWatch.Cause(perf) : "va bien (más de 20 fotogramas por segundo; un server sano pasa de 30)" },
+                };
             return o;
         }
 
@@ -595,7 +603,25 @@ namespace Majinheim
                 var hours = (int[])st["horas"];
                 o["minutosPorHoraDelDia_ultimos60Dias"] = Enumerable.Range(0, 24).Where(h => hours[h] > 0).ToDictionary(h => h.ToString("00") + ":00", h => (object)hours[h]);
             }
-            else o["nota"] = "Para días concretos de este vikingo usa la herramienta partidas.";
+            else
+            {
+                o["nota"] = "Para días concretos de este vikingo usa la herramienta partidas.";
+                // Lo de su página de la web (2.6): con quién juega más, logros y lo que le falta.
+                if (players.Count == 1)
+                {
+                    var d = ServerWatch.Player((string)players[0]["nombre"]);
+                    if (d != null)
+                    {
+                        players[0]["puesto"] = d["puesto"] + " de " + d["de"] + " en horas";
+                        players[0]["conQuienJuegaMas_minutosJuntos"] = d["companeros"];
+                        players[0]["logros"] = d["logros"];
+                        players[0]["siguienteLogro"] = d["siguiente"];
+                        players[0]["tumbasSinRecoger"] = d["tumbas"];
+                        string web = Settings.Current.WebEnabled && Settings.Current.WebPublic ? WebPanel.PublicUrl : null;
+                        if (web != null) players[0]["paginaEnLaWeb"] = web + "jugador?n=" + Uri.EscapeDataString((string)d["nombre"]);
+                    }
+                }
+            }
             return o;
         }
 

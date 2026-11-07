@@ -153,6 +153,13 @@
           "claves": "chat juego partida dentro !majin preguntar bot sin salir"
         },
         {
+          "p": "¿Cómo veo mis horas, mis logros o los de un amigo?",
+          "r": [
+            "En la web, pulsa el nombre del vikingo (en el estado o en las estadísticas) y sale su página: horas, logros, con quién juega más y sus últimas partidas. En Discord, escribe /vikingo y su nombre."
+          ],
+          "claves": "horas logros perfil pagina vikingo jugador /vikingo estadisticas amigo"
+        },
+        {
           "p": "¿Dónde veo el mapa y las estadísticas?",
           "r": [
             "En esta web: el mapa del mundo (lo que habéis explorado) y las estadísticas de cada vikingo. Desde el launcher, el botón «Web del server»."
