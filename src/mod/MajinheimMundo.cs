@@ -511,8 +511,7 @@ namespace MajinheimMundo
                     if (containerHashes.Contains(h) || tombHashes.Contains(h))
                     {
                         bool tomb = tombHashes.Contains(h);
-                        string items = z.GetString("items", "");
-                        var list = ReadItems(items);
+                        var list = ReadItems(z);
                         if (!tomb && list.Count == 0) continue;
                         var sb = tomb ? tombs : chests;
                         if ((tomb ? nTombs : nChests) > 0) sb.Append(',');
@@ -594,13 +593,16 @@ namespace MajinheimMundo
         // Inventory.Load crea cada objeto, y eso frenaría el server. Desde la versión 108 cada objeto va compacto y se identifica por
         // el hash de su prefab; los cofres que nadie ha abierto desde entonces siguen en el formato antiguo, con el nombre.
         const int NewestInventory = 110;
+        static readonly int ItemsKey = Hash("items");
         int unknownInventory;
 
-        List<Item> ReadItems(string b64)
+        List<Item> ReadItems(ZDO z)
         {
             var res = new List<Item>();
-            if (string.IsNullOrEmpty(b64)) return res;
-            var p = new ZPackage(b64);
+            byte[] data = z.GetByteArray(ItemsKey, null);               // desde Valheim 1.0 son bytes; antes, texto en base64
+            string b64 = data == null ? z.GetString("items", "") : null;
+            if (data == null && string.IsNullOrEmpty(b64)) return res;
+            var p = data != null ? new ZPackage(data) : new ZPackage(b64);
             int ver = p.ReadInt();
             if (ver < 100 || ver > NewestInventory) { unknownInventory = ver; return res; }   // formato que no conozco: mejor no inventar
             if (ver >= 108) ReadCompact(p, ver, res); else ReadOld(p, ver, res);

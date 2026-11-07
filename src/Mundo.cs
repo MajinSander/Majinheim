@@ -925,7 +925,7 @@ namespace Majinheim
     // El mod Majinheim Mundo apunta solo esos mensajes en chat.jsonl; aquí se leen, se pregunta a la IA y se contesta por RCON.
     public static class GameChat
     {
-        public const int Cooldown = 10, MaxParts = 3, PartLen = 180;
+        public const int Cooldown = 10, MaxParts = 3, PartLen = 180, ThinkingAfterMs = 8000;
         public static string FileName { get { return Path.Combine(WorldMod.OutDir, "chat.jsonl"); } }
         public static Func<string, string> Say = t => "los mensajes en el juego no están listos";   // null = ha llegado
         public static Func<string, string, List<string[]>, string> Ask = (q, who, past) => AiChat.Ask(q, who, false, past);
@@ -1001,7 +1001,10 @@ namespace Majinheim
             List<string[]> ctx;
             lock (lastAsk) { if ((DateTime.Now - pastAt).TotalMinutes > 10) past = new List<string[]>(); ctx = past.ToList(); }
             var t0 = DateTime.Now;
-            string answer = Ask(q + "\n\n(Pregunta hecha desde el chat de la partida: contesta en una o dos frases cortas, sin listas ni formato.)", who, ctx);
+            // La primera pregunta tras un rato sin usarla tarda más de un minuto (hay que cargar la IA): que no parezca que no ha oído.
+            string answer;
+            using (new System.Threading.Timer(_ => Send("MajinBot: un momento, " + who + ", estoy pensando..."), null, ThinkingAfterMs, System.Threading.Timeout.Infinite))
+                answer = Ask(q + "\n\n(Pregunta hecha desde el chat de la partida: contesta en una o dos frases cortas, sin listas ni formato.)", who, ctx);
             Log.W("Chat del juego: pregunta de {0} respondida en {1:0.0} s.", who, (DateTime.Now - t0).TotalSeconds);
             lock (lastAsk)
             {
