@@ -552,6 +552,8 @@ namespace Majinheim
                 }
             });
 
+            add(() => PowerWatch.Check());
+
             add(() => s.AutoStartServer ? I("arranque", "Arrancar con Windows", "ok", "Si el PC se reinicia, el server vuelve solo.")
                 : I("arranque", "Arrancar con Windows", "aviso", "Si el PC se reinicia, el server no vuelve solo: marca \"Arrancar con Windows\" en la pestaña Servidor."));
 
@@ -664,6 +666,100 @@ namespace Majinheim
             }
             if (save) Settings.Save();
             return msgs;
+        }
+    }
+
+    // ---------------------------------------------------------------- apagones (2.6)
+
+    // Cuando el PC se apaga de golpe (corte de luz, cuelgue, alguien que lo desenchufa), Windows lo apunta al volver a
+    // encender: suceso 41 (Kernel-Power) y 6008 (con la hora a la que se apagó). Se avisa una vez en Discord de cada uno.
+    public static class PowerWatch
+    {
+        public class Loss { public DateTime Back; public DateTime Down = DateTime.MinValue; }
+
+        public static List<Loss> Recent(int days)
+        {
+            var res = new List<Loss>();
+            try
+            {
+                long ms = (long)days * 86400000L;
+                string q = "*[System[(EventID=41 or EventID=6008) and TimeCreated[timediff(@SystemTime) <= " + ms + "]]]";
+                var downs = new List<KeyValuePair<DateTime, DateTime>>();   // (cuándo se apuntó, cuándo se apagó)
+                using (var r = new System.Diagnostics.Eventing.Reader.EventLogReader(new System.Diagnostics.Eventing.Reader.EventLogQuery("System", System.Diagnostics.Eventing.Reader.PathType.LogName, q)))
+                {
+                    System.Diagnostics.Eventing.Reader.EventRecord e;
+                    while ((e = r.ReadEvent()) != null)
+                        using (e)
+                        {
+                            if (e.TimeCreated == null) continue;
+                            var at = e.TimeCreated.Value;
+                            if (e.Id == 41) res.Add(new Loss { Back = at });
+                            else if (e.Id == 6008 && e.Properties.Count >= 2)
+                            {
+                                // Hora y fecha en el formato de Windows, a veces con marcas de dirección de texto (U+200E).
+                                string txt = (Convert.ToString(e.Properties[1].Value) + " " + Convert.ToString(e.Properties[0].Value)).Replace("\u200e", "").Replace("\u200f", "").Trim();
+                                DateTime d;
+                                if (DateTime.TryParse(txt, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out d) && d <= at)
+                                    downs.Add(new KeyValuePair<DateTime, DateTime>(at, d));
+                            }
+                        }
+                }
+                foreach (var l in res)
+                {
+                    var m = downs.Where(x => Math.Abs((x.Key - l.Back).TotalMinutes) < 10).Select(x => x.Value).FirstOrDefault();
+                    if (m != default(DateTime)) l.Down = m;
+                }
+            }
+            catch (Exception e) { Log.W("Apagones: no puedo leer el registro de Windows: {0}", e.Message); }
+            return res.OrderBy(x => x.Back).ToList();
+        }
+
+        static string When(DateTime d) { return d.ToString("dd/MM 'a las' HH:mm", CultureInfo.GetCultureInfo("es-ES")); }
+
+        public static string Describe(Loss l)
+        {
+            return l.Down != DateTime.MinValue
+                ? "se apagó de golpe el " + When(l.Down) + " y volvió a encenderse el " + When(l.Back) + " (" + Gap(l.Back - l.Down) + " apagado)"
+                : "se apagó de golpe y volvió a encenderse el " + When(l.Back);
+        }
+
+        static string Gap(TimeSpan t)
+        {
+            if (t.TotalMinutes < 60) return Math.Max(1, (int)t.TotalMinutes) + " min";
+            return (int)t.TotalHours + " h " + t.Minutes.ToString("00") + " min";
+        }
+
+        // El aviso de Discord de los apagones nuevos (o null). La primera vez solo apunta lo que ya había.
+        public static string NewAlert()
+        {
+            var s = Settings.Current;
+            var all = Recent(7);
+            if (all.Count == 0) return null;
+            var last = all[all.Count - 1].Back;
+            DateTime seen;
+            bool known = DateTime.TryParse(s.PowerLossSeen ?? "", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out seen);
+            if (known && last <= seen) return null;
+            s.PowerLossSeen = last.ToString("o", CultureInfo.InvariantCulture);
+            Settings.Save();
+            if (!known) return null;
+            var news = all.Where(x => x.Back > seen).ToList();
+            var l = news[news.Count - 1];
+            return "⚡ **El PC del server " + Describe(l) + ".** Suele ser un corte de luz o un cuelgue." +
+                (news.Count > 1 ? " Ya van " + news.Count + " desde el último aviso." : "") +
+                (s.AutoStartServer ? " El server ha vuelto a arrancar solo." : " El server no vuelve solo: marca «Arrancar con Windows» en la pestaña Servidor del launcher.");
+        }
+
+        public static Health.Item Check()
+        {
+            var l = Recent(30);
+            const string key = "apagones", name = "Apagones de golpe";
+            if (l.Count == 0) return new Health.Item { Key = key, Name = name, State = "ok", Detail = "Ninguno en los últimos 30 días." };
+            return new Health.Item
+            {
+                Key = key, Name = name, State = "aviso",
+                Detail = (l.Count == 1 ? "1 en los últimos 30 días" : l.Count + " en los últimos 30 días") + ": el último " + Describe(l[l.Count - 1]) + "." +
+                    (l.Count >= 2 ? " Si son cortes de luz, un SAI (una batería para el PC) lo evita." : ""),
+            };
         }
     }
 

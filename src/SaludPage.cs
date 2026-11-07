@@ -122,6 +122,7 @@ namespace Majinheim
             {
                 var items = Health.Check(runner, latest, Modpack.Load());
                 foreach (var a in Health.Alerts(items)) Discord.Send(a);
+                try { var p = PowerWatch.NewAlert(); if (p != null) Discord.Send(p); } catch (Exception e) { Log.W("Apagones: {0}", e.Message); }
                 return items;
             }).ContinueWith(t =>
             {

@@ -227,6 +227,7 @@ namespace Majinheim
         public string VerifiedBuild { get; set; }      // versión de Valheim con la que el server arrancó bien en la última prueba
         public List<string> SkippedUpdates { get; set; } // "Autor-Mod@versión" que fallaron la prueba: no se reintentan solas
         public List<string> ModNotices { get; set; }   // mods obsoletos o abandonados de los que ya se avisó
+        public string PowerLossSeen { get; set; } // último apagón de golpe del que ya se avisó (2.6)
         public List<string> HealthAlerts { get; set; } // revisiones de salud en rojo de las que ya se avisó en Discord
         public string BackupCheckAt { get; set; }      // última comprobación de backups (se abren y se leen enteros)
         public bool BackupCheckOk { get; set; }
