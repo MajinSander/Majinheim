@@ -21,7 +21,7 @@ namespace Majinheim
 
     public static class WorldMod
     {
-        public const string Version = "1.3.0";
+        public const string Version = "1.3.1";
         const string Folder = "Majinheim-Mundo", DllName = "MajinheimMundo.dll", SourceName = "MajinheimMundo.cs";
         static readonly object lk = new object();
 
@@ -116,6 +116,7 @@ namespace Majinheim
             rsp.AppendLine("/out:\"" + output + "\"");
             foreach (var r in refs) rsp.AppendLine("/r:\"" + r + "\"");
             rsp.AppendLine("/r:\"" + bep + "\"");
+            rsp.AppendLine("/r:\"" + Path.Combine(Path.GetDirectoryName(bep), "0Harmony.dll") + "\"");   // viene con BepInEx: para escuchar el chat
             rsp.AppendLine("\"" + cs + "\"");
             string rspFile = Path.Combine(BuildDir, "compilar.rsp");
             File.WriteAllText(rspFile, rsp.ToString(), new UTF8Encoding(false));

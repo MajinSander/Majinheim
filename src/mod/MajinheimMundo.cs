@@ -15,11 +15,12 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using BepInEx;
+using HarmonyLib;
 using UnityEngine;
 
 namespace MajinheimMundo
 {
-    [BepInPlugin("majinheim.mundo", "Majinheim Mundo", "1.3.0")]
+    [BepInPlugin("majinheim.mundo", "Majinheim Mundo", "1.3.1")]
     public class Plugin : BaseUnityPlugin
     {
         const float WorldEvery = 300f;         // segundos entre vistazos al mundo
@@ -167,7 +168,7 @@ namespace MajinheimMundo
                 {
                     if (fx == null) { fx = v.GetType().GetField("x"); fy = v.GetType().GetField("y"); }
                     if (fx == null || fy == null) break;
-                    zones.Add((int)fx.GetValue(v)); zones.Add((int)fy.GetValue(v));
+                    zones.Add(Convert.ToInt32(fx.GetValue(v))); zones.Add(Convert.ToInt32(fy.GetValue(v)));   // en el juego son short
                 }
             }
             catch (Exception e) { Logger.LogWarning("Majinheim Mundo: no puedo leer las zonas: " + e.Message); mapBroken = true; mapBusy = false; yield break; }
@@ -218,65 +219,64 @@ namespace MajinheimMundo
         }
 
         // ------------------------------------------------------------ chat de la partida: preguntas a MajinBot (!majin)
-        // El server recibe todo lo que se escribe en el chat (va dirigido a todos). Solo se apuntan los mensajes que empiezan
-        // por "!majin": el resto del chat no se guarda. El launcher los lee, pregunta a la IA y contesta en el chat por RCON.
-        // Los tipos del mensaje cambian entre versiones de Valheim: se sacan de Chat.RPC_ChatMessage para no depender de ellos.
+        // El chat normal viaja como "Say", dirigido al jugador que habla, y gritar (/s) como "ChatMessage". El server los reparte sin
+        // mostrarlos, y el "Say" ni siquiera llega a Chat en un server sin pantalla: por eso se mira en el punto por donde pasan todos,
+        // sin tocarlos. Solo se apuntan los mensajes que empiezan por "!majin": el resto del chat no se guarda. El launcher los lee,
+        // pregunta a la IA y contesta en el chat por RCON.
 
         bool chatHooked;
+        static Plugin self;
+        static FieldInfo rpcMethod, rpcParams;
+        static int saidHash, shoutHash;
 
         void HookChat()
         {
             chatHooked = true;
             try
             {
-                if (ZRoutedRpc.instance == null) { chatHooked = false; return; }
-                var target = typeof(Chat).GetMethod("RPC_ChatMessage", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (target == null) { Logger.LogWarning("Majinheim Mundo: no encuentro el chat de esta versión de Valheim; !majin no funcionará."); return; }
-                var ps = target.GetParameters();
-                if (ps.Length < 2 || ps[0].ParameterType != typeof(long) || ps.Length - 1 > 4) { Logger.LogWarning("Majinheim Mundo: el chat de esta versión es distinto; !majin no funcionará."); return; }
-                var types = new Type[ps.Length - 1];
-                for (int i = 1; i < ps.Length; i++) types[i - 1] = ps[i].ParameterType;
-                var fns = typeof(ZRoutedRpc).GetField("m_functions", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                var dict = fns != null ? fns.GetValue(ZRoutedRpc.instance) as IDictionary : null;
-                if (dict != null && dict.Contains(Hash("ChatMessage"))) { Logger.LogWarning("Majinheim Mundo: otro mod ya escucha el chat; !majin no funcionará."); return; }
-                MethodInfo handler = null, register = null;
-                foreach (var m in typeof(Plugin).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic))
-                    if (m.Name == "OnChat" && m.GetGenericArguments().Length == types.Length) handler = m.MakeGenericMethod(types);
-                foreach (var m in typeof(ZRoutedRpc).GetMethods(BindingFlags.Instance | BindingFlags.Public))
-                    if (m.Name == "Register" && m.IsGenericMethodDefinition && m.GetGenericArguments().Length == types.Length) register = m.MakeGenericMethod(types);
-                if (handler == null || register == null) { Logger.LogWarning("Majinheim Mundo: no puedo escuchar el chat; !majin no funcionará."); return; }
-                var actionType = register.GetParameters()[1].ParameterType;
-                register.Invoke(ZRoutedRpc.instance, new object[] { "ChatMessage", Delegate.CreateDelegate(actionType, this, handler) });
+                var target = typeof(ZRoutedRpc).GetMethod("HandleRoutedRPC", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                var ps = target != null ? target.GetParameters() : null;
+                if (ps != null && ps.Length == 1)
+                {
+                    rpcMethod = ps[0].ParameterType.GetField("m_methodHash");
+                    rpcParams = ps[0].ParameterType.GetField("m_parameters");
+                }
+                if (rpcMethod == null || rpcParams == null) { Logger.LogWarning("Majinheim Mundo: no encuentro por dónde pasan los mensajes en esta versión de Valheim; !majin no funcionará."); return; }
+                self = this; saidHash = Hash("Say"); shoutHash = Hash("ChatMessage");
+                new Harmony("majinheim.mundo").Patch(target, new HarmonyMethod(typeof(Plugin).GetMethod("BeforeRpc", BindingFlags.Static | BindingFlags.NonPublic)));
                 Logger.LogInfo("Majinheim Mundo: escuchando !majin en el chat de la partida.");
             }
             catch (Exception e) { Logger.LogWarning("Majinheim Mundo: no puedo escuchar el chat: " + e.Message); }
         }
 
-        void OnChat<A>(long sender, A a) { OnChatLine(new object[] { a }); }
-        void OnChat<A, B>(long sender, A a, B b) { OnChatLine(new object[] { a, b }); }
-        void OnChat<A, B, C>(long sender, A a, B b, C c) { OnChatLine(new object[] { a, b, c }); }
-        void OnChat<A, B, C, D>(long sender, A a, B b, C c, D d) { OnChatLine(new object[] { a, b, c, d }); }
-
-        void OnChatLine(object[] args)
+        // Se mira y se deja como estaba: el mensaje sigue su camino igual, y un mensaje raro nunca debe estorbar al server.
+        static void BeforeRpc(object __0)
         {
             try
             {
-                // El texto es el último string; el nombre, el primer string antes de él o el campo Name de UserInfo.
-                int ti = -1;
-                for (int i = args.Length - 1; i >= 0; i--) if (args[i] is string) { ti = i; break; }
-                if (ti < 0) return;
-                string text = ((string)args[ti]).Trim();
-                if (!text.StartsWith("!majin", StringComparison.OrdinalIgnoreCase)) return;
-                string name = null;
-                for (int i = 0; i < ti && name == null; i++)
+                int method = (int)rpcMethod.GetValue(__0);
+                if (method != saidHash && method != shoutHash) return;
+                var p = rpcParams.GetValue(__0) as ZPackage;
+                if (p == null) return;
+                int pos = p.GetPos();
+                try
                 {
-                    if (args[i] is string) name = (string)args[i];
-                    else if (args[i] != null && !(args[i] is int) && !(args[i] is Vector3))
-                    {
-                        var f = args[i].GetType().GetField("Name") ?? args[i].GetType().GetField("m_name");
-                        if (f != null) name = f.GetValue(args[i]) as string;
-                    }
+                    if (method == shoutHash) p.ReadVector3();       // desde dónde se ha gritado
+                    p.ReadInt();                                    // tipo de mensaje
+                    string name = p.ReadString(); p.ReadString();   // quién habla: nombre e identificador
+                    self.OnChatLine(name, p.ReadString());
                 }
+                finally { p.SetPos(pos); }
+            }
+            catch { }
+        }
+
+        void OnChatLine(string name, string text)
+        {
+            try
+            {
+                text = (text ?? "").Trim();
+                if (!text.StartsWith("!majin", StringComparison.OrdinalIgnoreCase)) return;
                 string file = Path.Combine(outDir, "chat.jsonl");
                 if (File.Exists(file) && new FileInfo(file).Length > 256 * 1024) File.Delete(file);
                 string line = "{\"t\":" + DateTimeOffset.UtcNow.ToUnixTimeSeconds() + ",\"nombre\":" + Q(name ?? "?") + ",\"texto\":" + Q(text.Length > 300 ? text.Substring(0, 300) : text) + "}\n";
@@ -496,7 +496,8 @@ namespace MajinheimMundo
 
             var chests = new StringBuilder(1 << 18); var drawers = new StringBuilder(1 << 16); var tombs = new StringBuilder(1 << 12);
             var signs = new StringBuilder(1 << 14); var portals = new StringBuilder(1 << 12);
-            int nChests = 0, nDrawers = 0, nTombs = 0, nSigns = 0, nPortals = 0, nBad = 0;
+            int nChests = 0, nDrawers = 0, nDrawersAll = 0, nTombs = 0, nSigns = 0, nPortals = 0, nBad = 0;
+            unknownInventory = 0;
             string firstBad = null;
             var used = new HashSet<string>();
             for (int i = 0; i < zdos.Count; i++)
@@ -522,8 +523,10 @@ namespace MajinheimMundo
                         if (tomb)
                         {
                             sb.Append(",\"jugador\":").Append(Q(z.GetString("ownerName", "")));
+                            // El juego apunta la hora del mundo, que solo corre con el server encendido: de ahí sale una fecha aproximada.
                             long death = z.GetLong("timeOfDeath", 0L);
-                            if (death > 0) sb.Append(",\"muerte\":").Append(Q(new DateTime(death).ToString("yyyy-MM-ddTHH:mm:ss", Inv)));
+                            var ago = death > 0 && ZNet.instance != null ? ZNet.instance.GetTime() - new DateTime(death) : TimeSpan.Zero;
+                            if (ago > TimeSpan.Zero) sb.Append(",\"muerte\":").Append(Q((DateTime.Now - ago).ToString("yyyy-MM-ddTHH:mm:ss", Inv)));
                         }
                         sb.Append(",\"objetos\":[");
                         for (int k = 0; k < list.Count; k++)
@@ -538,6 +541,7 @@ namespace MajinheimMundo
                     }
                     else if (drawerHashes.Contains(h))
                     {
+                        nDrawersAll++;
                         string item = z.GetString("Prefab", "");
                         int amount = z.GetInt("Amount", 0);
                         if (item.Length == 0 || amount <= 0) continue;
@@ -578,21 +582,57 @@ namespace MajinheimMundo
             all.Append("}}");
             Save("mundo.json", all.ToString());
             if (nBad > 0) Logger.LogWarning("Majinheim Mundo: " + nBad + " objetos no se han podido leer (el primero, " + firstBad + ").");
-            Logger.LogInfo(string.Format(Inv, "Majinheim Mundo: {0} cofres, {1} cajones, {2} tumbas, {3} carteles y {4} portales ({5:0.0} s, {6} objetos del mundo).",
-                nChests, nDrawers, nTombs, nSigns, nPortals, Time.realtimeSinceStartup - t0, zdos.Count));
+            if (unknownInventory != 0) Logger.LogWarning("Majinheim Mundo: hay cofres guardados en un formato que no conozco (versión " + unknownInventory + "): hay que actualizar el mod.");
+            Logger.LogInfo(string.Format(Inv, "Majinheim Mundo: {0} cofres con algo, {1} cajones con algo (de {2}), {3} tumbas, {4} carteles y {5} portales ({6:0.0} s, {7} objetos del mundo).",
+                nChests, nDrawers, nDrawersAll, nTombs, nSigns, nPortals, Time.realtimeSinceStartup - t0, zdos.Count));
             busy = false;
         }
 
         struct Item { public string Id; public int Stack, Quality; }
 
-        // Lo que hay dentro de un cofre, tal como lo guarda Valheim (Inventory.Save), sin crear nada en el mundo.
-        static List<Item> ReadItems(string b64)
+        // Lo que hay dentro de un cofre, tal como lo guarda Valheim (Inventory.Save), sin crear nada en el mundo. Es a mano porque
+        // Inventory.Load crea cada objeto, y eso frenaría el server. Desde la versión 108 cada objeto va compacto y se identifica por
+        // el hash de su prefab; los cofres que nadie ha abierto desde entonces siguen en el formato antiguo, con el nombre.
+        const int NewestInventory = 110;
+        int unknownInventory;
+
+        List<Item> ReadItems(string b64)
         {
             var res = new List<Item>();
             if (string.IsNullOrEmpty(b64)) return res;
             var p = new ZPackage(b64);
-            int ver = p.ReadInt(), count = p.ReadInt();
-            if (ver < 100 || ver > 106 || count < 0 || count > 1000) return res;   // formato que no conozco: mejor no inventar
+            int ver = p.ReadInt();
+            if (ver < 100 || ver > NewestInventory) { unknownInventory = ver; return res; }   // formato que no conozco: mejor no inventar
+            if (ver >= 108) ReadCompact(p, ver, res); else ReadOld(p, ver, res);
+            return res;
+        }
+
+        // Como ItemDrop.ItemData.Save: durabilidad, posición y nivel del mundo; un byte de banderas dice qué más viene.
+        void ReadCompact(ZPackage p, int ver, List<Item> res)
+        {
+            int count = p.ReadUShort();
+            for (int i = 0; i < count; i++)
+            {
+                p.ReadInt();                                        // durabilidad
+                p.ReadByte(); p.ReadByte(); p.ReadByte();           // posición en el cofre y nivel del mundo
+                int flags = p.ReadByte();
+                var it = new Item { Quality = 1, Stack = 1 };
+                if ((flags & 4) != 0) it.Quality = p.ReadUShort();
+                if ((flags & 8) != 0) it.Stack = p.ReadUShort();
+                if ((flags & 16) != 0) p.ReadInt();                 // variante
+                if ((flags & 32) != 0) { p.ReadLong(); p.ReadString(); }   // quién lo fabricó
+                int prefab = (flags & 64) != 0 ? p.ReadInt() : 0;
+                int extra = (flags & 128) != 0 ? p.ReadNumItems() : 0;
+                for (int k = 0; k < extra; k++) { p.ReadString(); p.ReadString(); }
+                if (ver >= 109) p.ReadByte();                       // otras banderas
+                if (prefab != 0 && prefabNames.TryGetValue(prefab, out it.Id) && it.Stack > 0) res.Add(it);
+            }
+        }
+
+        static void ReadOld(ZPackage p, int ver, List<Item> res)
+        {
+            int count = p.ReadInt();
+            if (count < 0 || count > 1000) return;
             for (int i = 0; i < count; i++)
             {
                 var it = new Item();
@@ -607,9 +647,9 @@ namespace MajinheimMundo
                 if (ver >= 104) { int n = p.ReadInt(); for (int k = 0; k < n; k++) { p.ReadString(); p.ReadString(); } }
                 if (ver >= 105) p.ReadInt();    // nivel del mundo
                 if (ver >= 106) p.ReadBool();   // recogido
+                if (ver == 107) p.ReadBool();   // otra bandera
                 if (!string.IsNullOrEmpty(it.Id) && it.Stack > 0) res.Add(it);
             }
-            return res;
         }
 
         static StringBuilder Pos(StringBuilder sb, ZDO z)

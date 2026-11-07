@@ -928,7 +928,7 @@ namespace Majinheim
                     { "desde", run ? Iso(procStart) : null },
                     { "version", version },
                     { "actualizacionPendiente", Steam.Server() != null && Steam.Server().UpdatePending },
-                    { "ultimoGuardado", lastSave.HasValue ? Iso(lastSave.Value) : null },
+                    { "ultimoGuardado", lastSave.HasValue ? Iso(lastSave.Value) : dayStamp != default(DateTime) ? Iso(dayStamp.ToLocalTime()) : null },   // sin guardados aún en esta sesión: la fecha del archivo del mundo
                     { "dia", worldDay },
                     { "cpu", cpu },
                     { "ramMb", ramMb },
