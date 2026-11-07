@@ -1,0 +1,184 @@
+{
+  "secciones": [
+    {
+      "titulo": "Empezar a jugar",
+      "preguntas": [
+        {
+          "p": "¿Cómo empiezo a jugar en el server?",
+          "pasos": true,
+          "r": [
+            "Descarga Majinheim.exe de la página de descargas: https://github.com/MajinSander/Majinheim/releases/latest",
+            "Guárdalo en una carpeta propia y corta, por ejemplo C:\\Majinheim, y ábrelo.",
+            "Pulsa JUGAR. La primera vez tarda unos minutos: se baja los mods, los deja listos y entra al server.",
+            "Cuando el juego te la pida, escribe la contraseña del server (te la da Majin)."
+          ],
+          "claves": "instalar descargar empezar launcher primera vez como juego entrar install download start"
+        },
+        {
+          "p": "Windows dice que el programa puede ser peligroso (SmartScreen)",
+          "r": [
+            "Pulsa «Más información» y luego «Ejecutar de todas formas». Sale porque el launcher es un programa pequeño hecho para el grupo y no está firmado con un certificado de pago; los que lo usamos lo bajamos del mismo sitio."
+          ],
+          "claves": "smartscreen windows protegio tu pc peligroso antivirus defender bloquea virus aviso seguridad"
+        },
+        {
+          "p": "¿Cuál es la contraseña del server?",
+          "r": [
+            "Te la da Majin por privado. No se pone en la web ni en el Discord, para que solo entremos nosotros."
+          ],
+          "claves": "contraseña clave password pass server entrar"
+        },
+        {
+          "p": "¿Tengo que hacer algo con mis personajes?",
+          "r": [
+            "No: son los de siempre, se guardan en tu PC y el launcher no los toca. Un consejo: usa un personaje solo para este server. Si entras sin mods con un personaje que lleva cosas de los mods, el juego puede quitárselas."
+          ],
+          "claves": "personaje personajes perder objetos inventario guardar partida character"
+        },
+        {
+          "p": "No encuentra Valheim",
+          "r": [
+            "En el launcher, Ajustes → «Buscar en Steam». Si sigue sin encontrarlo, pulsa «Elegir...» y busca la carpeta donde está valheim.exe (suele ser Steam\\steamapps\\common\\Valheim). Luego «Guardar»."
+          ],
+          "claves": "encuentro encuentra valheim carpeta steam instalado juego exe ruta"
+        }
+      ]
+    },
+    {
+      "titulo": "Problemas para entrar",
+      "preguntas": [
+        {
+          "p": "Dice «Versión incompatible»",
+          "r": [
+            "Tu Valheim y el del server no tienen la misma versión. Abre Steam y deja que actualice Valheim (si no lo hace, cierra Steam del todo y vuelve a abrirlo). Si tu Valheim ya estaba al día, el que va por detrás es el server: avisa a Majin."
+          ],
+          "claves": "version incompatible incompatibilidad actualizar steam errorversion mismatch versiones distinta"
+        },
+        {
+          "p": "Dice «Contraseña incorrecta»",
+          "r": [
+            "Escríbela tal cual te la dio Majin: las mayúsculas y los espacios cuentan. Si no la tienes o no te funciona, pídesela otra vez."
+          ],
+          "claves": "contraseña incorrecta password wrong errorpassword clave mal"
+        },
+        {
+          "p": "No conecta o se queda en «Conectando»",
+          "pasos": true,
+          "r": [
+            "Mira arriba en el launcher si el server está encendido.",
+            "Si está apagado: si el server bajo demanda está activado, escribe /encender en el Discord; si no, avisa a Majin.",
+            "Si está encendido: cierra Valheim y Steam del todo y vuelve a entrar con JUGAR.",
+            "Si sigue igual, reinicia el router y prueba otra vez. Y si nada, pulsa «Tengo un problema» en el launcher."
+          ],
+          "claves": "conecta conectar conectando conexion entra entrar carga cargando apagado errorconnectfailed timeout no puedo"
+        },
+        {
+          "p": "Me echa al entrar o dice que me faltan mods",
+          "r": [
+            "Pulsa «Buscar actualizaciones» en el launcher y luego JUGAR. Si sigue, en Ajustes → «Reinstalar mods» (no borra tus personajes ni nada del juego)."
+          ],
+          "claves": "mods faltan mod falta echa expulsa desconecta kick version mod reinstalar actualizar incompatible"
+        },
+        {
+          "p": "Abrí Valheim desde Steam y no tengo los mods",
+          "r": [
+            "Es lo normal: desde Steam, Valheim se abre sin mods, a propósito, para que puedas jugar a otros mundos sin tocar nada. Para jugar en el server, ábrelo siempre con el botón JUGAR del launcher."
+          ],
+          "claves": "steam sin mods no salen mods no cargan normal abrir vanilla"
+        }
+      ]
+    },
+    {
+      "titulo": "Mientras juegas",
+      "preguntas": [
+        {
+          "p": "Valheim se cierra solo o va a tirones",
+          "r": [
+            "Cierra los programas que gastan mucha memoria (sobre todo el navegador). Con mods, Valheim pide 8 GB de RAM o más. Si se cierra siempre en el mismo sitio, pulsa «Tengo un problema» en el launcher: a Majin le llegan los registros."
+          ],
+          "claves": "cierra crash crashea cuelga tirones lag lento fps memoria ram se va pantalla negra rendimiento"
+        },
+        {
+          "p": "¿Cómo cambio los ajustes de los mods?",
+          "r": [
+            "Dentro del juego, la tecla F1 abre el menú de ajustes de los mods."
+          ],
+          "claves": "ajustes mods configurar configuracion f1 menu opciones teclas"
+        },
+        {
+          "p": "Quiero jugar sin mods",
+          "r": [
+            "Usa el botón «Jugar sin mods» del launcher, o abre Valheim desde Steam como siempre. El server lleva mods, así que sin ellos no se puede entrar."
+          ],
+          "claves": "sin mods vanilla normal jugar solo otro mundo"
+        }
+      ]
+    },
+    {
+      "titulo": "El grupo",
+      "preguntas": [
+        {
+          "p": "¿Cómo veo si el server está encendido y quién juega?",
+          "r": [
+            "En el launcher, arriba (junto a JUGAR); en esta web, en la página de estado; o en el Discord con /estado."
+          ],
+          "claves": "encendido apagado quien juega jugando estado online conectados"
+        },
+        {
+          "p": "El server está apagado, ¿lo puedo encender?",
+          "r": [
+            "Si Majin ha activado el server bajo demanda, sí: escribe /encender en el Discord y en un par de minutos está listo; se apaga solo cuando lleva un rato vacío. Si no está activado, avisa a Majin."
+          ],
+          "claves": "encender apagado arrancar encenderlo bajo demanda server off"
+        },
+        {
+          "p": "¿Cómo quedamos para jugar?",
+          "r": [
+            "En el Discord: /quedada con el día y la hora, por ejemplo /quedada viernes 22:00 (puedes añadir un plan). El bot apunta quién va con botones, avisa 15 minutos antes y enciende el server si hace falta. /quedadas enseña las próximas."
+          ],
+          "claves": "quedar quedada quedadas jugar juntos hora dia evento avisar"
+        },
+        {
+          "p": "¿Qué le puedo preguntar a MajinBot?",
+          "r": [
+            "Menciónalo con @ en el Discord y pregúntale como a uno más: quién jugó ayer, cuántas horas llevas, qué jefe nos falta, dónde está guardado el hierro, cómo se fabrica algo con los mods del server o dónde está tu tumba."
+          ],
+          "claves": "bot majinbot ia asistente preguntar discord inteligencia artificial"
+        },
+        {
+          "p": "¿Puedo preguntarle a MajinBot sin salir del juego?",
+          "r": [
+            "Sí: abre el chat de la partida (Intro) y escribe !majin seguido de tu pregunta, por ejemplo «!majin ¿dónde está el hierro?». Contesta en el mismo chat, en una o dos frases, y lo ven todos los que estén jugando. Tarda unos segundos; si la respuesta es larga, pregúntale lo mismo en Discord."
+          ],
+          "claves": "chat juego partida dentro !majin preguntar bot sin salir"
+        },
+        {
+          "p": "¿Cómo veo mis horas, mis logros o los de un amigo?",
+          "r": [
+            "En la web, pulsa el nombre del vikingo (en el estado o en las estadísticas) y sale su página: horas, logros, con quién juega más y sus últimas partidas. En Discord, escribe /vikingo y su nombre."
+          ],
+          "claves": "horas logros perfil pagina vikingo jugador /vikingo estadisticas amigo"
+        },
+        {
+          "p": "¿Dónde veo el mapa y las estadísticas?",
+          "r": [
+            "En esta web: el mapa del mundo (lo que habéis explorado) y las estadísticas de cada vikingo. Desde el launcher, el botón «Web del server»."
+          ],
+          "claves": "mapa estadisticas horas web explorado"
+        }
+      ]
+    },
+    {
+      "titulo": "Si nada de esto lo arregla",
+      "preguntas": [
+        {
+          "p": "Tengo un problema que no sale aquí",
+          "r": [
+            "Pulsa «Tengo un problema» en el launcher y cuenta qué pasa. El launcher junta los registros del juego y de los mods, sin tus datos personales (ni tu usuario de Windows, ni IPs, ni IDs de Steam), se los manda a Majin y te da un primer diagnóstico. Antes de mandarlo puedes ver exactamente qué se manda. Solo lo ve Majin."
+          ],
+          "claves": "problema ayuda error raro otro no funciona soporte informe tengo un problema"
+        }
+      ]
+    }
+  ]
+}

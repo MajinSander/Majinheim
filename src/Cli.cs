@@ -1,5 +1,6 @@
 ﻿// MajinheimCli.exe: misma logica que la edicion Server, por linea de comandos (diagnostico y pruebas).
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -67,7 +68,7 @@ namespace Majinheim
                         Backup.Create("manual", Backup.FullItems(), false);
                         return 0;
                     case "usuarios":
-                        foreach (var u in WebAdmin.List()) Console.WriteLine("{0,-20} {1}", u.Name, u.Role);
+                        foreach (var u in WebAdmin.List()) Console.WriteLine("{0,-20} {1}{2}", u.Name, u.Role, WebAdmin.HasTotp(u) ? " (con verificación en dos pasos)" : "");
                         Console.WriteLine("{0} sesiones abiertas", WebAdmin.SessionCount());
                         return 0;
                     case "usuario":
@@ -78,6 +79,16 @@ namespace Majinheim
                             string pw = Console.In.ReadLine();
                             string err = WebAdmin.SetUser(args[1], args[2], string.IsNullOrEmpty(pw) ? null : pw);
                             Console.WriteLine(err ?? "Cuenta guardada: " + args[1].Trim() + " (" + args[2] + ")");
+                            return err == null ? 0 : 1;
+                        }
+                    case "quitar-2fa":
+                        {
+                            // Si se pierde el móvil con la app de los códigos (2.5).
+                            if (args.Length < 2) { Console.WriteLine("Uso: MajinheimCli quitar-2fa <nombre>"); return 1; }
+                            if (LauncherOpen()) return 1;
+                            string err = WebAdmin.RemoveTotp(args[1]);
+                            Console.WriteLine(err ?? "Verificación en dos pasos quitada: ya entra solo con la contraseña.");
+                            Discord.Flush(10000);
                             return err == null ? 0 : 1;
                         }
                     case "borrar-usuario":
@@ -99,8 +110,128 @@ namespace Majinheim
                             if (c.Installed.Count > 0) Console.WriteLine("Modelos descargados: " + string.Join(", ", c.Installed));
                             return c.Up && c.HasModel ? 0 : 1;
                         }
+                    case "salud":
+                        {
+                            var pk = Modpack.Load();
+                            var latest = new Dictionary<string, PkgInfo>(StringComparer.OrdinalIgnoreCase);
+                            Console.WriteLine("Mirando Thunderstore...");
+                            ModWatch.Refresh(pk, latest);
+                            var items = Health.Check(null, latest, pk);
+                            foreach (var i in items) Console.WriteLine("{0} {1,-30} {2}", Health.Dot(i.State), i.Name, i.Detail);
+                            Console.WriteLine(Health.Summary(items));
+                            return items.Any(i => i.State == "mal") ? 1 : 0;
+                        }
+                    case "comprobar-backups":
+                        {
+                            var r = BackupCheck.Run(!LauncherRunning());
+                            Console.WriteLine(r.Text);
+                            return r.Ok ? 0 : 1;
+                        }
+                    case "errores":
+                        {
+                            // Errores del último arranque (BepInEx\LogOutput.log) que no salían cuando el server funcionaba bien.
+                            var known = LogCheck.Known();
+                            var lines = new List<string>();
+                            if (File.Exists(LogCheck.LogFile))
+                                using (var fs = new FileStream(LogCheck.LogFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                                using (var sr = new StreamReader(fs)) lines.AddRange(sr.ReadToEnd().Split('\n'));
+                            var seen = new HashSet<string>();
+                            int nKnown = 0, nNew = 0;
+                            foreach (var l in lines)
+                            {
+                                string sig = LogCheck.Signature(l);
+                                if (sig == null || !seen.Add(sig)) continue;
+                                if (known.Contains(sig)) { nKnown++; continue; }
+                                nNew++;
+                                string t = l.Trim();
+                                Console.WriteLine("NUEVO " + (LogCheck.FromLoader(t) ? "(cargador de mods) " : "") + (t.Length > 300 ? t.Substring(0, 300) : t));
+                            }
+                            Console.WriteLine("{0} errores distintos: {1} nuevos y {2} conocidos ({3} en la lista de conocidos).", nNew + nKnown, nNew, nKnown, known.Count);
+                            return 0;
+                        }
+                    case "actualizar":
+                        {
+                            // actualizar [reintentar]: el mantenimiento con prueba, con el server apagado y el launcher cerrado.
+                            if (LauncherOpen()) return 1;
+                            var r = new ServerRunner();
+                            if (r.TryAdopt()) { Console.WriteLine("El server está en marcha: desde la consola no sé si hay alguien jugando. Apágalo antes o usa el launcher (pestaña Salud)."); return 1; }
+                            var o = new Maintenance.Options { Who = "consola", Manual = true, RetrySkipped = args.Length > 1 && args[1].ToLowerInvariant() == "reintentar" };
+                            var rep = Maintenance.Run(o, new Maintenance.Context { Runner = r, Status = Console.WriteLine });
+                            Console.WriteLine(rep.Text);
+                            foreach (var d in rep.Details) Console.WriteLine("  " + d);
+                            Discord.Flush(15000);
+                            return rep.Level == "mal" ? 1 : 0;
+                        }
+                    case "mundo":
+                        {
+                            // mundo: prepara el mod Majinheim Mundo (con el server apagado) y dice qué sabe la IA del mundo.
+                            if (System.Diagnostics.Process.GetProcessesByName("valheim_server").Length == 0)
+                            {
+                                Console.WriteLine("Preparando el mod Majinheim Mundo...");
+                                WorldMod.EnsureFresh();
+                                Console.WriteLine(WorldMod.LastError == null ? (WorldMod.Installed ? "Mod listo en el perfil del server." : "Mod desactivado (WorldExport).") : "No se ha podido preparar: " + WorldMod.LastError);
+                                if (WorldMod.LastError != null && File.Exists(WorldMod.ErrorLog)) Console.WriteLine(File.ReadAllText(WorldMod.ErrorLog));
+                            }
+                            else Console.WriteLine("El server está en marcha: el mod " + (WorldMod.Installed ? "está instalado." : "NO está instalado (se prepara al arrancar el server)."));
+                            var ps = System.Diagnostics.Process.GetProcessesByName("valheim_server");
+                            var it = WorldData.Check(ps.Length > 0, ps.Length > 0 ? ps[0].StartTime : DateTime.MinValue);
+                            Console.WriteLine("{0} {1}", Health.Dot(it.State), it.Detail);
+                            return WorldMod.LastError == null ? 0 : 1;
+                        }
+                    case "buscar":
+                    case "receta":
+                    case "tumbas":
+                        {
+                            // Lo mismo que consulta la IA, para probarlo sin Discord: buscar <objeto> | receta <objeto> | tumbas [jugador]
+                            string q = string.Join(" ", args.Skip(1)).Trim();
+                            if (q == "" && cmd != "tumbas") { Console.WriteLine("Uso: MajinheimCli " + cmd + " <objeto>"); return 1; }
+                            object res = cmd == "buscar" ? WorldData.FindItem(q) : cmd == "receta" ? WorldData.Craft(q) : WorldData.Tombs(q);
+                            Console.WriteLine(Json.Str(res));
+                            return 0;
+                        }
+                    case "resumen":
+                        {
+                            // resumen [enviar]: el resumen de la semana (los datos, sin IA y, si está activada, con IA). Con "enviar", al Discord.
+                            ServerWatch.LoadHistory();
+                            var w = Community.GetWeek(DateTime.Now);
+                            Console.WriteLine("--- Datos\n" + Community.Facts(w));
+                            Console.WriteLine("--- Sin IA\n" + Community.Plain(w));
+                            bool ai;
+                            string text = Community.WeeklyMessage(w, out ai);
+                            if (ai) Console.WriteLine("\n--- Con IA\n" + text);
+                            if (args.Length > 1 && args[1].ToLowerInvariant() == "enviar") { Discord.Send(text); Discord.Flush(15000); Console.WriteLine("\nEnviado a Discord."); }
+                            return 0;
+                        }
+                    case "cuando":
+                        {
+                            // cuando <texto>: cómo entiende /quedada una fecha ("viernes 22:00").
+                            DateTime when; string err;
+                            string q = string.Join(" ", args.Skip(1));
+                            Console.WriteLine(Community.ParseWhen(q, DateTime.Now, out when, out err) ? when.ToString("dddd d 'de' MMMM yyyy, HH:mm", new System.Globalization.CultureInfo("es-ES")) : "No lo entiendo: " + err);
+                            return 0;
+                        }
+                    case "problemas":
+                        {
+                            // problemas: los últimos "Tengo un problema" de los amigos. problemas <id>: uno entero.
+                            if (args.Length > 1)
+                            {
+                                var r = SupportDesk.Get(args[1]);
+                                Console.WriteLine(r == null ? "No existe: " + args[1] : Support.Plain(r));
+                                return r == null ? 1 : 0;
+                            }
+                            var l = SupportDesk.Recent(50);
+                            if (l.Count == 0) Console.WriteLine("No ha llegado ninguno.");
+                            foreach (var x in l) Console.WriteLine("{0}  {1}  {2}: {3}", x["id"], x["fecha"], x["nombre"], x["texto"]);
+                            return 0;
+                        }
+                    case "ayuda":
+                        {
+                            // ayuda <texto>: lo que encuentra la IA en la página de ayuda para eso.
+                            Console.WriteLine(Json.Str(Help.Tool(string.Join(" ", args.Skip(1)))));
+                            return 0;
+                        }
                     default:
-                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | ia [descargar]");
+                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | quitar-2fa <nombre> | ia [descargar] | salud | comprobar-backups | errores | actualizar [reintentar] | mundo | buscar <objeto> | receta <objeto> | tumbas [jugador] | resumen [enviar] | cuando <texto> | problemas [id] | ayuda <texto>");
                         return 1;
                 }
             }
@@ -111,10 +242,12 @@ namespace Majinheim
             }
         }
 
+        static bool LauncherRunning() { return System.Diagnostics.Process.GetProcessesByName("MajinheimServer").Length > 0; }
+
         // El launcher del server tiene los ajustes en memoria y al guardar pisaría lo que se cambie desde aquí.
         static bool LauncherOpen()
         {
-            if (System.Diagnostics.Process.GetProcessesByName("MajinheimServer").Length == 0) return false;
+            if (!LauncherRunning()) return false;
             Console.WriteLine("Cierra antes el launcher del server (MajinheimServer.exe): si no, al guardar sus ajustes pisaría este cambio.");
             return true;
         }

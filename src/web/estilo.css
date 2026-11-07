@@ -38,6 +38,9 @@ h2 { margin: 0 0 12px; font-size: 16px; color: var(--ambar); display: inline-fle
 .lista .quien { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .lista .cuanto { color: var(--tenue); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--verde); margin-right: 8px; }
+.punto.ambar { background: var(--ambar); }
+.punto.rojo { background: var(--rojo); }
+.punto.gris { background: var(--gris); }
 .datos { margin: 0; display: grid; gap: 8px; }
 .datos div { display: flex; justify-content: space-between; gap: 12px; }
 .datos dt { color: var(--tenue); }
@@ -64,7 +67,7 @@ button.boton:disabled { opacity: .4; cursor: default; filter: none; }
 .boton.peligro { background: var(--rojo); color: #1a1410; }
 .botonera { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .estrecha { max-width: 420px; width: 100%; margin: 24px auto; grid-column: 1 / -1; }
-.formulario { display: grid; gap: 10px; margin-top: 12px; }
+.formulario { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 12px; }
 .formulario input { background: var(--fondo); color: var(--texto); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; font: inherit; }
 .formulario input:focus { outline: 2px solid var(--ambar); outline-offset: 1px; }
 .error { color: var(--rojo); margin: 0; min-height: 1.5em; }
@@ -119,3 +122,70 @@ code { font: 12px ui-monospace, Consolas, monospace; background: rgba(255,255,25
 .jefes li.hecho { opacity: 1; border-color: var(--ambar); }
 .jefes .nombre { display: block; font-weight: 600; }
 .jefes .bioma, .jefes .fecha { display: block; font-size: 12px; color: var(--tenue); }
+/* 2.1.0: salud del server y mantenimientos */
+.lista.salud .quien { white-space: nowrap; }
+.resumen-salud { margin: -4px 0 8px; font-weight: 600; }
+.resumen-salud:empty { display: none; }
+.resumen-salud.verde { color: var(--verde); }
+.resumen-salud.ambar { color: var(--ambar); }
+.resumen-salud.rojo { color: var(--rojo); }
+.subtitulo { font-size: 15px; margin: 18px 0 6px; }
+.problema { border-top: 1px solid var(--borde); margin-top: 12px; padding-top: 4px; }
+.cita { margin: 4px 0 10px; padding: 8px 12px; border-left: 3px solid var(--ambar); background: rgba(255,255,255,.03); white-space: pre-wrap; }
+.registro-plegable { margin-top: 10px; }
+.registro-plegable summary { color: var(--tenue); font-size: 13px; }
+.registro-plegable summary::before { content: "▸ "; }
+.registro-plegable[open] summary::before { content: "▾ "; }
+.registro-plegable .registro { margin-top: 6px; white-space: pre-wrap; word-break: break-word; }
+.ayuda-buscar { margin: 0 0 4px; }
+.ayuda-pregunta { border-top: 1px solid var(--borde); padding: 10px 0; }
+.ayuda-pregunta:first-of-type { border-top: 0; }
+.ayuda-pregunta summary { font-weight: 600; }
+.ayuda-pregunta summary::before { content: "▸ "; color: var(--tenue); }
+.ayuda-pregunta[open] summary::before { content: "▾ "; }
+.ayuda-pregunta p { margin: 8px 0 0; }
+.ayuda-pregunta ol { margin: 8px 0 0; padding-left: 22px; }
+.ayuda-pregunta li { margin: 3px 0; }
+.contenidos { display: contents; }
+.problema .datos dt { white-space: nowrap; }
+/* 2.5.0: verificación en dos pasos, restaurar y ajustes de mods */
+.campo-codigo { display: grid; gap: 10px; }
+.campo { background: var(--fondo); color: var(--texto); border: 1px solid var(--borde); border-radius: 8px; padding: 9px 12px; font: inherit; min-width: 0; max-width: 100%; }
+.campo:focus, .formulario select:focus { outline: 2px solid var(--ambar); outline-offset: 1px; }
+.filtros { flex-wrap: wrap; }
+.filtros select { flex: 1 1 220px; }
+.filtros input { flex: 1 1 220px; }
+.qr { display: block; width: 200px; height: 200px; margin: 10px 0; border-radius: 8px; image-rendering: pixelated; }
+.clave-totp { font: 600 15px ui-monospace, Consolas, monospace; letter-spacing: 1px; }
+.pasos { margin: 8px 0; padding-left: 22px; }
+.pasos li { margin: 6px 0; }
+.lista.ajustes li { gap: 4px; }
+.lista.ajustes .cabeza { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.lista.ajustes .quien { overflow-wrap: anywhere; }
+.lista.ajustes .en-linea { align-items: center; margin-top: 4px; flex-wrap: wrap; }
+.lista.ajustes .campo { flex: 0 1 260px; }
+.lista.ajustes li.cambiado .quien { color: var(--ambar); }
+.lista.ajustes li.cambiado .campo { border-color: var(--ambar); }
+.antes { color: var(--tenue); font-size: 13px; }
+.cambios { margin: 6px 0 0; padding-left: 20px; }
+.cambios li { margin: 3px 0; overflow-wrap: anywhere; }
+.lista li .botones-fila .cuanto { align-self: center; }
+#backups li { align-items: center; }
+#backups .columna { display: flex; flex-direction: column; min-width: 0; }
+#backups .cuanto { white-space: normal; font-size: 13px; }
+#backups .boton { flex-shrink: 0; }
+.clave-totp .grupo { white-space: nowrap; }
+
+/* Mapa de "Buscar en el mundo" (2.6) */
+.mapa-busqueda { margin: 14px 0 0; }
+.mapa-busqueda svg { display: block; width: 100%; height: auto; max-height: 460px; background: var(--fondo); border: 1px solid var(--borde); border-radius: 10px; }
+.mapa-busqueda .portal rect { fill: #b48ad8; stroke: #14110f; stroke-width: 0.6%; }
+.mapa-busqueda .portal text { fill: #efe6da; paint-order: stroke; stroke: #14110f; stroke-width: 0.5%; }
+.mapa-busqueda .sitio circle { stroke: #14110f; stroke-width: 0.6%; }
+.mapa-busqueda .sitio text { fill: #14110f; font-weight: 700; }
+.mapa-busqueda figcaption { margin-top: 6px; font-size: 0.85rem; }
+.num-sitio { display: inline-block; min-width: 1.4em; height: 1.4em; line-height: 1.4em; margin-right: 6px; border-radius: 50%; color: #14110f; font-size: 0.8rem; font-weight: 700; text-align: center; vertical-align: 0.05em; }
+
+/* Página de cada vikingo (2.6) */
+.tabla td.nombre a, .lista a.quien, .fila a.quien { color: inherit; text-decoration: underline dotted var(--tenue); text-underline-offset: 3px; }
+.tabla td.nombre a:hover, .lista a.quien:hover, .fila a.quien:hover { color: var(--ambar); }

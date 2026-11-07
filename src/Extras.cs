@@ -60,6 +60,17 @@ namespace Majinheim
             }
         }
 
+        // Espera (como mucho maxMs) a que salgan los mensajes en cola. Para la consola, que se cierra nada más terminar.
+        public static void Flush(int maxMs)
+        {
+            var t0 = DateTime.Now;
+            while ((DateTime.Now - t0).TotalMilliseconds < maxMs)
+            {
+                lock (lk) if (queue.Count == 0) return;
+                Thread.Sleep(200);
+            }
+        }
+
         static void Pump()
         {
             while (true)
