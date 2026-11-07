@@ -523,7 +523,7 @@ namespace Majinheim
             {
                 if (!(s.WebEnabled && s.WebPublic)) return null;
                 if ((DateTime.Now - ddnsAt).TotalMinutes >= 60) { ddnsOk = Net.SamePublicIp(WebPanel.PublicHost); ddnsAt = DateTime.Now; }
-                return I("ddns", "Dirección de internet (DDNS)", ddnsOk ? "ok" : "mal", ddnsOk ? WebPanel.PublicHost + " apunta a casa." : WebPanel.PublicHost + " no apunta a la IP de casa: revisa la DDNS en el router.");
+                return I("ddns", "Dirección de internet (DDNS)", ddnsOk ? "ok" : "mal", ddnsOk ? WebPanel.PublicHost + " apunta a casa." : WebPanel.PublicHost + " no apunta a la IP de casa, así que los amigos no llegan ni a la web ni al juego. Suele pasar cuando la operadora cambia la IP y el router no se entera (sobre todo con dos routers seguidos). Arreglo: en el router que lleva la DDNS, WAN > DDNS > Aplicar; para que no vuelva a pasar, poner el router de la operadora en modo puente.");
             });
 
             add(() =>
