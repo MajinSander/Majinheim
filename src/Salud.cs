@@ -522,7 +522,14 @@ namespace Majinheim
             add(() =>
             {
                 if (!(s.WebEnabled && s.WebPublic)) return null;
-                if ((DateTime.Now - ddnsAt).TotalMinutes >= 60) { ddnsOk = Net.SamePublicIp(WebPanel.PublicHost); ddnsAt = DateTime.Now; }
+                // Se mira cada hora si va bien, cada revisión (10 min) si va mal, y en el momento si ha cambiado la IP de casa:
+                // así un cambio de IP que el router no apunta en la DDNS se avisa en unos 20 minutos, no en horas.
+                string ip = Net.PublicIp();
+                bool changed = ip != null && !string.IsNullOrEmpty(s.LastPublicIp) && ip != s.LastPublicIp;
+                if (ip != null && ip != s.LastPublicIp) { s.LastPublicIp = ip; Settings.Save(); }
+                if (ip == null) return I("ddns", "Dirección de internet (DDNS)", "info", "Ahora no he podido saber la IP de casa (¿sin internet?). Lo vuelvo a mirar en 10 minutos.");
+                if (changed) Log.W("La IP pública de casa ha cambiado: compruebo la DDNS.");
+                if (changed || !ddnsOk || (DateTime.Now - ddnsAt).TotalMinutes >= 60) { ddnsOk = Net.SamePublicIp(WebPanel.PublicHost, ip); ddnsAt = DateTime.Now; }
                 return I("ddns", "Dirección de internet (DDNS)", ddnsOk ? "ok" : "mal", ddnsOk ? WebPanel.PublicHost + " apunta a casa." : WebPanel.PublicHost + " no apunta a la IP de casa, así que los amigos no llegan ni a la web ni al juego. Suele pasar cuando la operadora cambia la IP y el router no se entera (sobre todo con dos routers seguidos). Arreglo: en el router que lleva la DDNS, WAN > DDNS > Aplicar; para que no vuelva a pasar, poner el router de la operadora en modo puente.");
             });
 

@@ -227,6 +227,7 @@ namespace Majinheim
         public string VerifiedBuild { get; set; }      // versión de Valheim con la que el server arrancó bien en la última prueba
         public List<string> SkippedUpdates { get; set; } // "Autor-Mod@versión" que fallaron la prueba: no se reintentan solas
         public List<string> ModNotices { get; set; }   // mods obsoletos o abandonados de los que ya se avisó
+        public string LastPublicIp { get; set; }   // última IP pública de casa vista (solo en launcher.json, para saber si cambia)
         public string PowerLossSeen { get; set; } // último apagón de golpe del que ya se avisó (2.6)
         public List<string> HealthAlerts { get; set; } // revisiones de salud en rojo de las que ya se avisó en Discord
         public string BackupCheckAt { get; set; }      // última comprobación de backups (se abren y se leen enteros)
@@ -1560,14 +1561,31 @@ namespace Majinheim
         }
 
         // ¿Salimos a Internet por la misma IP pública a la que apunta la DDNS? Entonces estamos en casa del server.
-        public static bool SamePublicIp(string ddns)
+        public static bool SamePublicIp(string ddns, string mine = null)
         {
             try
             {
-                var mine = Http.GetString("https://api.ipify.org", 5000).Trim();
+                if (mine == null) mine = Http.GetString("https://api.ipify.org", 5000).Trim();
                 return Dns.GetHostAddresses(ddns).Any(a => a.AddressFamily == AddressFamily.InterNetwork && a.ToString() == mine);
             }
             catch (Exception e) { Log.W("No pude comprobar la IP pública: {0}", e.Message); return false; }
+        }
+
+        // La IP pública de casa (null si no se puede saber ahora). Prueba dos servicios.
+        public static string PublicIp()
+        {
+            foreach (var u in new[] { "https://api.ipify.org", "https://icanhazip.com" })
+            {
+                try
+                {
+                    string ip = Http.GetString(u, 5000).Trim();
+                    IPAddress a;
+                    if (IPAddress.TryParse(ip, out a) && a.AddressFamily == AddressFamily.InterNetwork) return ip;
+                }
+                catch { }
+            }
+            Log.W("No pude saber la IP pública de casa.");
+            return null;
         }
 
         // ¿Hay un server de Valheim en esa IP? Pregunta por el puerto de consultas de Steam (juego + 1, UDP).
