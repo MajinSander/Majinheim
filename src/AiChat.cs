@@ -127,6 +127,9 @@ namespace Majinheim
             question = (question ?? "").Trim();
             if (question.Length == 0) return "Escribe una pregunta.";
             if (question.Length > MaxQuestion) question = question.Substring(0, MaxQuestion);
+            // El enlace de la web no se deja en manos del modelo: una letra cambiada y ya no abre.
+            string link = WebLink(question);
+            if (link != null) return link;
             if (!gate.Wait(TimeSpan.FromSeconds(90))) return "Estoy respondiendo otras preguntas. Prueba otra vez en un momento.";
             try { return Clean(Run(question, asker, admin, past)); }
             catch (OllamaError e)
@@ -145,6 +148,29 @@ namespace Majinheim
                     : "La IA no está disponible ahora mismo (Ollama no responde en el PC del server).";
             }
             finally { LastBusy = DateTime.Now; gate.Release(); }
+        }
+
+        static readonly Regex rxLinkWord = new Regex(@"\b(enlace|enlaces|link|links|url|direccion)\b", RegexOptions.Compiled);
+        static readonly Regex rxWebWord = new Regex(@"\b(web|pagina|panel)\b", RegexOptions.Compiled);
+        static readonly Regex rxWebWhat = new Regex(@"\b(server|servidor|mapa|estadisticas|majinheim)\b", RegexOptions.Compiled);
+        static readonly Regex rxWebAsk = new Regex(@"\b(cual|donde|como|pasa|pasame|dame|dime|manda|mandame|tienes|hay|acceder|acceso|accedo|entrar|entro|entra|abrir|abro|ver|veo|internet|movil|fuera)\b", RegexOptions.Compiled);
+        static readonly Regex rxWebNot = new Regex(@"\b(mod|mods|thunderstore|wiki|discord|launcher|descargar|descarga|descargo|instalar|instalo|instala|contrasena|caida|caido|falla|error|carga|lenta|lento|funciona|va)\b", RegexOptions.Compiled);
+
+        // Si preguntan por el enlace de la web o cómo entrar en ella, la respuesta ya hecha, con la dirección exacta para entrar
+        // desde internet. null = la pregunta es de otra cosa. Sin formato, para que sirva igual en Discord y en el chat del juego.
+        public static string WebLink(string question)
+        {
+            string t = Fold(question ?? "");
+            if (rxWebNot.IsMatch(t)) return null;
+            bool web = rxWebWord.IsMatch(t), link = rxLinkWord.IsMatch(t);
+            bool alone = Regex.IsMatch(t, @"^\W*(y )?(la |el )?(web|enlace|link)\W*$");   // "¿la web?"
+            if (!(alone || (web && (link || rxWebAsk.IsMatch(t))) || (link && rxWebWhat.IsMatch(t)))) return null;
+            var s = Settings.Current;
+            if (!s.WebEnabled) return "La web del server está apagada ahora mismo. La enciende Majin en la pestaña Web del launcher.";
+            if (!s.WebPublic) return "Ahora mismo la web solo se ve desde el PC del server. Para entrar desde internet, Majin tiene que activar el acceso en la pestaña Web del launcher.";
+            string u = WebPanel.PublicUrl;
+            return "La web del server es " + u + " y se abre desde cualquier sitio con internet, también desde el móvil.\n" +
+                   "Estadísticas: " + u + "estadisticas\nMapa: " + u + "mapa/\nAyuda: " + u + "ayuda";
         }
 
         // Texto escrito por la IA a partir de unos datos (el resumen de la semana...). Sin herramientas. Devuelve null si la IA no

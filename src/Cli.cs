@@ -230,8 +230,14 @@ namespace Majinheim
                             Console.WriteLine(Json.Str(Help.Tool(string.Join(" ", args.Skip(1)))));
                             return 0;
                         }
+                    case "pregunta":
+                        {
+                            // pregunta <texto>: lo que contestaría MajinBot a esa pregunta (para probar la IA sin Discord).
+                            Console.WriteLine(AiChat.Ask(string.Join(" ", args.Skip(1)), "consola", false));
+                            return 0;
+                        }
                     default:
-                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | quitar-2fa <nombre> | ia [descargar] | salud | comprobar-backups | errores | actualizar [reintentar] | mundo | buscar <objeto> | receta <objeto> | tumbas [jugador] | resumen [enviar] | cuando <texto> | problemas [id] | ayuda <texto>");
+                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | quitar-2fa <nombre> | ia [descargar] | salud | comprobar-backups | errores | actualizar [reintentar] | mundo | buscar <objeto> | receta <objeto> | tumbas [jugador] | resumen [enviar] | cuando <texto> | problemas [id] | ayuda <texto> | pregunta <texto>");
                         return 1;
                 }
             }
