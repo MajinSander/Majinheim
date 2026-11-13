@@ -191,15 +191,24 @@ namespace Majinheim
 
         public static string Nice(ModEntry m) { return m.PkgName().Replace('_', ' '); }
 
-        // Pregunta a Thunderstore por la última versión de cada mod (de 6 en 6).
+        // Pregunta a Thunderstore por la última versión de cada mod (de 6 en 6). Si pide que esperemos (429, demasiadas
+        // consultas seguidas), se deja de preguntar y se apunta una sola línea, no una por mod.
         public static void Refresh(Modpack pack, Dictionary<string, PkgInfo> latest)
         {
             var mods = pack.Mods.Where(m => !m.Local).ToList();
-            Parallel.ForEach(mods, new ParallelOptions { MaxDegreeOfParallelism = 6 }, m =>
+            int fails = 0; string first = null; bool limited = false;
+            Parallel.ForEach(mods, new ParallelOptions { MaxDegreeOfParallelism = 6 }, (m, state) =>
             {
+                if (limited) return;
                 try { var p = Thunderstore.Latest(m.Id); lock (latest) latest[m.Id] = p; }
-                catch (Exception e) { Log.W("No pude consultar {0}: {1}", m.Id, e.Message); }
+                catch (Exception e)
+                {
+                    lock (latest) { fails++; if (first == null) first = m.Id + ": " + e.Message; }
+                    if (e.Message.Contains("(429)")) { limited = true; state.Stop(); }
+                }
             });
+            if (limited) Log.W("Thunderstore pide que esperemos (demasiadas consultas seguidas): las versiones de los mods se miran más tarde.");
+            else if (fails > 0) Log.W("No pude consultar {0} {1} en Thunderstore (el primero, {2}).", fails, fails == 1 ? "mod" : "mods", first);
         }
 
         // Mods que se pueden actualizar solos: activos, de Thunderstore, sin arreglo propio, que carga el server
