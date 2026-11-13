@@ -169,7 +169,7 @@ namespace Majinheim
             if (!s.WebEnabled) return "La web del server está apagada ahora mismo. La enciende Majin en la pestaña Web del launcher.";
             if (!s.WebPublic) return "Ahora mismo la web solo se ve desde el PC del server. Para entrar desde internet, Majin tiene que activar el acceso en la pestaña Web del launcher.";
             string u = WebPanel.PublicUrl;
-            return "La web del server es " + u + " y se abre desde cualquier sitio con internet, también desde el móvil.\n" +
+            return "La web del server es " + u + " y se abre desde cualquier sitio con internet, también desde el móvil, sin configurar nada. En la portada se ve quién está jugando.\n" +
                    "Estadísticas: " + u + "estadisticas\nMapa: " + u + "mapa/\nAyuda: " + u + "ayuda";
         }
 
@@ -337,7 +337,12 @@ namespace Majinheim
             sb.Append("Eres el asistente del servidor de Valheim «").Append(s.ServerName).Append("» (mundo «").Append(s.WorldName).Append("») de un grupo de amigos. Respondes en su Discord cuando te mencionan; habla con naturalidad, como uno más del grupo.\n");
             sb.Append("Ahora es ").Append(now.ToString("dddd d 'de' MMMM 'de' yyyy, HH:mm", es)).Append(" (hora de ").Append(TimeZoneInfo.Local.StandardName).Append(").\n");
             if (!string.IsNullOrEmpty(asker)) sb.Append("Quien te escribe se llama ").Append(asker).Append(" en Discord. No tiene por qué ser ninguno de los vikingos de los datos: no le llames por el nombre de un vikingo, y usa su nombre solo si pregunta por sí mismo (\"yo\", \"mis horas\").\n");
-            if (web != null) sb.Append("Web del server: ").Append(web).Append(" (estadísticas en ").Append(web).Append("estadisticas y mapa en ").Append(web).Append("mapa/).\n");
+            if (web != null)
+            {
+                sb.Append("Web del server: ").Append(web).Append(" . Se abre tal cual desde cualquier sitio con internet (casa, fuera de casa, móvil): no hay que configurar nada. NUNCA hables de routers, puertos, VPN ni direcciones IP.\n");
+                sb.Append("Qué hay en la web: en la portada (").Append(web).Append("), quién está jugando ahora, si el server está encendido, los jefes derrotados y las últimas partidas; en ").Append(web).Append("estadisticas, las horas y muertes de cada vikingo; en ").Append(web).Append("mapa/, el mapa del mundo; en ").Append(web).Append("ayuda, cómo instalar y resolver problemas.\n");
+            }
+            sb.Append("Para jugar no se usa la web: se abre el launcher Majinheim y se pulsa el botón JUGAR; él solo pone los mods y conecta. No inventes otros pasos.\n");
             sb.Append("Reglas:\n");
             sb.Append("- Responde siempre en español, cercano y breve: como mucho 6 líneas. Usa el formato de Discord (negrita con **), sin tablas.\n");
             sb.Append("- Para cualquier dato del server (si está encendido, quién juega, horas jugadas, partidas, muertes, jefes, mods, backups, día del mundo) usa SIEMPRE las herramientas. No inventes datos: si las herramientas no lo dicen, di que no lo sabes.\n");
