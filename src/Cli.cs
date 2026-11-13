@@ -230,6 +230,21 @@ namespace Majinheim
                             Console.WriteLine(Json.Str(Help.Tool(string.Join(" ", args.Skip(1)))));
                             return 0;
                         }
+                    case "vivo":
+                        {
+                            // vivo: dónde está cada jugador ahora mismo según el mod, y cuántos días guarda la máquina del tiempo.
+                            LiveMap.Poll(DateTime.Now);
+                            var now = LiveMap.Current(true);
+                            Console.WriteLine(File.Exists(LiveMap.PosFile) ? "posiciones.json: de " + File.GetLastWriteTime(LiveMap.PosFile).ToString("dd/MM HH:mm:ss") : "posiciones.json: todavía no existe (hace falta el mod 1.4 y el server encendido)");
+                            foreach (var p in now) Console.WriteLine("  " + p.Name + ": x " + p.X + ", z " + p.Z + (p.Visible ? "" : " (no visible para los demás)"));
+                            if (now.Count == 0) Console.WriteLine("  nadie en el mapa ahora mismo");
+                            Chronicle.Snapshot(DateTime.Now);
+                            var days = (List<object>)Chronicle.Days(true)["dias"];
+                            Console.WriteLine("Máquina del tiempo: " + days.Count + " días con algo que contar; primera foto del mapa: " + (Chronicle.FirstPhoto.HasValue ? Chronicle.FirstPhoto.Value.ToString("dd/MM/yyyy") : "aún ninguna"));
+                            foreach (var d in days.Cast<Dictionary<string, object>>().Take(5))
+                                Console.WriteLine("  " + d["dia"] + ": " + string.Join("; ", ((List<object>)d["hechos"]).Cast<Dictionary<string, object>>().Select(h => (string)h["texto"])));
+                            return 0;
+                        }
                     case "pregunta":
                         {
                             // pregunta <texto>: lo que contestaría MajinBot a esa pregunta (para probar la IA sin Discord).
@@ -237,7 +252,7 @@ namespace Majinheim
                             return 0;
                         }
                     default:
-                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | quitar-2fa <nombre> | ia [descargar] | salud | comprobar-backups | errores | actualizar [reintentar] | mundo | buscar <objeto> | receta <objeto> | tumbas [jugador] | resumen [enviar] | cuando <texto> | problemas [id] | ayuda <texto> | pregunta <texto>");
+                        Console.WriteLine("Uso: MajinheimCli import <carpetaServerOriginal> | install | check | args | test [seg] | run | stop | backup | publish | release [notas] | source | usuarios | usuario <nombre> <admin|jugador> | borrar-usuario <nombre> | quitar-2fa <nombre> | ia [descargar] | salud | comprobar-backups | errores | actualizar [reintentar] | mundo | buscar <objeto> | receta <objeto> | tumbas [jugador] | resumen [enviar] | cuando <texto> | problemas [id] | ayuda <texto> | pregunta <texto> | vivo");
                         return 1;
                 }
             }

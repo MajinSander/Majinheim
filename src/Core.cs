@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "2.6.0";
+        public const string Version = "2.7.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -238,6 +238,7 @@ namespace Majinheim
         public string OllamaUrl { get; set; }      // dónde escucha Ollama (por defecto, este PC)
         public string OllamaModel { get; set; }
         public bool GameChat { get; set; }         // MajinBot contesta en el chat de la partida a quien escribe "!majin" (2.6)
+        public bool LiveShowAll { get; set; }      // mapa en vivo: enseñar a todos, también a quien no se ha marcado como visible en el juego (si no, solo los ve el administrador)
         public bool WorldExport { get; set; }      // mod propio Majinheim Mundo en el server: la IA sabe qué hay en cofres y tumbas y las recetas con mods
         // Vida en el Discord (2.3)
         public bool WeeklySummary { get; set; }    // resumen de la semana los domingos a las 21:00 (escrito por la IA si está)

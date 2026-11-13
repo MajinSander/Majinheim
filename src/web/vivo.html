@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Majinheim · Mapa en vivo</title>
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/estilo.css">
+</head>
+<body>
+<header>
+  <div class="marca">
+    <a href="/"><img src="/icono.svg" alt="Volver al estado" width="40" height="40"></a>
+    <div>
+      <h1>Mapa en vivo</h1>
+      <p class="sub" id="sub">Cargando…</p>
+    </div>
+  </div>
+  <div class="acciones">
+    <a class="boton secundario" href="/historia">Máquina del tiempo</a>
+    <a class="boton secundario" href="/3d">Mundo en 3D</a>
+    <a class="boton secundario" href="/">Estado</a>
+    <span id="estado" class="pastilla gris">Cargando…</span>
+  </div>
+</header>
+
+<main class="mundo">
+  <section class="tarjeta lienzo-mapa">
+    <canvas id="mapa" aria-label="Mapa del mundo con la posición de cada vikingo"></canvas>
+    <p id="sin-mapa" class="vacio sobre-mapa" hidden>Todavía no hay mapa: se dibuja solo unos minutos después de encender el server.</p>
+    <div class="mandos-mapa">
+      <button id="b-todo" class="boton secundario chico" type="button">Ver todo</button>
+      <button id="b-repetir" class="boton chico" type="button" disabled>▶ Repetir la noche</button>
+    </div>
+    <div id="reloj" class="reloj-mapa" hidden></div>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Vikingos en el mapa <span id="n" class="cuenta">0</span></h2>
+    <ul id="lista" class="lista"></ul>
+    <p id="nadie" class="vacio">No hay nadie jugando.</p>
+    <p id="ocultos" class="tenue" hidden></p>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Cómo va</h2>
+    <p class="tenue">Las posiciones se actualizan cada 2 segundos. La raya de cada color es por dónde ha ido cada uno en las últimas horas. Solo se dibuja la parte del mundo que alguien ha explorado.</p>
+    <p class="tenue">Para salir en el mapa hay que tener marcada en el juego la casilla «Visible para los demás» (en el mapa del juego, abajo a la derecha).</p>
+  </section>
+</main>
+
+<footer><span>Majinheim Web · se actualiza solo</span></footer>
+<script src="/mapa2d.js"></script>
+<script src="/vivo.js"></script>
+</body>
+</html>

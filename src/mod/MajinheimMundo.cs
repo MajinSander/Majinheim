@@ -2,6 +2,7 @@
 // Cada pocos minutos apunta en BepInEx\majinheim\mundo.json qué hay en los cofres, los cajones y las tumbas, y dónde están
 // los carteles y los portales; cada 15 s, en rendimiento.json, a cuántos fotogramas por segundo va el server (para el
 // aviso de lag); en mapa.bin, el terreno de lo explorado (para el mapa de "Buscar en el mundo" de la web);
+// cada 2 s, en posiciones.json, dónde está cada jugador conectado (para el mapa en vivo de la web);
 // y una vez al arrancar, en recetas.json, las recetas y construcciones del juego con los mods,
 // en español. El launcher del server lo lee para que el asistente de Discord conteste "¿dónde está el hierro?" o
 // "¿cómo se hace X?" con datos de verdad.
@@ -20,7 +21,7 @@ using UnityEngine;
 
 namespace MajinheimMundo
 {
-    [BepInPlugin("majinheim.mundo", "Majinheim Mundo", "1.3.1")]
+    [BepInPlugin("majinheim.mundo", "Majinheim Mundo", "1.4.0")]
     public class Plugin : BaseUnityPlugin
     {
         const float WorldEvery = 300f;         // segundos entre vistazos al mundo
@@ -40,6 +41,7 @@ namespace MajinheimMundo
             outDir = Path.Combine(Paths.BepInExRootPath, "majinheim");
             Directory.CreateDirectory(outDir);
             InvokeRepeating("Tick", 30f, 15f);
+            InvokeRepeating("Live", 20f, 2f);
             Logger.LogInfo("Majinheim Mundo listo: solo lee el mundo y lo apunta en " + outDir);
         }
 
@@ -107,6 +109,69 @@ namespace MajinheimMundo
                 mapBusy = true;
                 StartCoroutine(ExportMap());
             }
+        }
+
+        // ------------------------------------------------------------ posiciones en vivo (posiciones.json)
+        // El server sabe en todo momento por dónde anda cada jugador (lo necesita para mandarle el mundo de alrededor) y si ha
+        // elegido que los demás le vean en el mapa. Aquí solo se apunta, cada 2 segundos; quién puede verlo lo decide el launcher.
+        // Por reflexión, para que un cambio de Valheim no rompa el resto del mod.
+        FieldInfo peersField, peerPos, peerName, peerPublic;
+        bool liveBroken, liveSaving;
+        int liveLast = -1;
+
+        void Live()
+        {
+            if (liveBroken || liveSaving || !Ready()) return;
+            try
+            {
+                if (peersField == null) peersField = typeof(ZNet).GetField("m_peers", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                var peers = peersField != null ? peersField.GetValue(ZNet.instance) as IEnumerable : null;
+                if (peers == null) { LiveOff("no encuentro la lista de jugadores"); return; }
+                var sb = new StringBuilder(256);
+                sb.Append("{\"t\":").Append((long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds).Append(",\"jugadores\":[");
+                int n = 0;
+                foreach (var p in peers)
+                {
+                    if (p == null) continue;
+                    if (peerPos == null)
+                    {
+                        var t = p.GetType();
+                        peerPos = t.GetField("m_refPos"); peerName = t.GetField("m_playerName"); peerPublic = t.GetField("m_publicRefPos");
+                        if (peerPos == null || peerName == null) { LiveOff("no encuentro la posición de los jugadores"); return; }
+                    }
+                    string name = peerName.GetValue(p) as string;
+                    if (string.IsNullOrEmpty(name)) continue;   // todavía está entrando
+                    var v = (Vector3)peerPos.GetValue(p);
+                    if (v.x == 0f && v.y == 0f && v.z == 0f) continue;   // aún no ha dicho dónde está
+                    bool pub = peerPublic != null && (bool)peerPublic.GetValue(p);
+                    if (n++ > 0) sb.Append(',');
+                    sb.Append("{\"n\":").Append(Q(name)).Append(",\"x\":").Append(Mathf.RoundToInt(v.x)).Append(",\"y\":").Append(Mathf.RoundToInt(v.y))
+                      .Append(",\"z\":").Append(Mathf.RoundToInt(v.z)).Append(",\"v\":").Append(pub ? "true" : "false").Append('}');
+                }
+                sb.Append("]}");
+                if (n == 0 && liveLast == 0) return;   // sin nadie no hay nada nuevo que apuntar
+                liveLast = n;
+                string json = sb.ToString(), path = Path.Combine(outDir, "posiciones.json");
+                liveSaving = true;
+                ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    try
+                    {
+                        File.WriteAllText(path + ".tmp", json, new UTF8Encoding(false));
+                        if (File.Exists(path)) File.Delete(path);
+                        File.Move(path + ".tmp", path);
+                    }
+                    catch { }   // el launcher lo estaba leyendo: en 2 segundos va el siguiente
+                    finally { liveSaving = false; }
+                });
+            }
+            catch (Exception e) { LiveOff((e.InnerException ?? e).Message); }
+        }
+
+        void LiveOff(string why)
+        {
+            liveBroken = true;
+            Logger.LogWarning("Majinheim Mundo: esta versión de Valheim no deja leer dónde está cada jugador (" + why + "); el mapa en vivo de la web no tendrá posiciones.");
         }
 
         // ------------------------------------------------------------ terreno de lo explorado (mapa.bin)
@@ -496,7 +561,7 @@ namespace MajinheimMundo
 
             var chests = new StringBuilder(1 << 18); var drawers = new StringBuilder(1 << 16); var tombs = new StringBuilder(1 << 12);
             var signs = new StringBuilder(1 << 14); var portals = new StringBuilder(1 << 12);
-            int nChests = 0, nDrawers = 0, nDrawersAll = 0, nTombs = 0, nSigns = 0, nPortals = 0, nBad = 0;
+            int nChests = 0, nDrawers = 0, nDrawersAll = 0, nTombs = 0, nSigns = 0, nPortals = 0, nBad = 0, nBuilt = 0;
             unknownInventory = 0;
             string firstBad = null;
             var used = new HashSet<string>();
@@ -508,6 +573,7 @@ namespace MajinheimMundo
                 int h = z.GetPrefab();
                 try
                 {
+                    if (!tombHashes.Contains(h) && z.GetLong("creator", 0L) != 0L) nBuilt++;   // todo lo que ha puesto alguien: para ver crecer las bases
                     if (containerHashes.Contains(h) || tombHashes.Contains(h))
                     {
                         bool tomb = tombHashes.Contains(h);
@@ -571,7 +637,7 @@ namespace MajinheimMundo
 
             var all = new StringBuilder(chests.Length + drawers.Length + 4096);
             int day = EnvMan.instance != null ? EnvMan.instance.GetDay() : 0;
-            all.Append("{\"fecha\":").Append(Q(DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss", Inv))).Append(",\"dia\":").Append(day)
+            all.Append("{\"fecha\":").Append(Q(DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss", Inv))).Append(",\"dia\":").Append(day).Append(",\"piezas\":").Append(nBuilt)
                .Append(",\"cofres\":[").Append(chests).Append("],\"cajones\":[").Append(drawers).Append("],\"tumbas\":[").Append(tombs)
                .Append("],\"carteles\":[").Append(signs).Append("],\"portales\":[").Append(portals).Append("],\"nombres\":{");
             bool first = true;

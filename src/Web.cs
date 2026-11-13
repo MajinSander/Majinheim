@@ -72,6 +72,13 @@ namespace Majinheim
             { "/ayuda.json", new[] { "ayuda.json", "application/json; charset=utf-8" } },
             { "/jugador.html", new[] { "jugador.html", "text/html; charset=utf-8" } },
             { "/jugador.js", new[] { "jugador.js", "application/javascript; charset=utf-8" } },
+            { "/vivo.html", new[] { "vivo.html", "text/html; charset=utf-8" } },
+            { "/vivo.js", new[] { "vivo.js", "application/javascript; charset=utf-8" } },
+            { "/historia.html", new[] { "historia.html", "text/html; charset=utf-8" } },
+            { "/historia.js", new[] { "historia.js", "application/javascript; charset=utf-8" } },
+            { "/mundo3d.html", new[] { "mundo3d.html", "text/html; charset=utf-8" } },
+            { "/mundo3d.js", new[] { "mundo3d.js", "application/javascript; charset=utf-8" } },
+            { "/mapa2d.js", new[] { "mapa2d.js", "application/javascript; charset=utf-8" } },
         };
 
         static MiniHttp.Response Route(MiniHttp.Request req)
@@ -90,6 +97,14 @@ namespace Majinheim
                 var pl = n.Length == 0 || n.Length > 40 ? null : ServerWatch.Player(n);
                 return pl == null ? MiniHttp.Response.JsonOf(404, new Dictionary<string, object> { { "error", "No hay partidas de ese vikingo." } }) : MiniHttp.Response.JsonOf(pl, true);
             }
+            if (path == "/api/vivo" || path == "/api/historia" || path == "/api/historia/dia" || path == "/api/mapa.png" || path == "/api/terreno.bin")
+            {
+                try { return WorldPages(req, path); }
+                catch (Exception e) { Log.W("Web: {0}: {1}", path, e.Message); return MiniHttp.Response.JsonOf(500, new Dictionary<string, object> { { "error", "No he podido leer los datos del mundo." } }); }
+            }
+            if (path == "/vivo") path = "/vivo.html";
+            if (path == "/historia") path = "/historia.html";
+            if (path == "/3d") path = "/mundo3d.html";
             if (path == "/jugador") path = "/jugador.html";
             if (path == "/admin") path = "/admin.html";
             if (path == "/estadisticas") path = "/estadisticas.html";
@@ -102,6 +117,45 @@ namespace Majinheim
             }
             return MiniHttp.Response.Text(404, "No existe");
         }
+
+        // Mapa en vivo, máquina del tiempo y mundo en 3D (2.7). Lo ve cualquiera, como el resto de la web; los jugadores que no
+        // se han marcado como visibles en el juego solo los ve el administrador (o todos, si se activa en la pestaña Web).
+        static MiniHttp.Response WorldPages(MiniHttp.Request req, string path)
+        {
+            Func<string, MiniHttp.Response> none = m => MiniHttp.Response.JsonOf(404, new Dictionary<string, object> { { "error", m } });
+            if (!Settings.Current.WorldExport) return none("El mapa está apagado en este server.");
+            bool all = Settings.Current.LiveShowAll || WebAdmin.IsAdmin(req);
+            string dq = WebAdmin.QueryValue(req.Query, "dia");
+            DateTime day = DateTime.MinValue;
+            bool hasDay = !string.IsNullOrEmpty(dq) && DateTime.TryParseExact(dq, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out day) && day < DateTime.Today;
+            if (path == "/api/vivo")
+            {
+                long since; long.TryParse(WebAdmin.QueryValue(req.Query, "desde") ?? "", out since);
+                var o = LiveMap.Api(since, all);
+                o["encendido"] = (string)((Dictionary<string, object>)ServerWatch.Snapshot()["servidor"])["estado"] != "apagado";
+                if (since <= 0 || WebAdmin.QueryValue(req.Query, "mapa") == "1") { var meta = WorldData.MapMeta(); if (meta != null) o["mapa"] = meta; }
+                return Slim(o);
+            }
+            if (path == "/api/historia") return Slim(Chronicle.Days(all));
+            if (path == "/api/historia/dia")
+            {
+                if (string.IsNullOrEmpty(dq) || !DateTime.TryParseExact(dq, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out day)) return none("Falta el día.");
+                var o = Chronicle.Day(day, all);
+                var meta = WorldData.MapMeta(); if (meta != null) { meta.Remove("portales"); o["mapa"] = meta; }
+                return Slim(o);
+            }
+            if (path == "/api/mapa.png")
+            {
+                var m = hasDay ? WorldData.GetMapAt(day) : WorldData.GetMap();
+                return m == null ? none("Todavía no hay mapa.") : new MiniHttp.Response(200, "image/png", m.Png, false);
+            }
+            var terr = Terrain.Load();
+            var grid = terr == null ? null : terr.Grid(hasDay ? Chronicle.ZonesAt(day) : null, 800000);
+            return grid == null ? none("Todavía no hay mapa.") : new MiniHttp.Response(200, "application/octet-stream", grid, false);
+        }
+
+        // Sin sangrar: las rutas son miles de números y esto se pide cada 2 segundos.
+        static MiniHttp.Response Slim(object o) { return new MiniHttp.Response(200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(Json.Compact(o)), true); }
 
         // Las páginas van dentro del .exe (build.bat las mete con /resource). Si hay copia en web\ junto al .exe, manda esa (para retocarlas sin compilar).
         internal static byte[] Resource(string name)

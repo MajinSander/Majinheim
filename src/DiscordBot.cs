@@ -630,7 +630,8 @@ namespace Majinheim
                 }
                 case "web":
                     return web == null ? "La web del server todavía no está abierta a internet." :
-                        "🌐 Web del server: " + web + "\n📊 Estadísticas: " + web + "estadisticas" + (snap["mapa"] != null ? "\n🗺️ Mapa del mundo: " + web + "mapa/" : "\n🗺️ El mapa se enciende con el server.");
+                        "🌐 Web del server: " + web + "\n📊 Estadísticas: " + web + "estadisticas" + (snap["mapa"] != null ? "\n🗺️ Mapa del mundo: " + web + "mapa/" : "\n🗺️ El mapa se enciende con el server.") +
+                        (Settings.Current.WorldExport ? "\n📍 Mapa en vivo (dónde está cada uno): " + web + "vivo\n⏳ Máquina del tiempo: " + web + "historia\n🏔️ El mundo en 3D: " + web + "3d" : "");
             }
             return "No conozco ese comando.";
         }

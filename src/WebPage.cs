@@ -11,7 +11,7 @@ namespace Majinheim
     public partial class MainForm
     {
         Label webState, webPublicState, webCheck, webRouter, webMap, webAdmin;
-        CheckBox cWebOn, cWebPublic;
+        CheckBox cWebOn, cWebPublic, cLiveAll;
         bool webPopulating;
 
         Panel BuildWebPage()
@@ -29,16 +29,19 @@ namespace Majinheim
             webPopulating = true;
             cWebOn = Ui.Chk("Panel web encendido", s.WebEnabled);
             cWebPublic = Ui.Chk("Acceso desde internet (HTTPS, por la dirección pública)", s.WebPublic);
+            cLiveAll = Ui.Chk("Mapa en vivo: enseñar a todos, aunque no se hayan marcado como visibles en el juego", s.LiveShowAll);
             webPopulating = false;
+            cLiveAll.CheckedChanged += (o, e) => { if (!webPopulating) { Settings.Current.LiveShowAll = cLiveAll.Checked; Settings.Save(); Status(cLiveAll.Checked ? "El mapa en vivo enseña a todos los que juegan." : "El mapa en vivo solo enseña a quien se marca como visible en el juego (tú, con tu cuenta de administrador, ves a todos)."); } };
             cWebOn.CheckedChanged += (o, e) => { if (!webPopulating) SetWeb(cWebOn.Checked, cWebPublic.Checked); };
             cWebPublic.CheckedChanged += (o, e) => { if (!webPopulating) SetWeb(cWebOn.Checked, cWebPublic.Checked); };
 
-            var left = Ui.Col(webState, webPublicState, webMap, cWebOn, cWebPublic,
+            var left = Ui.Col(webState, webPublicState, webMap, cWebOn, cWebPublic, cLiveAll,
                 Ui.Row(Ui.Btn("Abrir la web", () => Ui.Open(Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl), true),
                        Ui.Btn("Copiar enlace para amigos", () => { Clipboard.SetText(WebPanel.PublicUrl); Status("Enlace copiado: " + WebPanel.PublicUrl); })),
                 Ui.Row(Ui.Btn("Comprobar desde internet", CheckWebPublic),
                        Ui.Btn("Ver en este PC", () => Ui.Open(WebPanel.LocalUrl)),
-                       Ui.Btn("Mapa", () => Ui.Open((Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "mapa/"))),
+                       Ui.Btn("Mapa", () => Ui.Open((Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "mapa/")),
+                       Ui.Btn("Mapa en vivo", () => Ui.Open((Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "vivo"))),
                 webCheck,
                 Ui.Lbl("Administrar desde la web", 11, FontStyle.Bold), webAdmin,
                 Ui.Row(Ui.Btn("Añadir o cambiar cuenta", EditWebUser),

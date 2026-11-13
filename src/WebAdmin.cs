@@ -229,6 +229,13 @@ namespace Majinheim
 
         // ------------------------------------------------------------ peticiones
 
+        // Para las páginas públicas que enseñan un poco más al administrador (el mapa en vivo).
+        public static bool IsAdmin(MiniHttp.Request req)
+        {
+            try { WebUser u; bool renew; Current(req, out u, out renew); return u != null && u.Role == RoleAdmin; }
+            catch { return false; }
+        }
+
         public static MiniHttp.Response Handle(MiniHttp.Request req)
         {
             bool get = req.Path == "/api/sesion" || req.Path == "/api/admin/estado" || req.Path == "/api/admin/problema" || req.Path == "/api/admin/ajustes" || req.Path == "/api/admin/mapa.png";

@@ -165,6 +165,22 @@
             "En esta web: el mapa del mundo (lo que habéis explorado) y las estadísticas de cada vikingo. Desde el launcher, el botón «Web del server»."
           ],
           "claves": "mapa estadisticas horas web explorado"
+        },
+        {
+          "p": "¿Dónde veo por dónde anda cada uno? (mapa en vivo)",
+          "r": [
+            "En la web del server, botón «Mapa en vivo». Se ve dónde está cada vikingo ahora mismo y la raya de por dónde ha ido; con «Seguir» el mapa va detrás de él, y «Repetir la noche» enseña la partida entera en un minuto.",
+            "Para salir en ese mapa tienes que tener marcada en el juego la casilla «Visible para los demás» (abre el mapa del juego con M: está abajo a la derecha). Si no la marcas, no sales."
+          ],
+          "claves": "mapa en vivo posicion donde esta directo seguir ruta visible live map position"
+        },
+        {
+          "p": "¿Qué son la máquina del tiempo y el mundo en 3D?",
+          "r": [
+            "Están en la web, dentro de «Mapa en vivo». La máquina del tiempo enseña qué pasó cada día (quién jugó, muertes, jefes, portales nuevos, cuánto se exploró y se construyó) y el mapa como estaba ese día, con la ruta de cada uno.",
+            "El mundo en 3D dibuja todo lo explorado con su relieve: se gira arrastrando, se acerca con la rueda (o con dos dedos en el móvil) y «Sobrevolar» da una vuelta solo."
+          ],
+          "claves": "maquina del tiempo historia dias pasado 3d tres dimensiones relieve sobrevolar time machine history"
         }
       ]
     },

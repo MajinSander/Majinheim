@@ -170,7 +170,7 @@ namespace Majinheim
             if (!s.WebPublic) return "Ahora mismo la web solo se ve desde el PC del server. Para entrar desde internet, Majin tiene que activar el acceso en la pestaña Web del launcher.";
             string u = WebPanel.PublicUrl;
             return "La web del server es " + u + " y se abre desde cualquier sitio con internet, también desde el móvil, sin configurar nada. En la portada se ve quién está jugando.\n" +
-                   "Estadísticas: " + u + "estadisticas\nMapa: " + u + "mapa/\nAyuda: " + u + "ayuda";
+                   "Estadísticas: " + u + "estadisticas\nMapa en vivo: " + u + "vivo\nAyuda: " + u + "ayuda";
         }
 
         // Texto escrito por la IA a partir de unos datos (el resumen de la semana...). Sin herramientas. Devuelve null si la IA no
@@ -340,7 +340,7 @@ namespace Majinheim
             if (web != null)
             {
                 sb.Append("Web del server: ").Append(web).Append(" . Se abre tal cual desde cualquier sitio con internet (casa, fuera de casa, móvil): no hay que configurar nada. NUNCA hables de routers, puertos, VPN ni direcciones IP.\n");
-                sb.Append("Qué hay en la web: en la portada (").Append(web).Append("), quién está jugando ahora, si el server está encendido, los jefes derrotados y las últimas partidas; en ").Append(web).Append("estadisticas, las horas y muertes de cada vikingo; en ").Append(web).Append("mapa/, el mapa del mundo; en ").Append(web).Append("ayuda, cómo instalar y resolver problemas.\n");
+                sb.Append("Qué hay en la web: en la portada (").Append(web).Append("), quién está jugando ahora, si el server está encendido, los jefes derrotados y las últimas partidas; en ").Append(web).Append("estadisticas, las horas y muertes de cada vikingo; en ").Append(web).Append("mapa/, el mapa del mundo; en ").Append(web).Append("vivo, el mapa en vivo con dónde está cada vikingo ahora mismo y por dónde ha ido; en ").Append(web).Append("historia, la máquina del tiempo (qué pasó cada día y cómo estaba el mapa); en ").Append(web).Append("3d, el mundo explorado en 3D; en ").Append(web).Append("ayuda, cómo instalar y resolver problemas.\n");
             }
             sb.Append("Para jugar no se usa la web: se abre el launcher Majinheim y se pulsa el botón JUGAR; él solo pone los mods y conecta. No inventes otros pasos.\n");
             sb.Append("Reglas:\n");

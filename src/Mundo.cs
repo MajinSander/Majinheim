@@ -21,7 +21,7 @@ namespace Majinheim
 
     public static class WorldMod
     {
-        public const string Version = "1.3.1";
+        public const string Version = "1.4.0";
         const string Folder = "Majinheim-Mundo", DllName = "MajinheimMundo.dll", SourceName = "MajinheimMundo.cs";
         static readonly object lk = new object();
 
@@ -186,7 +186,7 @@ namespace Majinheim
         public class World
         {
             public DateTime Date;
-            public int Day;
+            public int Day, Pieces = -1;
             public List<Box> Chests = new List<Box>(), Drawers = new List<Box>(), Tombs = new List<Box>();
             public List<Text> Signs = new List<Text>(), Portals = new List<Text>();
             public Dictionary<string, string[]> Names = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
@@ -267,7 +267,7 @@ namespace Majinheim
 
         static World ParseWorld(Dictionary<string, object> d)
         {
-            var w = new World { Date = D(d, "fecha"), Day = N(d, "dia", 0) };
+            var w = new World { Date = D(d, "fecha"), Day = N(d, "dia", 0), Pieces = N(d, "piezas", -1) };
             Func<Dictionary<string, object>, Box> box = o =>
             {
                 var b = At(new Box { Type = S(o, "tipo"), Name = S(o, "nombre"), Player = S(o, "jugador"), Death = D(o, "muerte") }, o);
@@ -490,7 +490,26 @@ namespace Majinheim
         const int Unexplored = 0x14110f;   // el fondo de la web
         const int MaxZone = 180;           // el mundo acaba a unos 10,5 km (164 zonas); el juego tiene además zonas auxiliares a un millón de metros
 
-        public static MapImage RenderMap(byte[] data)
+        // El mapa como estaba otro día (la máquina del tiempo): mismos límites que el de hoy, pero solo con lo explorado hasta entonces.
+        static readonly Dictionary<string, MapImage> oldMaps = new Dictionary<string, MapImage>();
+        public static MapImage GetMapAt(DateTime day)
+        {
+            var only = Chronicle.ZonesAt(day);
+            if (only == null) return GetMap();
+            lock (lk)
+            {
+                if (!File.Exists(MapFile)) return null;
+                string key = day.ToString("yyyyMMdd") + "|" + only.Count + "|" + File.GetLastWriteTimeUtc(MapFile).Ticks;
+                MapImage m;
+                if (oldMaps.TryGetValue(key, out m)) return m;
+                m = RenderMap(File.ReadAllBytes(MapFile), only);
+                if (oldMaps.Count > 12) oldMaps.Clear();
+                oldMaps[key] = m;
+                return m;
+            }
+        }
+
+        public static MapImage RenderMap(byte[] data, HashSet<int> only = null)
         {
             if (data == null || data.Length < 12 || Encoding.ASCII.GetString(data, 0, 4) != "MHM1") return null;
             var r = new BinaryReader(new MemoryStream(data));
@@ -518,6 +537,8 @@ namespace Majinheim
             if ((long)w * h > 9000000) return null;   // más de 3000 x 3000: no debería pasar nunca
             var biome = new byte[w * h]; var height = new byte[w * h]; var known = new bool[w * h];
             for (int k = 0; k < n; k++)
+            {
+                if (only != null && !only.Contains(Terrain.Key(zx[k], zy[k]))) continue;
                 for (int j = 0; j < per; j++)
                     for (int i = 0; i < per; i++)
                     {
@@ -525,6 +546,7 @@ namespace Majinheim
                         int o = py * w + px, c = (j * per + i) * 2;
                         biome[o] = cells[k][c]; height[o] = cells[k][c + 1]; known[o] = true;
                     }
+            }
             var px32 = new int[w * h];
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)

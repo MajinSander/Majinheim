@@ -189,3 +189,36 @@ code { font: 12px ui-monospace, Consolas, monospace; background: rgba(255,255,25
 /* Página de cada vikingo (2.6) */
 .tabla td.nombre a, .lista a.quien, .fila a.quien { color: inherit; text-decoration: underline dotted var(--tenue); text-underline-offset: 3px; }
 .tabla td.nombre a:hover, .lista a.quien:hover, .fila a.quien:hover { color: var(--ambar); }
+
+/* Mapa en vivo, máquina del tiempo y mundo en 3D (2.7) */
+main.mundo { max-width: 1280px; }
+header:has(+ main.mundo) { max-width: 1280px; }
+.lienzo-mapa { grid-column: 1 / -1; position: relative; padding: 0; overflow: hidden; height: min(70vh, 720px); min-height: 340px; }
+.lienzo-mapa canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+.lienzo-mapa canvas:active { cursor: grabbing; }
+.mandos-mapa { position: absolute; left: 12px; top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+.reloj-mapa { position: absolute; right: 44px; top: 12px; background: rgba(20,17,15,.8); border: 1px solid var(--borde); border-radius: 999px; padding: 4px 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sobre-mapa { position: absolute; left: 0; right: 0; top: 45%; text-align: center; padding: 0 20px; pointer-events: none; }
+.lista li .punto { flex-shrink: 0; }
+.tiempo { grid-column: 1 / -1; }
+.tiempo .fila-dia { display: flex; align-items: center; gap: 10px; }
+.tiempo .fila-dia h2 { flex: 1; margin: 0; justify-content: center; font-size: 18px; text-align: center; }
+.tiempo input[type=range] { width: 100%; margin: 14px 0 4px; accent-color: var(--ambar); }
+.tiempo .eje { margin-top: 0; }
+.hechos { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.hechos li { display: flex; gap: 10px; align-items: baseline; }
+.hechos .icono { flex: 0 0 1.4em; text-align: center; }
+.dias { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow: auto; }
+.dias li { border-top: 1px solid var(--borde); }
+.dias li:first-child { border-top: 0; }
+.dias button { display: block; width: 100%; text-align: left; background: none; border: 0; color: inherit; font: inherit; padding: 9px 6px; cursor: pointer; border-radius: 8px; }
+.dias button:hover { background: rgba(255,255,255,.04); }
+.dias button.elegido { background: rgba(224,165,74,.12); }
+.dias .fecha { font-weight: 600; display: block; }
+.dias .resumen { color: var(--tenue); font-size: 13px; display: block; }
+.ayuda-3d { position: absolute; left: 12px; bottom: 12px; background: rgba(20,17,15,.75); border-radius: 8px; padding: 6px 10px; font-size: 12px; color: var(--tenue); pointer-events: none; }
+.rotulos-3d { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.rotulos-3d span { position: absolute; transform: translate(-50%, -130%); font-size: 12px; white-space: nowrap; text-shadow: 0 0 3px #14110f, 0 0 3px #14110f, 0 0 3px #14110f; }
+.rotulos-3d .portal { color: #d9c7ee; }
+.rotulos-3d .vikingo { font-weight: 700; color: var(--texto); }
+.lienzo-mapa.alto { height: min(78vh, 820px); }

@@ -910,6 +910,7 @@ namespace Majinheim
             GameChat.Start();
             LagWatch.Running = () => runner.Running;
             LagWatch.Start();
+            LiveMap.Start();
             InitAuto();
             WebPanel.Apply();
             CheckUpdatesQuiet();
