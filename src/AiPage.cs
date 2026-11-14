@@ -11,7 +11,7 @@ namespace Majinheim
     public partial class MainForm
     {
         Label aiState, aiDetail, aiAnswer, aiModelInfo;
-        CheckBox cAiOn;
+        CheckBox cAiOn, cAiWorld, cAiGame;
         ComboBox cbAiModel;
         TextBox tAiUrl, tAiQuestion;
         Button bAiPull, bAiAsk;
@@ -34,6 +34,19 @@ namespace Majinheim
                 DiscordBot.Apply();   // vuelve a conectar, ahora atento (o no) a las menciones
                 RefreshAi();
             };
+
+            cAiWorld = Ui.Chk("Que sepa qué hay en los cofres, cajones y tumbas, y las recetas del server con sus mods", s.WorldExport);
+            cAiWorld.CheckedChanged += (o, e) =>
+            {
+                if (aiPopulating) return;
+                s.WorldExport = cAiWorld.Checked; Settings.Save();
+                Log.W("La IA {0} el mundo (mod Majinheim Mundo): se aplica la próxima vez que arranque el server.", s.WorldExport ? "conocerá" : "dejará de conocer");
+                if (runner.Running) Status("Se aplica la próxima vez que arranque el server.");
+            };
+            cAiGame = Ui.Chk("Que conteste en el chat de la partida a quien escriba !majin y su pregunta", s.GameChat);
+            cAiGame.CheckedChanged += (o, e) => { if (aiPopulating) return; s.GameChat = cAiGame.Checked; Settings.Save(); };
+            var worldInfo = Ui.Lbl("Lo hace un mod propio, solo en el server, que solo lee el mundo (no cambia nada) y que los jugadores no necesitan. Los cofres personales no se miran.", 9f, FontStyle.Regular, Th.Muted);
+            worldInfo.MaximumSize = new Size(480, 0);
 
             cbAiModel = new ComboBox { DropDownStyle = ComboBoxStyle.DropDown, BackColor = Th.Input, ForeColor = Th.Text, FlatStyle = FlatStyle.Flat, Font = Th.F(9.5f), Width = 220, Margin = new Padding(0, 2, 12, 2) };
             cbAiModel.Items.AddRange(AiChat.Models.Select(m => (object)m[0]).ToArray());
@@ -66,7 +79,7 @@ namespace Majinheim
             };
 
             bAiPull = Ui.Btn("Descargar el modelo", PullAiModel, true);
-            var left = Ui.Col(aiState, aiDetail, cAiOn,
+            var left = Ui.Col(aiState, aiDetail, cAiOn, cAiWorld, worldInfo, cAiGame,
                 Ui.Lbl("Modelo", 9.5f), cbAiModel, aiModelInfo,
                 Ui.Row(bAiPull, Ui.Btn("Instalar Ollama", () => Ui.Open(AiChat.DownloadPage)), Ui.Btn("Comprobar", RefreshAi)),
                 Ui.Lbl("Dirección de Ollama (no la cambies si está en este PC)", 9.5f), tAiUrl);
@@ -88,8 +101,9 @@ namespace Majinheim
             aiAnswer = Ui.Lbl("", 10, FontStyle.Regular, Th.Text);
             aiAnswer.MaximumSize = new Size(560, 0);
             var what = Ui.Lbl("Qué sabe: si el server está encendido, quién juega y cuánto lleva, horas y partidas de cada vikingo, días y horas en que se juega, " +
-                "muertes, jefes derrotados, mods, último backup y día del mundo. También responde dudas generales de Valheim.\n\n" +
-                "Ejemplos: \"¿quién jugó ayer?\", \"¿cuántas horas lleva Benja este mes?\", \"¿a qué hora se suele jugar?\", \"¿qué jefe nos falta?\".\n\n" +
+                "muertes, jefes derrotados, mods, último backup y día del mundo. Con la segunda casilla, también qué hay en cada cofre y cajón, " +
+                "las tumbas, y las recetas reales del server (con los mods, en español). También responde dudas generales de Valheim.\n\n" +
+                "Ejemplos: \"¿quién jugó ayer?\", \"¿dónde está el hierro?\", \"¿cómo se hace la espada de hierro?\", \"¿dónde está mi tumba?\", \"¿qué jefe nos falta?\".\n\n" +
                 "Solo lee: no puede encender, apagar ni cambiar nada. Funciona en este PC, así que las preguntas y los datos no salen a internet, " +
                 "y nunca ve IDs de Steam ni IPs. A los administradores del Discord también les puede mirar el registro del server para buscar errores.", 9f, FontStyle.Regular, Th.Muted);
             what.MaximumSize = new Size(560, 0);

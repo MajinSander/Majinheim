@@ -1,0 +1,56 @@
+# Compila el launcher en cada cambio, igual que build.bat en el PC (csc de .NET Framework 4.8 que trae Windows),
+# y comprueba la web. Los .exe quedan dos semanas como "artefacto" de cada ejecución, para descargarlos sin compilar.
+name: Compilar
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compilar:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # En el PC se usa el Mono.Cecil que trae BepInEx; aquí, la misma versión desde NuGet (solo para compilar).
+      - name: Preparar Mono.Cecil
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force src\lib | Out-Null
+          Invoke-WebRequest https://www.nuget.org/api/v2/package/Mono.Cecil/0.10.4 -OutFile cecil.zip
+          Expand-Archive cecil.zip cecil
+          Copy-Item cecil\lib\net40\Mono.Cecil.dll src\lib\
+
+      - name: Compilar (server, launcher de jugador y consola)
+        shell: cmd
+        run: src\build.bat
+
+      - name: Comprobar la web
+        shell: pwsh
+        run: |
+          Get-ChildItem src\web\*.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE) { exit 1 } }
+          Get-ChildItem src\web\*.json | ForEach-Object { Get-Content $_.FullName -Raw -Encoding UTF8 | ConvertFrom-Json | Out-Null }
+
+      - name: Prueba rápida de la consola
+        shell: pwsh
+        run: |
+          $out = .\MajinheimCli.exe ayuda version incompatible | Out-String
+          if ($out -notmatch 'incompatible') { Write-Output $out; throw 'La ayuda no responde' }
+          $out = .\MajinheimCli.exe cuando viernes 22:00 | Out-String
+          if ($out -notmatch '22:00') { Write-Output $out; throw 'No entiende las fechas de /quedada' }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: majinheim-${{ github.sha }}
+          path: |
+            MajinheimServer.exe
+            MajinheimCli.exe
+            distribucion/Majinheim.exe
+          retention-days: 14
+          if-no-files-found: error

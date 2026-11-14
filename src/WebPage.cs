@@ -11,7 +11,7 @@ namespace Majinheim
     public partial class MainForm
     {
         Label webState, webPublicState, webCheck, webRouter, webMap, webAdmin;
-        CheckBox cWebOn, cWebPublic;
+        CheckBox cWebOn, cWebPublic, cLiveAll;
         bool webPopulating;
 
         Panel BuildWebPage()
@@ -29,23 +29,27 @@ namespace Majinheim
             webPopulating = true;
             cWebOn = Ui.Chk("Panel web encendido", s.WebEnabled);
             cWebPublic = Ui.Chk("Acceso desde internet (HTTPS, por la dirección pública)", s.WebPublic);
+            cLiveAll = Ui.Chk("Mapa en vivo: enseñar a todos, aunque no se hayan marcado como visibles en el juego", s.LiveShowAll);
             webPopulating = false;
+            cLiveAll.CheckedChanged += (o, e) => { if (!webPopulating) { Settings.Current.LiveShowAll = cLiveAll.Checked; Settings.Save(); Status(cLiveAll.Checked ? "El mapa en vivo enseña a todos los que juegan." : "El mapa en vivo solo enseña a quien se marca como visible en el juego (tú, con tu cuenta de administrador, ves a todos)."); } };
             cWebOn.CheckedChanged += (o, e) => { if (!webPopulating) SetWeb(cWebOn.Checked, cWebPublic.Checked); };
             cWebPublic.CheckedChanged += (o, e) => { if (!webPopulating) SetWeb(cWebOn.Checked, cWebPublic.Checked); };
 
-            var left = Ui.Col(webState, webPublicState, webMap, cWebOn, cWebPublic,
+            var left = Ui.Col(webState, webPublicState, webMap, cWebOn, cWebPublic, cLiveAll,
                 Ui.Row(Ui.Btn("Abrir la web", () => Ui.Open(Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl), true),
                        Ui.Btn("Copiar enlace para amigos", () => { Clipboard.SetText(WebPanel.PublicUrl); Status("Enlace copiado: " + WebPanel.PublicUrl); })),
                 Ui.Row(Ui.Btn("Comprobar desde internet", CheckWebPublic),
                        Ui.Btn("Ver en este PC", () => Ui.Open(WebPanel.LocalUrl)),
-                       Ui.Btn("Mapa", () => Ui.Open((Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "mapa/"))),
+                       Ui.Btn("Mapa", () => Ui.Open((Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "mapa/")),
+                       Ui.Btn("Mapa en vivo", () => Ui.Open((Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "vivo"))),
                 webCheck,
                 Ui.Lbl("Administrar desde la web", 11, FontStyle.Bold), webAdmin,
                 Ui.Row(Ui.Btn("Añadir o cambiar cuenta", EditWebUser),
                        Ui.Btn("Borrar cuenta", RemoveWebUser),
                        Ui.Btn("Cerrar sesiones", () => { if (Confirm("¿Cerrar la sesión en todos los dispositivos? Todos tendrán que volver a entrar.")) { WebAdmin.ForgetAllSessions(); Status("Sesiones cerradas en todos los dispositivos."); UpdateWebState(); } })),
                 Ui.Row(Ui.Btn("Abrir", () => Ui.Open((Settings.Current.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "admin")),
-                       Ui.Btn("Registro", () => OpenIfExists(Path.Combine(AppInfo.LogDir, "web-admin.log")))));
+                       Ui.Btn("Registro", () => OpenIfExists(Path.Combine(AppInfo.LogDir, "web-admin.log"))),
+                       Ui.Btn("Quitar verificación en dos pasos", RemoveWebTotp)));
 
             webRouter = Ui.Lbl("", 10, FontStyle.Regular, Th.Text);
             webRouter.MaximumSize = new Size(560, 0);
@@ -131,6 +135,20 @@ namespace Majinheim
             UpdateWebState();
         }
 
+        // Si alguien pierde el móvil con la app de los códigos: desde aquí (el PC del server) se le quita y vuelve a entrar solo con la contraseña.
+        void RemoveWebTotp()
+        {
+            var with = WebAdmin.List().Where(WebAdmin.HasTotp).ToList();
+            if (with.Count == 0) { MessageBox.Show(this, "Ninguna cuenta tiene la verificación en dos pasos activada. Se activa desde la web de administración, en «Seguridad de tu cuenta».", "Majinheim"); return; }
+            string u = with.Count == 1 ? with[0].Name : Ui.Ask(this, "Verificación en dos pasos", "¿A qué cuenta se la quito? La tienen: " + string.Join(", ", with.Select(x => x.Name)), "");
+            if (u == null || u.Trim() == "") return;
+            if (!Confirm("¿Quitar la verificación en dos pasos de " + u.Trim() + "?\n\nPodrá entrar solo con la contraseña y volver a activarla desde la web (por ejemplo, con el móvil nuevo).")) return;
+            string err = WebAdmin.RemoveTotp(u);
+            if (err != null) { MessageBox.Show(this, err, "Majinheim"); return; }
+            Status("Verificación en dos pasos quitada a " + u.Trim() + ".");
+            UpdateWebState();
+        }
+
         void OpenIfExists(string f)
         {
             if (File.Exists(f)) Ui.Open(f);
@@ -200,7 +218,7 @@ namespace Majinheim
             if (webMap.Text != mapTxt) webMap.Text = mapTxt;
             var users = WebAdmin.List();
             string admTxt = (WebAdmin.HasAdmin ? "Controles activados. Se entra en " + (s.WebPublic ? WebPanel.PublicUrl : WebPanel.LocalUrl) + "admin." : "Controles desactivados: no hay ningún administrador. Nadie puede tocar el server desde la web.") +
-                "\nCuentas: " + (users.Count == 0 ? "ninguna" : string.Join(", ", users.Select(x => x.Name + (x.Role == WebAdmin.RoleAdmin ? " (admin)" : "")))) +
+                "\nCuentas: " + (users.Count == 0 ? "ninguna" : string.Join(", ", users.Select(x => x.Name + (x.Role == WebAdmin.RoleAdmin ? (WebAdmin.HasTotp(x) ? " (admin, con código)" : " (admin)") : "")))) +
                 ". Sin cuenta se entra como invitado (solo ver).";
             if (webAdmin.Text != admTxt) webAdmin.Text = admTxt;
             webAdmin.ForeColor = WebAdmin.HasAdmin ? Th.Good : Th.Muted;
