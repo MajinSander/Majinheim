@@ -624,7 +624,7 @@ namespace Majinheim
                     var list = ((IEnumerable<object>)st["jugadores"]).Cast<Dictionary<string, object>>().Take(10).ToList();
                     if (list.Count == 0) return "Todavía no hay partidas guardadas.";
                     var tot = (Dictionary<string, object>)st["total"];
-                    return "📊 **" + Math.Round(Convert.ToInt32(tot["minutos"]) / 60.0) + " h** jugadas en " + tot["sesiones"] + " partidas.\n" +
+                    return "📊 Tiempo jugado entre todos: **" + Dur(Convert.ToInt32(tot["minutos"])) + "** en " + tot["sesiones"] + (Convert.ToInt32(tot["sesiones"]) == 1 ? " partida" : " partidas") + ".\n" +
                         string.Join("\n", list.Select((p, i) => (i + 1) + ". **" + Esc((string)p["nombre"]) + "**: " + Dur(Convert.ToInt32(p["minutos"])) + " (esta semana " + Dur(Convert.ToInt32(p["semana"])) + ")")) +
                         (web != null ? "\nMás en " + web + "estadisticas" : "");
                 }
