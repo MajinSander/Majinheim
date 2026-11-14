@@ -64,6 +64,8 @@ namespace Majinheim
                 if (currentAt > 0 && Unix(now) - currentAt > StaleAfter) lock (lk) current = new List<Pos>();
                 return;
             }
+            // Un archivo que quedó de antes (el server se apagó, o el launcher acaba de abrirse): ahí ya no hay nadie.
+            if ((now.ToUniversalTime() - t).TotalSeconds > StaleAfter) { fileAt = t; lock (lk) current = new List<Pos>(); return; }
             string text;
             try { text = File.ReadAllText(PosFile, Encoding.UTF8); } catch (IOException) { return; }   // el mod lo está escribiendo
             var list = Parse(text);
@@ -175,6 +177,35 @@ namespace Majinheim
         }
 
         public static List<Pos> Current(bool all) { lock (lk) return current.Where(p => all || p.Visible).ToList(); }
+
+        // Para la IA: dónde está cada vikingo ahora, en palabras ("a 200 m al norte del portal «Mina»", bioma). Solo los que
+        // se han marcado como visibles (o todos, si así está puesto en la pestaña Web): el bot contesta delante de todos.
+        public static object Tool(string player)
+        {
+            if (th == null) try { Poll(DateTime.Now); } catch { }   // desde la consola no hay hilo
+            bool all = Settings.Current.LiveShowAll;
+            List<Pos> cur; lock (lk) cur = current.ToList();
+            var w = WorldData.GetWorld();
+            var terr = Terrain.Load();
+            string f = AiChat.Fold(player ?? "");
+            var shown = cur.Where(p => (all || p.Visible) && (f == "" || AiChat.Fold(p.Name).Contains(f))).ToList();
+            var o = new Dictionary<string, object>
+            {
+                { "ahora", shown.Select(p =>
+                {
+                    var d = new Dictionary<string, object> { { "nombre", p.Name }, { "donde", w != null ? WorldData.Where(w, p.X, p.Z) : "x " + p.X + ", z " + p.Z } };
+                    string b = terr != null ? terr.BiomeAt(p.X, p.Z) : null;
+                    if (b != null) d["bioma"] = b;
+                    return (object)d;
+                }).ToList() },
+            };
+            int hidden = cur.Count(p => !all && !p.Visible && (f == "" || AiChat.Fold(p.Name).Contains(f)));
+            if (hidden > 0) o["jugandoSinMarcarseVisibles"] = hidden;
+            if (cur.Count == 0) o["nota"] = "No hay nadie en el mapa ahora mismo (o el server está apagado).";
+            else if (shown.Count == 0) o["nota"] = f != "" && hidden == 0 ? "Ese vikingo no está jugando ahora." : "Está jugando, pero no se ha marcado como visible en el juego (casilla «Visible para los demás» del mapa), así que no se dice dónde está.";
+            if (Settings.Current.WebEnabled && Settings.Current.WebPublic) o["mapaEnVivo"] = WebPanel.PublicUrl + "vivo";
+            return o;
+        }
     }
 
     // El terreno de lo explorado (mapa.bin del mod), ya leído.
@@ -203,6 +234,22 @@ namespace Majinheim
                 t.Zx[t.Count] = x; t.Zy[t.Count] = y; t.Cells[t.Count] = c; t.Count++;
             }
             return t.Count == 0 ? null : t;
+        }
+
+        static readonly string[] BiomeNames = { null, "Prados", "Pantano", "Montaña", "Selva Negra", "Llanuras", "Tierras de Ceniza", "Norte Profundo", null, "Océano", "Tierras Brumosas" };
+        Dictionary<int, int> index;
+        // El bioma en ese punto, si está explorado. null = no se sabe.
+        public string BiomeAt(int x, int z)
+        {
+            int zone = Step * Per;
+            int zx = (int)Math.Floor((x + zone / 2.0) / zone), zy = (int)Math.Floor((z + zone / 2.0) / zone);
+            if (index == null) { var ix = new Dictionary<int, int>(); for (int k = 0; k < Count; k++) ix[Key(Zx[k], Zy[k])] = k; index = ix; }
+            int at;
+            if (!index.TryGetValue(Key(zx, zy), out at)) return null;
+            int i = Math.Max(0, Math.Min(Per - 1, (int)((x - (zx * zone - zone / 2.0)) / Step))), j = Math.Max(0, Math.Min(Per - 1, (int)((z - (zy * zone - zone / 2.0)) / Step)));
+            int b = Cells[at][(j * Per + i) * 2], h = Cells[at][(j * Per + i) * 2 + 1];
+            if (h < 30) return "en el agua";
+            return b > 0 && b < BiomeNames.Length ? BiomeNames[b] : null;
         }
 
         static Terrain cached; static DateTime cachedAt;
@@ -428,6 +475,30 @@ namespace Majinheim
                 { "primeraFoto", first.HasValue ? DayName(first.Value) : null },
                 { "hoy", DayName(DateTime.Today) },
             };
+        }
+
+        // Para la IA: qué pasó los últimos días, con la fecha en palabras y los minutos ya en horas.
+        public static object Tool(int days)
+        {
+            var es = new CultureInfo("es-ES");
+            var list = ((List<object>)Days(Settings.Current.LiveShowAll)["dias"]).Cast<Dictionary<string, object>>()
+                .Where(d => DateTime.ParseExact((string)d["dia"], "yyyy-MM-dd", Inv) >= DateTime.Today.AddDays(-days)).ToList();
+            var res = list.Select(d =>
+            {
+                var day = DateTime.ParseExact((string)d["dia"], "yyyy-MM-dd", Inv);
+                int ago = (int)(DateTime.Today - day).TotalDays;
+                var o = new Dictionary<string, object>
+                {
+                    { "dia", (ago == 0 ? "hoy, " : ago == 1 ? "ayer, " : "hace " + ago + " días, ") + day.ToString("dddd d 'de' MMMM", es) },
+                    { "jugaron", ((List<object>)d["jugadores"]).Cast<Dictionary<string, object>>().Select(p => (object)((string)p["nombre"] + " (" + Dur((int)p["minutos"]) + ")")).ToList() },
+                    { "hechos", ((List<object>)d["hechos"]).Cast<Dictionary<string, object>>().Select(h => h["texto"]).ToList() },
+                };
+                return (object)o;
+            }).ToList();
+            var r = new Dictionary<string, object> { { "dias", res } };
+            if (res.Count == 0) r["nota"] = "No hay nada apuntado en esos días: nadie jugó.";
+            if (Settings.Current.WebEnabled && Settings.Current.WebPublic) r["maquinaDelTiempo"] = WebPanel.PublicUrl + "historia";
+            return r;
         }
 
         static object Fact(string kind, string text) { return new Dictionary<string, object> { { "tipo", kind }, { "texto", text } }; }

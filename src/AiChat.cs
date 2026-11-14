@@ -358,6 +358,8 @@ namespace Majinheim
                 sb.Append("- Si preguntan cómo se fabrica o se construye algo, qué materiales lleva, dónde se hace o para qué sirve un material, usa SIEMPRE la herramienta receta: son las recetas reales de este server, con los mods. Da los materiales y la mesa tal cual vienen. Si la herramienta no lo tiene, dilo; no lo completes con lo que sepas de Valheim sin mods.\n");
                 sb.Append("- Si preguntan dónde hay algo guardado, cuánto tenemos de algo o en qué cofre está (hierro, madera, comida...), usa buscar_en_cofres con el nombre del objeto. Di dónde con las palabras que trae (\"junto al portal «Casa»\") y cuántos hay; las coordenadas, solo si las piden.\n");
                 sb.Append("- Si preguntan por una tumba, dónde murió alguien o dónde están sus cosas, usa tumbas.\n");
+                sb.Append("- Si preguntan dónde está alguien ahora o por dónde anda la gente, usa donde_esta y dilo con sus palabras (\"cerca del portal «Mina», en la Selva Negra\"). Si no sale porque no se ha marcado como visible, dilo tal cual; no adivines.\n");
+                sb.Append("- Si preguntan qué pasó ayer, qué se han perdido o qué se ha hecho estos días, usa que_paso y cuéntalo en dos o tres frases, sin listas largas.\n");
                 sb.Append("- Dónde se consigue algo en el mundo (biomas, enemigos que lo sueltan): responde solo si lo sabes con seguridad y sin cifras; si no, dilo.\n");
             }
             else sb.Append("- Si preguntan cómo conseguir o fabricar algo, no des pasos, materiales, biomas ni enlaces: di que no lo tienes seguro porque el server lleva mods y que lo miren en la wiki de Valheim.\n");
@@ -519,6 +521,10 @@ namespace Majinheim
                     new Dictionary<string, object> { { "objeto", Prop("string", "El objeto que se busca, como lo diría un jugador, en español o en inglés (por ejemplo: hierro, madera fina, carne de jabalí).") } }));
                 list.Add(Tool("receta", "Receta real de este server (con los mods): qué materiales lleva algo, en qué mesa y a qué nivel se hace, cuánto piden las mejoras, o con qué herramienta se construye. Si lo que se pregunta es un material, también dice para qué sirve.",
                     new Dictionary<string, object> { { "objeto", Prop("string", "Lo que se quiere fabricar o construir, o el material, en español o en inglés (por ejemplo: espada de hierro, forja, cuero).") } }));
+                list.Add(Tool("donde_esta", "Dónde está AHORA MISMO cada vikingo que está jugando (respecto al portal más cercano y en qué bioma). Útil para '¿dónde está Fran?', '¿por dónde andáis?' o '¿quién está cerca de casa?'. Solo salen los que se han marcado como visibles en el juego.",
+                    new Dictionary<string, object> { { "jugador", Prop("string", "Opcional: nombre del vikingo.") } }));
+                list.Add(Tool("que_paso", "Resumen de lo que pasó cada día: quién jugó y cuánto, muertes, jefes derrotados, portales nuevos, cuánto mapa se exploró y cuántas piezas se construyeron. Útil para '¿qué pasó ayer?', '¿qué me he perdido?' o '¿qué habéis hecho esta semana?'.",
+                    new Dictionary<string, object> { { "dias", Prop("integer", "Cuántos días hacia atrás (por defecto 3, máximo 14).") } }));
                 list.Add(Tool("tumbas", "Tumbas que hay ahora en el mundo (de quién, cuándo murió, dónde está y qué lleva). Útil para '¿dónde está mi tumba?' o '¿dónde murió Benja?'.",
                     new Dictionary<string, object> { { "jugador", Prop("string", "Opcional: nombre del vikingo.") } }));
             }
@@ -539,6 +545,8 @@ namespace Majinheim
                 case "buscar_en_cofres": return WorldData.FindItem(Arg(args, "objeto"));
                 case "receta": return WorldData.Craft(Arg(args, "objeto"));
                 case "tumbas": return WorldData.Tombs(Arg(args, "jugador"));
+                case "donde_esta": return LiveMap.Tool(Arg(args, "jugador"));
+                case "que_paso": return Chronicle.Tool(ArgInt(args, "dias", 3, 1, 14));
                 case "ayuda": return Help.Tool(Arg(args, "tema"));
                 case "registro_servidor":
                     if (!admin) return new Dictionary<string, object> { { "error", "solo para administradores" } };
