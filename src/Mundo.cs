@@ -781,7 +781,8 @@ namespace Majinheim
                     { "objetos", t.Items.Count },
                     { "lleva", string.Join(", ", t.Items.OrderByDescending(i => i.Value).Take(6).Select(i => Es(names, i.Key) + (i.Value > 1 ? " x" + i.Value : ""))) },
                 };
-                if (t.Death != DateTime.MinValue) o["murio"] = AiChat.When(t.Death);
+                // El juego apunta la hora del mundo, que solo corre con el server encendido: es tiempo de partida, no una fecha real.
+                if (t.Death != DateTime.MinValue) o["murio"] = AiChat.Ago(t.Death).Replace("hace ", "hace unas ") + " de partida (el juego solo cuenta el tiempo con el server encendido; el día real no se sabe)";
                 return (object)o;
             }).ToList();
             if (list.Count > 6) res["otras"] = list.Count - 6;
