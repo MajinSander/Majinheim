@@ -1,9 +1,9 @@
 {
   "Name": "Majinheim",
-  "Revision": 4,
+  "Revision": 5,
   "GameAddress": "majinrouter.asuscomm.com:2456",
   "LanHost": "",
-  "LauncherVersion": "1.8.2",
+  "LauncherVersion": "2.7.0",
   "Message": "Bienvenido a Majinheim 1.0",
   "WebUrl": "https://majinrouter.asuscomm.com/",
   "Mods": [
