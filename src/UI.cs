@@ -1189,21 +1189,8 @@ namespace Majinheim
 
         void OpenHelp()
         {
-            string u = WebBase();
-            if (u != null) Ui.Open(u.TrimEnd('/') + "/ayuda");
-        }
-
-        // A qué web llevan los botones. En casa del server la dirección pública no abre (los routers no dejan "salir y volver
-        // a entrar"): si al mirar el estado solo respondió la de la red de casa, se usa esa. Solo puede ser la pública (https)
-        // o la de casa que el propio jugador puso en Ajustes, nunca otra.
-        string WebBase()
-        {
             string u = SafeWebUrl(pack.WebUrl);
-            if (u == null) return null;
-            string lan = (Settings.Current.LanHost ?? "").Trim();
-            string lb = SupportClient.LastGoodBase;
-            if (lan != "" && lb == "http://" + lan + ":8456/") return lb;
-            return u;
+            if (u != null) Ui.Open(u.TrimEnd('/') + "/ayuda");
         }
 
         // ------------------------------------------------------------ "Tengo un problema" (2.4)
@@ -1290,7 +1277,7 @@ namespace Majinheim
 
         void OpenServerWeb()
         {
-            string u = WebBase();
+            string u = SafeWebUrl(pack.WebUrl);
             if (u != null) Ui.Open(u);
         }
 
