@@ -67,7 +67,9 @@
       var tr = el('tr');
       var n = el('td', 'nombre');
       if (j.jugando) n.appendChild(el('span', 'punto'));
-      n.appendChild(document.createTextNode(j.nombre));
+      var a = el('a', null, j.nombre);   // la página de cada vikingo (2.6)
+      a.href = '/jugador?n=' + encodeURIComponent(j.nombre);
+      n.appendChild(a);
       tr.appendChild(n);
       tr.appendChild(el('td', 'num', horas(j.minutos)));
       tr.appendChild(el('td', 'num', j.semana ? horas(j.semana) : '—'));

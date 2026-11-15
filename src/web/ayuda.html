@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Majinheim · Ayuda</title>
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/estilo.css">
+</head>
+<body>
+<header>
+  <div class="marca">
+    <a href="/"><img src="/icono.svg" alt="Volver al estado" width="40" height="40"></a>
+    <div>
+      <h1>Ayuda</h1>
+      <p class="sub">Instalar, entrar y los problemas de siempre</p>
+    </div>
+  </div>
+  <div class="acciones">
+    <a class="boton secundario" href="/">Estado</a>
+    <a class="boton secundario" href="/estadisticas">Estadísticas</a>
+  </div>
+</header>
+
+<main>
+  <section class="tarjeta ancha">
+    <form class="formulario ayuda-buscar" id="form-buscar" role="search">
+      <label for="buscar">¿Qué te pasa?</label>
+      <input id="buscar" type="search" maxlength="80" placeholder="Ej.: versión incompatible, contraseña, no conecta" autocomplete="off">
+    </form>
+    <p id="sin-resultados" class="vacio" hidden>No hay nada sobre eso. Pulsa «Tengo un problema» en el launcher y Majin lo mira.</p>
+  </section>
+  <div id="secciones" class="contenidos"></div>
+</main>
+
+<footer><span>Majinheim Web · Si nada de esto lo arregla, pulsa «Tengo un problema» en el launcher</span></footer>
+<script src="/ayuda.js"></script>
+</body>
+</html>

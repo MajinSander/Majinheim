@@ -67,19 +67,48 @@ namespace Majinheim
             { "/admin.js", new[] { "admin.js", "application/javascript; charset=utf-8" } },
             { "/estadisticas.html", new[] { "estadisticas.html", "text/html; charset=utf-8" } },
             { "/estadisticas.js", new[] { "estadisticas.js", "application/javascript; charset=utf-8" } },
+            { "/ayuda.html", new[] { "ayuda.html", "text/html; charset=utf-8" } },
+            { "/ayuda.js", new[] { "ayuda.js", "application/javascript; charset=utf-8" } },
+            { "/ayuda.json", new[] { "ayuda.json", "application/json; charset=utf-8" } },
+            { "/jugador.html", new[] { "jugador.html", "text/html; charset=utf-8" } },
+            { "/jugador.js", new[] { "jugador.js", "application/javascript; charset=utf-8" } },
+            { "/vivo.html", new[] { "vivo.html", "text/html; charset=utf-8" } },
+            { "/vivo.js", new[] { "vivo.js", "application/javascript; charset=utf-8" } },
+            { "/historia.html", new[] { "historia.html", "text/html; charset=utf-8" } },
+            { "/historia.js", new[] { "historia.js", "application/javascript; charset=utf-8" } },
+            { "/mundo3d.html", new[] { "mundo3d.html", "text/html; charset=utf-8" } },
+            { "/mundo3d.js", new[] { "mundo3d.js", "application/javascript; charset=utf-8" } },
+            { "/mapa2d.js", new[] { "mapa2d.js", "application/javascript; charset=utf-8" } },
         };
 
         static MiniHttp.Response Route(MiniHttp.Request req)
         {
             string path = req.Path;
             if (path.StartsWith("/api/admin/") || path == "/api/entrar" || path == "/api/salir" || path == "/api/sesion") return WebAdmin.Handle(req);
+            if (path == Support.ApiPath) return SupportDesk.Handle(req);   // "Tengo un problema" del launcher de jugador (2.4)
             if (req.Method == "POST") return MiniHttp.Response.Text(405, "Solo lectura");
             if (path == "/api/estado") return MiniHttp.Response.JsonOf(ServerWatch.Snapshot(), true);
             if (path == "/salud") return MiniHttp.Response.Text(200, "ok");
             if (path == "/robots.txt") return MiniHttp.Response.Text(200, "User-agent: *\nDisallow: /\n");   // que los buscadores no guarden la página (salen nombres de jugadores)
             if (path == "/api/estadisticas") return MiniHttp.Response.JsonOf(ServerWatch.Stats(), true);
+            if (path == "/api/jugador")
+            {
+                string n = (WebAdmin.QueryValue(req.Query, "nombre") ?? "").Trim();
+                var pl = n.Length == 0 || n.Length > 40 ? null : ServerWatch.Player(n);
+                return pl == null ? MiniHttp.Response.JsonOf(404, new Dictionary<string, object> { { "error", "No hay partidas de ese vikingo." } }) : MiniHttp.Response.JsonOf(pl, true);
+            }
+            if (path == "/api/vivo" || path == "/api/historia" || path == "/api/historia/dia" || path == "/api/mapa.png" || path == "/api/terreno.bin")
+            {
+                try { return WorldPages(req, path); }
+                catch (Exception e) { Log.W("Web: {0}: {1}", path, e.Message); return MiniHttp.Response.JsonOf(500, new Dictionary<string, object> { { "error", "No he podido leer los datos del mundo." } }); }
+            }
+            if (path == "/vivo") path = "/vivo.html";
+            if (path == "/historia") path = "/historia.html";
+            if (path == "/3d") path = "/mundo3d.html";
+            if (path == "/jugador") path = "/jugador.html";
             if (path == "/admin") path = "/admin.html";
             if (path == "/estadisticas") path = "/estadisticas.html";
+            if (path == "/ayuda") path = "/ayuda.html";
             string[] f;
             if (Files.TryGetValue(path, out f))
             {
@@ -88,6 +117,45 @@ namespace Majinheim
             }
             return MiniHttp.Response.Text(404, "No existe");
         }
+
+        // Mapa en vivo, máquina del tiempo y mundo en 3D (2.7). Lo ve cualquiera, como el resto de la web; los jugadores que no
+        // se han marcado como visibles en el juego solo los ve el administrador (o todos, si se activa en la pestaña Web).
+        static MiniHttp.Response WorldPages(MiniHttp.Request req, string path)
+        {
+            Func<string, MiniHttp.Response> none = m => MiniHttp.Response.JsonOf(404, new Dictionary<string, object> { { "error", m } });
+            if (!Settings.Current.WorldExport) return none("El mapa está apagado en este server.");
+            bool all = Settings.Current.LiveShowAll || WebAdmin.IsAdmin(req);
+            string dq = WebAdmin.QueryValue(req.Query, "dia");
+            DateTime day = DateTime.MinValue;
+            bool hasDay = !string.IsNullOrEmpty(dq) && DateTime.TryParseExact(dq, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out day) && day < DateTime.Today;
+            if (path == "/api/vivo")
+            {
+                long since; long.TryParse(WebAdmin.QueryValue(req.Query, "desde") ?? "", out since);
+                var o = LiveMap.Api(since, all);
+                o["encendido"] = (string)((Dictionary<string, object>)ServerWatch.Snapshot()["servidor"])["estado"] != "apagado";
+                if (since <= 0 || WebAdmin.QueryValue(req.Query, "mapa") == "1") { var meta = WorldData.MapMeta(); if (meta != null) o["mapa"] = meta; }
+                return Slim(o);
+            }
+            if (path == "/api/historia") return Slim(Chronicle.Days(all));
+            if (path == "/api/historia/dia")
+            {
+                if (string.IsNullOrEmpty(dq) || !DateTime.TryParseExact(dq, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out day)) return none("Falta el día.");
+                var o = Chronicle.Day(day, all);
+                var meta = WorldData.MapMeta(); if (meta != null) { meta.Remove("portales"); o["mapa"] = meta; }
+                return Slim(o);
+            }
+            if (path == "/api/mapa.png")
+            {
+                var m = hasDay ? WorldData.GetMapAt(day) : WorldData.GetMap();
+                return m == null ? none("Todavía no hay mapa.") : new MiniHttp.Response(200, "image/png", m.Png, false);
+            }
+            var terr = Terrain.Load();
+            var grid = terr == null ? null : terr.Grid(hasDay ? Chronicle.ZonesAt(day) : null, 800000);
+            return grid == null ? none("Todavía no hay mapa.") : new MiniHttp.Response(200, "application/octet-stream", grid, false);
+        }
+
+        // Sin sangrar: las rutas son miles de números y esto se pide cada 2 segundos.
+        static MiniHttp.Response Slim(object o) { return new MiniHttp.Response(200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(Json.Compact(o)), true); }
 
         // Las páginas van dentro del .exe (build.bat las mete con /resource). Si hay copia en web\ junto al .exe, manda esa (para retocarlas sin compilar).
         internal static byte[] Resource(string name)
@@ -291,10 +359,10 @@ namespace Majinheim
             }
         }
 
-        // Cabeceras hasta la línea en blanco (máx. 8 KB) y cuerpo con Content-Length (máx. 4 KB).
+        // Cabeceras hasta la línea en blanco (máx. 8 KB) y cuerpo con Content-Length (máx. 4 KB; 64 KB solo para "Tengo un problema").
         static Request Read(NetworkStream ns)
         {
-            var buf = new byte[8192 + MaxBody];
+            var buf = new byte[8192];
             int n = 0, end = -1;
             while (end < 0)
             {
@@ -319,16 +387,16 @@ namespace Majinheim
             int len;
             if (int.TryParse(req.Header("Content-Length"), out len) && len > 0)
             {
-                if (len > MaxBody) return null;
-                int have = n - end;
+                if (len > (req.Path == Support.ApiPath ? Support.MaxBody : MaxBody)) return null;
+                req.Body = new byte[len];
+                int have = Math.Min(n - end, len);
+                Array.Copy(buf, end, req.Body, 0, have);
                 while (have < len)
                 {
-                    int r = ns.Read(buf, end + have, len - have);
+                    int r = ns.Read(req.Body, have, len - have);
                     if (r <= 0) return null;
                     have += r;
                 }
-                req.Body = new byte[len];
-                Array.Copy(buf, end, req.Body, 0, len);
             }
             return req;
         }
@@ -738,6 +806,13 @@ namespace Majinheim
             t.Start();
         }
 
+        // Solo las partidas guardadas, sin vigilar el server (para la consola).
+        public static void LoadHistory()
+        {
+            if (started) return;
+            try { lock (lk) history = Json.Load<List<SessionRecord>>(HistoryFile); } catch (Exception e) { Log.W("Web: no pude leer sesiones.json: {0}", e.Message); }
+        }
+
         static bool Running { get { try { return proc != null && !proc.HasExited; } catch { return false; } } }
 
         static void Tick()
@@ -907,7 +982,7 @@ namespace Majinheim
                     { "desde", run ? Iso(procStart) : null },
                     { "version", version },
                     { "actualizacionPendiente", Steam.Server() != null && Steam.Server().UpdatePending },
-                    { "ultimoGuardado", lastSave.HasValue ? Iso(lastSave.Value) : null },
+                    { "ultimoGuardado", lastSave.HasValue ? Iso(lastSave.Value) : dayStamp != default(DateTime) ? Iso(dayStamp.ToLocalTime()) : null },   // sin guardados aún en esta sesión: la fecha del archivo del mundo
                     { "dia", worldDay },
                     { "cpu", cpu },
                     { "ramMb", ramMb },
@@ -940,6 +1015,15 @@ namespace Majinheim
             }
             catch { o["mods"] = null; }
             o["mapa"] = mapUp ? MapProxy.Prefix + "/" : null;
+            o["bajoDemanda"] = s.OnDemand;   // el launcher de jugador dice "/encender en Discord" si está apagado
+            o["proximaQuedada"] = null;      // solo cuándo y cuántos van (sin nombres)
+            if (s.Meetups)
+                try
+                {
+                    var q = Community.Meetups().Where(m => !m.Done && !m.Cancelled && m.At != DateTime.MinValue && m.At > now.AddMinutes(-30)).OrderBy(m => m.At).FirstOrDefault();
+                    if (q != null) o["proximaQuedada"] = new Dictionary<string, object> { { "cuando", Iso(q.At) }, { "van", q.People.Count } };
+                }
+                catch { }
             o["jefes"] = Bosses.Public();
             o["generado"] = Iso(now);
             o["panel"] = WebPanel.Version;
@@ -1007,7 +1091,92 @@ namespace Majinheim
             };
         }
 
+        // Página de cada vikingo (2.6): lo suyo, con quién juega más, sus logros y lo que le falta para el siguiente.
+        static readonly int[] HourGoals = { 10, 25, 50, 100, 150, 200, 300, 400, 500, 750, 1000 };
+        static readonly int[] DeathGoals = { 50, 100, 250, 500, 1000 };
+
+        public static Dictionary<string, object> Player(string name)
+        {
+            var now = DateTime.Now;
+            var all = Sessions(DateTime.MinValue);
+            var mine = all.Where(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (mine.Count == 0) return null;
+            name = mine.Last().Name;
+            int total = mine.Sum(x => Minutes(x.Start, x.End)), deaths = mine.Sum(x => x.Deaths);
+            var weekAgo = now.AddDays(-7);
+
+            var ranking = all.GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase).Select(g => new { g.Key, Min = g.Sum(x => Minutes(x.Start, x.End)) })
+                .OrderByDescending(x => x.Min).ToList();
+            int pos = ranking.FindIndex(x => string.Equals(x.Key, name, StringComparison.OrdinalIgnoreCase)) + 1;
+
+            var days = new List<object>();
+            for (int i = 29; i >= 0; i--)
+            {
+                var d0 = now.Date.AddDays(-i); var d1 = d0.AddDays(1);
+                days.Add(new Dictionary<string, object>
+                {
+                    { "fecha", d0.ToString("yyyy-MM-dd") },
+                    { "minutos", mine.Where(x => x.Start < d1 && x.End > d0).Sum(x => Minutes(x.Start < d0 ? d0 : x.Start, x.End > d1 ? d1 : x.End)) },
+                });
+            }
+            var hours = new int[24];
+            var since = now.AddDays(-60);
+            foreach (var x in mine.Where(x => x.End > since))
+                for (var t = x.Start < since ? since : x.Start; t < x.End; t = t.AddMinutes(10)) hours[t.Hour] += (int)Math.Min(10, (x.End - t).TotalMinutes);
+
+            // Con quién coincide más: minutos dentro del server a la vez.
+            var together = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var o in all.Where(x => !string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)))
+                foreach (var m in mine)
+                {
+                    var a = m.Start > o.Start ? m.Start : o.Start; var b = m.End < o.End ? m.End : o.End;
+                    if (b > a) { int v; together.TryGetValue(o.Name, out v); together[o.Name] = v + Minutes(a, b); }
+                }
+            var friends = together.Where(kv => kv.Value >= 10).OrderByDescending(kv => kv.Value).Take(5)
+                .Select(kv => (object)new Dictionary<string, object> { { "nombre", kv.Key }, { "minutos", kv.Value } }).ToList();
+
+            var goals = new List<object>();
+            foreach (int h in HourGoals.Where(h => total >= h * 60)) goals.Add(h + " horas en el server");
+            foreach (int d in DeathGoals.Where(d => deaths >= d)) goals.Add(d + " muertes");
+            var longest = mine.OrderByDescending(x => x.End - x.Start).First();
+            int next = HourGoals.FirstOrDefault(h => total < h * 60);
+
+            int tombs = 0;
+            try
+            {
+                var w = WorldData.GetWorld();
+                if (w != null) tombs = w.Tombs.Count(t => string.Equals(t.Player, name, StringComparison.OrdinalIgnoreCase));
+            }
+            catch (Exception e) { Log.W("Web: tumbas de {0}: {1}", name, e.Message); }
+
+            int best = Enumerable.Range(0, 24).OrderByDescending(i => hours[i]).First();
+            return new Dictionary<string, object>
+            {
+                { "nombre", name },
+                { "jugando", mine.Any(x => x.Live) },
+                { "minutos", total },
+                { "semana", mine.Where(x => x.End > weekAgo).Sum(x => Minutes(x.Start < weekAgo ? weekAgo : x.Start, x.End)) },
+                { "sesiones", mine.Count },
+                { "masLarga", Minutes(longest.Start, longest.End) },
+                { "masLargaFecha", Iso(longest.Start) },
+                { "muertes", deaths },
+                { "primera", Iso(mine.First().Start) },
+                { "ultima", mine.Any(x => x.Live) ? null : Iso(mine.Max(x => x.End)) },
+                { "puesto", pos }, { "de", ranking.Count },
+                { "dias", days }, { "horas", hours },
+                { "horaFavorita", hours[best] > 0 ? (object)best : null },
+                { "companeros", friends },
+                { "logros", goals },
+                { "siguiente", next > 0 ? (object)new Dictionary<string, object> { { "horas", next }, { "faltan", next * 60 - total } } : null },
+                { "tumbas", tombs },
+                { "recientes", mine.AsEnumerable().Reverse().Take(10).Select(x => (object)new Dictionary<string, object>
+                    { { "inicio", Iso(x.Start) }, { "minutos", Minutes(x.Start, x.End) }, { "muertes", x.Deaths }, { "jugando", x.Live } }).ToList() },
+                { "generado", Iso(now) },
+            };
+        }
+
         public static DateTime ParseIsoPublic(string s) { return ParseIso(s); }
+        public static int? CurrentDay() { return WorldDay(); }
 
         // Partidas (guardadas y en curso) que acaban después de 'since', de la más vieja a la más nueva. Solo nombres y tiempos.
         public class SessionView { public string Name; public DateTime Start, End; public int Deaths; public bool Live; }

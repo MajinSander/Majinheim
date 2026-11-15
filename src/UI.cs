@@ -236,6 +236,7 @@ namespace Majinheim
             if (name == "Backups") RefreshBackups();
             if (name == "Ajustes de mods" && !CfgDirty()) ReloadCfg();
             if (name == "Asistente IA") RefreshAi();
+            if (name == "Salud") ShowHealth();
 #endif
         }
 
@@ -351,6 +352,7 @@ namespace Majinheim
             runner.StateChanged += () => { if (!IsDisposed) try { BeginInvoke((Action)UpdateServerState); } catch { } };
 
             AddPage("Servidor", "▶", BuildServerPage());
+            AddPage("Salud", "♥", BuildHealthPage());
             AddPage("Mods", "☰", BuildModsPage());
             AddPage("Ajustes de mods", "⚙", BuildConfigPage());
             AddPage("Amigos", "☺", BuildFriendsPage());
@@ -537,7 +539,7 @@ namespace Majinheim
                        Ui.Btn("Añadir mod...", AddMod), Ui.Btn("Quitar", RemoveSelected), Ui.Btn("Cambiar lado", CycleSide),
                        Ui.Btn("Ver en Thunderstore", OpenSelectedWeb), Ui.Btn("Deshacer cambios", ReloadPack)),
                 Ui.Row(Ui.Btn("APLICAR CAMBIOS", ApplyMods, true), modsInfo, modsDirty),
-                Ui.Lbl("Marca o desmarca para activar o desactivar.  Naranja = hay versión nueva.  Amarillo = lleva mucho sin actualizarse (vigilar).  Gris = desactivado.", 8.5f, FontStyle.Regular, Th.Muted));
+                Ui.Lbl("Marca o desmarca para activar o desactivar.  Naranja = hay versión nueva (el mantenimiento diario la prueba y la instala sola).  Amarillo = lleva mucho sin actualizarse (vigilar).  Rojo = su autor lo ha marcado como obsoleto.  Gris = desactivado.", 8.5f, FontStyle.Regular, Th.Muted));
             PopulateMods();
             return PageWithTitle("Mods", "El modpack que usa el server y que reciben tus amigos automaticamente.", modList, bar);
         }
@@ -575,6 +577,7 @@ namespace Majinheim
             PkgInfo li;
             latest.TryGetValue(m.Id, out li);
             if (!m.Enabled) it.ForeColor = Color.FromArgb(110, 116, 124);
+            else if (li != null && li.Deprecated) it.ForeColor = Th.Bad;
             else if (li != null && Ver.Compare(li.Version, m.Version) > 0) it.ForeColor = Th.AccentHi;
             else if (li != null && string.CompareOrdinal(li.Date, Settings.Current.StaleBefore) < 0) it.ForeColor = Th.Warn;
             else it.ForeColor = Th.Text;
@@ -900,7 +903,14 @@ namespace Majinheim
             runner.TryAdopt();
             UpdateServerState();
             WebAdmin.Action = WebAction;
+            WebAdmin.RestoreWorld = WebRestore;
+            WebAdmin.SaveModSettings = WebModSettings;
             WebAdmin.Say = SayInGame;
+            GameChat.Say = t => runner.Running && Rcon.Ready ? Rcon.Say(t) : "el server o los mensajes en el juego no están listos";
+            GameChat.Start();
+            LagWatch.Running = () => runner.Running;
+            LagWatch.Start();
+            LiveMap.Start();
             InitAuto();
             WebPanel.Apply();
             CheckUpdatesQuiet();
@@ -936,6 +946,40 @@ namespace Majinheim
             return "Acción desconocida.";
         }
 
+        // Volver el mundo a un backup desde la web (2.5). La web ya ha pedido doble confirmación; aquí se comprueba que se puede.
+        // Solo el mundo, los personajes y lo explorado en el mapa: ni ajustes, ni cuentas, ni la lista de baneados.
+        WebResult WebRestore(string file, string who)
+        {
+            if (InvokeRequired) return (WebResult)Invoke(new Func<WebResult>(() => WebRestore(file, who)));
+            if (busy || maintRunning) return WebResult.No("El launcher está ocupado con otra tarea; prueba en un momento.");
+            if (SomeonePlaying()) return WebResult.No("Hay gente jugando. Restaurar apaga el server y les quitaría lo último que han hecho: espera a que no haya nadie.");
+            var b = Backup.List().FirstOrDefault(x => string.Equals(Path.GetFileName(x.Path), file, StringComparison.OrdinalIgnoreCase));
+            if (b == null) return WebResult.No("Ese backup ya no está.");
+            if (!Backup.HasWorld(b)) return WebResult.No("Ese backup no lleva el mundo (solo ajustes).");
+            bool wasRunning = runner.Running;
+            string when = b.Date.ToString("d MMM HH:mm", new System.Globalization.CultureInfo("es-ES"));
+            RunBg("Restaurando el mundo al backup del " + when + " (desde la web)...", () =>
+            {
+                string err = null;
+                try
+                {
+                    if (wasRunning) runner.Stop(true);
+                    Backup.Restore(b.Path, Backup.IsWorldPart);
+                }
+                catch (Exception e) { err = e.Message; }
+                if (wasRunning)
+                    try { runner.Start(); }
+                    catch (Exception e) { err = (err == null ? "" : err + ". ") + "El server no ha vuelto a arrancar: " + e.Message; }
+                WebAdmin.Audit("este PC", "restaurar el mundo al backup del " + when + " (pedido por " + who + "): " + (err ?? "hecho"));
+                Discord.Send(err == null
+                    ? "⏪ **" + Esc(who) + "** ha vuelto el mundo al backup del " + when + ". Lo que había justo antes está guardado en el backup «antes de restaurar»." + (wasRunning ? " El server vuelve a arrancar." : "")
+                    : "⚠️ No se ha podido restaurar el backup del " + when + ": " + err);
+            }, () => { if (pages.ContainsKey("Backups") && pages["Backups"].Visible) RefreshBackups(); });
+            return WebResult.Yes((wasRunning ? "Restaurando: se apaga el server guardando el mundo, " : "Restaurando: ") +
+                "se hace una copia de cómo está ahora («antes de restaurar»), se pone el backup del " + when + (wasRunning ? " y vuelve a arrancar" : "") +
+                ". Tarda un par de minutos; el resultado sale en Discord y en «Lo que se ha hecho desde la web».");
+        }
+
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
@@ -944,6 +988,12 @@ namespace Majinheim
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            if (!exiting && maintRunning && e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+                MessageBox.Show(this, "Hay un mantenimiento en marcha (actualizando y probando el server). Espera a que termine: si cierras ahora, el server puede quedarse a medias.", "Majinheim", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             if (!exiting && runner.Running && e.CloseReason == CloseReason.UserClosing)
             {
                 var r = MessageBox.Show(this, "El server sigue en marcha.\n\nSí: detenerlo (guardando el mundo) y salir.\nNo: dejarlo en marcha y esconder el launcher junto al reloj.\nCancelar: volver.", "Majinheim", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
@@ -961,9 +1011,12 @@ namespace Majinheim
 #else
         // ============================================================ EDICION CLIENTE
 
-        Label plTitle, plMsg, plState;
+        Label plTitle, plMsg, plState, plServer;
         ListView plMods;
-        Button bPlay, bWeb;
+        Button bPlay, bWeb, bHelp;
+        ServerFacts lastFacts;                              // lo último que se sabe del server (por su web)
+        readonly Timer statusTimer = new Timer { Interval = 60000 };
+        bool statusBusy;
         CheckBox cConnect;
         TextBox tGameDir, tRepoC, tLanC;
         bool online;
@@ -980,13 +1033,16 @@ namespace Majinheim
             plTitle = Ui.Lbl(pack.Name, 26, FontStyle.Bold, Th.Text);
             plMsg = Ui.Lbl("", 11, FontStyle.Regular, Th.Muted); plMsg.MaximumSize = new Size(820, 0);
             plState = Ui.Lbl("Conectando con el server...", 10, FontStyle.Regular, Th.Muted);
+            plServer = Ui.Lbl("● Mirando si el server está encendido...", 10, FontStyle.Bold, Th.Muted); plServer.MaximumSize = new Size(820, 0);
             bPlay = Ui.Btn("JUGAR", Play, true);
             bPlay.AutoSize = false; bPlay.Size = new Size(260, 64); bPlay.Font = Th.F(18, FontStyle.Bold);
             bWeb = Ui.Btn("◎  Web del server", OpenServerWeb);
             cConnect = Ui.Chk("Entrar directamente al server", Settings.Current.AutoConnect);
             cConnect.CheckedChanged += (o, e) => { Settings.Current.AutoConnect = cConnect.Checked; Settings.Save(); };
-            var hero = Ui.Col(plTitle, plMsg, plState,
-                Ui.Row(bPlay, Ui.Col(cConnect, Ui.Row(Ui.Btn("Jugar sin mods", () => Launch(false)), Ui.Btn("Buscar actualizaciones", () => Sync(false)), bWeb))));
+            bHelp = Ui.Btn("?  Ayuda", OpenHelp);
+            var hero = Ui.Col(plTitle, plMsg, plState, plServer,
+                Ui.Row(bPlay, Ui.Col(cConnect, Ui.Row(Ui.Btn("Jugar sin mods", () => Launch(false)), Ui.Btn("Buscar actualizaciones", () => Sync(false)), bWeb),
+                    Ui.Row(Ui.Btn("Tengo un problema", ReportProblem), bHelp))));
 
             plMods = Ui.List(false, "Mod|330", "Versión|90", "Para qué sirve|460");
             var t = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = Th.Bg };
@@ -1039,7 +1095,7 @@ namespace Majinheim
         {
             plTitle.Text = pack.Name;
             plMsg.Text = pack.Message ?? "";
-            bWeb.Visible = SafeWebUrl(pack.WebUrl) != null;
+            bWeb.Visible = bHelp.Visible = SafeWebUrl(pack.WebUrl) != null;
             plMods.BeginUpdate();
             plMods.Items.Clear();
             foreach (var m in pack.Mods)
@@ -1073,12 +1129,143 @@ namespace Majinheim
                     return;
                 }
                 if (warnings != null && warnings.Count > 0) Log.W("AVISO: {0}", string.Join(" | ", warnings));
+                RefreshServer();
                 if (thenLaunch) Launch(true);
                 else Status(online ? "Todo listo." : "Sin conexión con el server de mods; usando lo último descargado.");
             });
         }
 
-        void Play() { Sync(true); }
+        // Antes de abrir el juego: si el server está apagado, se dice (y cómo encenderlo) en vez de dejarle esperando en "Conectando".
+        void Play()
+        {
+            var f = lastFacts;
+            if (f != null && f.Known && f.State == "apagado" && cConnect.Checked &&
+                !Confirm("El server está apagado ahora mismo." + (f.OnDemand ? " Para encenderlo, escribe /encender en el Discord (en un par de minutos está listo)." : " Avisa a Majin para que lo encienda.") +
+                    "\n\n¿Abrir Valheim igualmente?")) { RefreshServer(); return; }
+            Sync(true);
+        }
+
+        // ------------------------------------------------------------ el server antes de jugar (2.4)
+
+        void RefreshServer()
+        {
+            if (statusBusy || IsDisposed) return;
+            var p = pack;
+            if (SupportClient.Bases(p).Count == 0) { plServer.Visible = false; lastFacts = null; return; }
+            statusBusy = true;
+            Task.Factory.StartNew(() => SupportClient.FetchStatus(p)).ContinueWith(t =>
+            {
+                if (IsDisposed) return;
+                var f = t.Exception == null ? t.Result : new ServerFacts();
+                try { BeginInvoke((Action)(() => { statusBusy = false; ShowServer(f); })); } catch { }
+            });
+        }
+
+        void ShowServer(ServerFacts f)
+        {
+            lastFacts = f;
+            plServer.Visible = true;
+            if (!f.Known) { plServer.Text = "● No he podido ver si el server está encendido"; plServer.ForeColor = Th.Muted; return; }
+            string t;
+            if (f.State == "en marcha")
+            {
+                var names = f.Players.Take(6).ToList();
+                t = "● Server encendido   ·   " + (f.Players.Count == 0 ? "no hay nadie dentro" : "dentro: " + string.Join(", ", names) + (f.Players.Count > names.Count ? " y " + (f.Players.Count - names.Count) + " más" : ""));
+                plServer.ForeColor = Th.Good;
+            }
+            else if (f.State == "arrancando") { t = "● El server está arrancando: en un par de minutos está listo"; plServer.ForeColor = Th.Warn; }
+            else { t = "● Server apagado   ·   " + (f.OnDemand ? "para encenderlo, escribe /encender en el Discord" : "avisa a Majin para que lo encienda"); plServer.ForeColor = Th.Warn; }
+            if (f.NextMeetup != DateTime.MinValue) t += "   ·   próxima quedada " + MeetupWhen(f.NextMeetup) + (f.MeetupPeople > 0 ? " (van " + f.MeetupPeople + ")" : "");
+            plServer.Text = t;
+        }
+
+        static string MeetupWhen(DateTime d)
+        {
+            var es = new System.Globalization.CultureInfo("es-ES");
+            int days = (d.Date - DateTime.Today).Days;
+            string day = days <= 0 ? "hoy" : days == 1 ? "mañana" : days < 7 ? "el " + d.ToString("dddd", es) : "el " + d.ToString("d 'de' MMMM", es);
+            return day + " a las " + d.ToString("HH:mm");
+        }
+
+        void OpenHelp()
+        {
+            string u = SafeWebUrl(pack.WebUrl);
+            if (u != null) Ui.Open(u.TrimEnd('/') + "/ayuda");
+        }
+
+        // ------------------------------------------------------------ "Tengo un problema" (2.4)
+
+        void ReportProblem()
+        {
+            if (busy) { MessageBox.Show(this, "Espera a que termine la tarea en curso.", "Majinheim", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            string name = null, text = null;
+            using (var f = new Form { Text = "Tengo un problema", FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false, BackColor = Th.Bg, ForeColor = Th.Text, Font = Th.F(9.5f), AutoScaleMode = AutoScaleMode.Dpi, ClientSize = new Size(640, 420) })
+            {
+                var title = Ui.Lbl("Tengo un problema", 15, FontStyle.Bold); title.Location = new Point(16, 12);
+                var info = Ui.Lbl("Cuéntale a Majin qué te pasa. El launcher junta los registros del juego y de los mods, sin tus datos personales (ni tu usuario de Windows, ni IPs, ni IDs de Steam), se los manda y te da un primer diagnóstico. Solo lo ve Majin.", 9.5f, FontStyle.Regular, Th.Muted);
+                info.AutoSize = false; info.Size = new Size(608, 58); info.Location = new Point(16, 46);
+                var l1 = Ui.Lbl("Tu nombre (para que Majin sepa quién eres)"); l1.Location = new Point(16, 110);
+                var tName = Ui.Txt(Settings.Current.SupportName, 300); tName.Location = new Point(16, 136); tName.MaxLength = Support.MaxName;
+                var l2 = Ui.Lbl("¿Qué ha pasado? Qué estabas haciendo y qué sale en pantalla"); l2.Location = new Point(16, 170);
+                var tText = Ui.Txt("", 604); tText.Multiline = true; tText.Height = 126; tText.ScrollBars = ScrollBars.Vertical; tText.MaxLength = Support.MaxText; tText.Location = new Point(16, 196); tText.AcceptsReturn = true;
+                var preview = Ui.Btn("Ver lo que se manda", () =>
+                {
+                    UseWaitCursor = true; f.UseWaitCursor = true;
+                    try { Ui.Open(SupportClient.Preview(SupportClient.Build(tName.Text, tText.Text, pack, lastFacts))); }
+                    catch (Exception e) { MessageBox.Show(f, e.Message, "No he podido prepararlo", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                    finally { UseWaitCursor = false; f.UseWaitCursor = false; }
+                });
+                preview.Location = new Point(16, 344);
+                Button cancel = null;
+                var send = Ui.Btn("Enviar a Majin", () =>
+                {
+                    if (tText.Text.Trim().Length < 5) { MessageBox.Show(f, "Cuenta en una frase qué te pasa: así Majin lo entiende antes.", "Majinheim", MessageBoxButtons.OK, MessageBoxIcon.Information); tText.Focus(); return; }
+                    name = tName.Text.Trim(); text = tText.Text.Trim();
+                    f.DialogResult = DialogResult.OK;
+                }, true);
+                cancel = Ui.Btn("Cancelar", () => f.DialogResult = DialogResult.Cancel);
+                var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, Location = new Point(300, 344), Size = new Size(324, 44), BackColor = Color.Transparent, WrapContents = false };
+                buttons.Controls.Add(cancel); buttons.Controls.Add(send);
+                f.Controls.AddRange(new Control[] { title, info, l1, tName, l2, tText, preview, buttons });
+                f.CancelButton = cancel;
+                f.Shown += (o, e) => { if (tName.Text == "") tName.Focus(); else tText.Focus(); };
+                if (f.ShowDialog(this) != DialogResult.OK) return;
+            }
+            Settings.Current.SupportName = name; Settings.Save();
+            var facts = lastFacts;
+            var p = pack;
+            SupportClient.Reply reply = null;
+            RunBg("Juntando los registros y mirando qué pasa (puede tardar un minuto)...",
+                () => reply = SupportClient.Send(SupportClient.Build(name, text, p, facts), p),
+                () => ShowSupportReply(reply));
+        }
+
+        void ShowSupportReply(SupportClient.Reply r)
+        {
+            if (r == null) return;
+            var sb = new System.Text.StringBuilder();
+            foreach (var x in r.Pistas ?? new List<string>()) sb.Append("• ").Append(x).Append("\r\n");
+            if (!string.IsNullOrEmpty(r.Ia)) sb.Append("\r\nEl asistente dice:\r\n").Append(r.Ia.Replace("**", "").Replace("\r\n", "\n").Replace("\n", "\r\n")).Append("\r\n");
+            using (var f = new Form { Text = "Tengo un problema", FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false, BackColor = Th.Bg, ForeColor = Th.Text, Font = Th.F(9.5f), AutoScaleMode = AutoScaleMode.Dpi, ClientSize = new Size(640, 430) })
+            {
+                var title = Ui.Lbl(r.Sent ? "Majin ya lo tiene" : "No he podido mandárselo a Majin", 15, FontStyle.Bold, r.Sent ? Th.Good : Th.Warn); title.Location = new Point(16, 12);
+                var sub = Ui.Lbl(r.Sent
+                    ? "Le ha llegado tu informe con los registros. Mientras lo mira, esto es lo que he visto:"
+                    : "Motivo: " + r.Error + "." + (r.SavedTo != null ? " Lo he guardado en tu escritorio («" + Path.GetFileName(r.SavedTo) + "»): mándaselo por Discord." : "") + " Esto es lo que he visto aquí:",
+                    9.5f, FontStyle.Regular, Th.Muted);
+                sub.AutoSize = false; sub.Size = new Size(608, 54); sub.Location = new Point(16, 46);
+                var box = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BackColor = Th.Card, ForeColor = Th.Text, BorderStyle = BorderStyle.None, Font = Th.F(10f), Location = new Point(16, 106), Size = new Size(608, 254), Text = sb.ToString().TrimEnd() };
+                var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, Location = new Point(16, 376), Size = new Size(608, 44), BackColor = Color.Transparent, WrapContents = false };
+                var close = Ui.Btn("Cerrar", () => f.DialogResult = DialogResult.OK, true);
+                buttons.Controls.Add(close);
+                if (r.SavedTo != null) { string saved = r.SavedTo; buttons.Controls.Add(Ui.Btn("Abrir el archivo", () => Ui.Open(saved))); }
+                if (SafeWebUrl(pack.WebUrl) != null) buttons.Controls.Add(Ui.Btn("Ver la ayuda", OpenHelp));
+                f.Controls.AddRange(new Control[] { title, sub, box, buttons });
+                f.AcceptButton = close; f.CancelButton = close;
+                f.Shown += (o, e) => { box.SelectionStart = 0; box.SelectionLength = 0; close.Focus(); };
+                f.ShowDialog(this);
+            }
+        }
 
         // Solo abre direcciones https:// (la lista de mods viene de internet: nada de programas ni carpetas).
         static string SafeWebUrl(string u)
@@ -1110,6 +1297,9 @@ namespace Majinheim
             if (StartPage != null && pages.ContainsKey(StartPage)) ShowPage(StartPage);
             Player.CleanupOldExe();
             if (Player.GameDir() == null) Log.W("AVISO: no encuentro Valheim en Steam; indicalo en Ajustes.");
+            statusTimer.Tick += (o, ev) => RefreshServer();
+            statusTimer.Start();
+            RefreshServer();
             Sync(false);
         }
 #endif

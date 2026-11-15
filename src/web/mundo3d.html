@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Majinheim · Mundo en 3D</title>
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/estilo.css">
+</head>
+<body>
+<header>
+  <div class="marca">
+    <a href="/"><img src="/icono.svg" alt="Volver al estado" width="40" height="40"></a>
+    <div>
+      <h1>Mundo en 3D</h1>
+      <p class="sub" id="sub">Cargando el terreno…</p>
+    </div>
+  </div>
+  <div class="acciones">
+    <a class="boton secundario" href="/vivo">Mapa en vivo</a>
+    <a class="boton secundario" href="/historia">Máquina del tiempo</a>
+    <a class="boton secundario" href="/">Estado</a>
+  </div>
+</header>
+
+<main class="mundo">
+  <section class="tarjeta lienzo-mapa alto">
+    <canvas id="mundo" aria-label="El mundo explorado en tres dimensiones"></canvas>
+    <div id="rotulos" class="rotulos-3d"></div>
+    <p id="aviso" class="vacio sobre-mapa" hidden></p>
+    <div class="mandos-mapa">
+      <button id="b-todo" class="boton secundario chico" type="button">Ver todo</button>
+      <button id="b-vuelo" class="boton chico" type="button">▶ Sobrevolar</button>
+      <button id="b-nombres" class="boton secundario chico" type="button">Ocultar nombres</button>
+    </div>
+    <div class="ayuda-3d" id="ayuda">Arrastra para girar · rueda para acercar · botón derecho o Mayús para moverte</div>
+  </section>
+</main>
+
+<footer><span>Majinheim Web · solo se dibuja lo que alguien ha explorado</span></footer>
+<script src="/mapa2d.js"></script>
+<script src="/mundo3d.js"></script>
+</body>
+</html>

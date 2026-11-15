@@ -21,7 +21,7 @@ namespace Majinheim
 {
     public static class AppInfo
     {
-        public const string Version = "2.0.0";
+        public const string Version = "2.7.0";
 #if SERVER
         public const bool IsServer = true;
         public const string EditionName = "Server";
@@ -94,6 +94,7 @@ namespace Majinheim
         public static T Parse<T>(string s) { return S().Deserialize<T>(s.TrimStart('\uFEFF')); }
         public static Dictionary<string, object> ParseObj(string s) { return (Dictionary<string, object>)S().DeserializeObject(s.TrimStart('\uFEFF')); }
         public static string Str(object o) { return Pretty(S().Serialize(o)); }
+        public static string Compact(object o) { return S().Serialize(o); }
         public static void Save(string path, object o)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -220,14 +221,42 @@ namespace Majinheim
         public int NightlyRestartHour { get; set; }
         public string OffsiteDir { get; set; }     // copia extra de los backups del mundo en otra carpeta (otro disco, OneDrive...); vacío = no
         public string ValheimBuild { get; set; }   // versión de Steam (buildid) del server de Valheim la última vez que se miró
+        // Mantenimiento con red de seguridad (2.1): mods y Valheim al día con backup, prueba de arranque y vuelta atrás
+        public bool AutoUpdateMods { get; set; }       // a la hora del reinicio diario, si hay algo que actualizar y nadie jugando
+        public string MaintenanceDay { get; set; }     // último día (yyyy-MM-dd) en que se hizo el mantenimiento automático
+        public string VerifiedBuild { get; set; }      // versión de Valheim con la que el server arrancó bien en la última prueba
+        public List<string> SkippedUpdates { get; set; } // "Autor-Mod@versión" que fallaron la prueba: no se reintentan solas
+        public List<string> ModNotices { get; set; }   // mods obsoletos o abandonados de los que ya se avisó
+        public string LastPublicIp { get; set; }   // última IP pública de casa vista (solo en launcher.json, para saber si cambia)
+        public string PowerLossSeen { get; set; } // último apagón de golpe del que ya se avisó (2.6)
+        public List<string> HealthAlerts { get; set; } // revisiones de salud en rojo de las que ya se avisó en Discord
+        public string BackupCheckAt { get; set; }      // última comprobación de backups (se abren y se leen enteros)
+        public bool BackupCheckOk { get; set; }
+        public string BackupCheckText { get; set; }
         // Asistente con IA local (pestaña "Asistente IA"): responde en Discord al mencionar al bot, con Ollama en este PC
         public bool AiEnabled { get; set; }
         public string OllamaUrl { get; set; }      // dónde escucha Ollama (por defecto, este PC)
         public string OllamaModel { get; set; }
+        public bool GameChat { get; set; }         // MajinBot contesta en el chat de la partida a quien escribe "!majin" (2.6)
+        public bool LiveShowAll { get; set; }      // mapa en vivo: enseñar a todos, también a quien no se ha marcado como visible en el juego (si no, solo los ve el administrador)
+        public bool WorldExport { get; set; }      // mod propio Majinheim Mundo en el server: la IA sabe qué hay en cofres y tumbas y las recetas con mods
+        // Vida en el Discord (2.3)
+        public bool WeeklySummary { get; set; }    // resumen de la semana los domingos a las 21:00 (escrito por la IA si está)
+        public string WeeklyDone { get; set; }     // último domingo (yyyy-MM-dd) en que se mandó
+        public bool LagAlerts { get; set; }        // aviso en Discord si el server va con lag mientras se juega (2.6)
+        public bool Milestones { get; set; }       // hitos: horas de cada uno y del grupo, récords, primera vez...
+        public List<string> MilestonesSeen { get; set; }
+        public bool MilestonesReady { get; set; }  // la primera vez solo se apunta lo ya conseguido, sin avisar
+        public int RecordMinutes { get; set; }     // partida más larga hasta ahora
+        public bool Meetups { get; set; }          // /quedada en Discord
+        public bool MeetupStart { get; set; }      // encender el server 15 minutos antes de una quedada
+        public bool OnDemand { get; set; }         // server bajo demanda: cualquiera del Discord lo enciende y se apaga solo vacío
+        public int OnDemandIdleMinutes { get; set; }
         // comunes: de dónde sale el modpack (GitHub)
         public string GitHubRepo { get; set; }
         // edicion cliente
         public bool AutoConnect { get; set; }
+        public string SupportName { get; set; }    // el nombre que pone en "Tengo un problema" (para no escribirlo cada vez)
 
         public Settings()
         {
@@ -235,15 +264,29 @@ namespace Majinheim
             Port = AppInfo.DefaultGamePort; Public = false; Crossplay = false; ExtraArgs = ""; AutoRestart = true;
             KeepAutoBackups = 40; PublicHost = AppInfo.DefaultHost; LanHost = ""; GitHubToken = "";
             StaleBefore = "2026-06-01";
-            GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; WebEnabled = true; WebPublic = false; WebPort = 8456; MapPort = 3000; WebAdminHash = "";
+            GitHubRepo = AppInfo.GitHubRepo; AutoConnect = true; SupportName = ""; WebEnabled = true; WebPublic = false; WebPort = 8456; MapPort = 3000; WebAdminHash = "";
             WebUsers = new List<WebUser>();
             DiscordToken = ""; DiscordChannel = ""; DiscordJoins = true; DiscordUpdates = true; DiscordCommands = true; RconPassword = ""; WarnBeforeStop = true;
             BackupEveryHours = 6; NightlyRestart = false; NightlyRestartHour = 5; OffsiteDir = "";
-            AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:14b";
+            AiEnabled = false; OllamaUrl = "http://127.0.0.1:11434"; OllamaModel = "qwen3:14b"; WorldExport = true; GameChat = true; LagAlerts = true;
+            WeeklySummary = true; WeeklyDone = ""; Milestones = true; MilestonesSeen = new List<string>(); Meetups = true; MeetupStart = true; OnDemand = false; OnDemandIdleMinutes = 30;
+            AutoUpdateMods = true; MaintenanceDay = ""; VerifiedBuild = ""; BackupCheckAt = ""; BackupCheckText = "";
+            SkippedUpdates = new List<string>(); ModNotices = new List<string>(); HealthAlerts = new List<string>();
         }
         public static Settings Current = new Settings();
-        public static void Load() { Current = Json.Load<Settings>(AppInfo.SettingsFile); if (Current.WebUsers == null) Current.WebUsers = new List<WebUser>(); }
-        public static void Save() { Json.Save(AppInfo.SettingsFile, Current); }
+        public static void Load()
+        {
+            Current = Json.Load<Settings>(AppInfo.SettingsFile);
+            if (Current.WebUsers == null) Current.WebUsers = new List<WebUser>();
+            if (Current.SkippedUpdates == null) Current.SkippedUpdates = new List<string>();
+            if (Current.ModNotices == null) Current.ModNotices = new List<string>();
+            if (Current.HealthAlerts == null) Current.HealthAlerts = new List<string>();
+            if (Current.MilestonesSeen == null) Current.MilestonesSeen = new List<string>();
+            if (Current.OnDemandIdleMinutes < 10) Current.OnDemandIdleMinutes = 30;
+        }
+        static readonly object saveLk = new object();
+        // Se guarda desde la ventana, la web y Discord: de uno en uno.
+        public static void Save() { lock (saveLk) Json.Save(AppInfo.SettingsFile, Current); }
     }
 
     // Cuenta de la web del server. Role: "admin" (controles del server) o "jugador" (ve lo mismo que un invitado).
@@ -252,7 +295,8 @@ namespace Majinheim
         public string Name { get; set; }
         public string Role { get; set; }
         public string Hash { get; set; }         // pbkdf2-sha256$iteraciones$sal$hash
-        public WebUser() { Name = ""; Role = "jugador"; Hash = ""; }
+        public string Totp { get; set; }         // verificación en dos pasos (2.5): la clave de la app, cifrada con DPAPI; vacía = sin activar
+        public WebUser() { Name = ""; Role = "jugador"; Hash = ""; Totp = ""; }
     }
 
     public static class Ver
@@ -293,6 +337,23 @@ namespace Majinheim
             using (var sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
                 return sr.ReadToEnd();
         }
+        // POST con JSON y la cabecera propia de Majinheim. Devuelve el código HTTP y el cuerpo, también si es un error con cuerpo (como un 429).
+        public static int PostJson(string url, string json, int timeout, out string body)
+        {
+            var r = Req(url, timeout);
+            r.Method = "POST";
+            r.ContentType = "application/json; charset=utf-8";
+            r.Headers["X-Majinheim"] = "1";
+            r.ReadWriteTimeout = timeout;
+            var data = Encoding.UTF8.GetBytes(json);
+            r.ContentLength = data.Length;
+            using (var st = r.GetRequestStream()) st.Write(data, 0, data.Length);
+            HttpWebResponse resp;
+            try { resp = (HttpWebResponse)r.GetResponse(); }
+            catch (WebException e) { resp = e.Response as HttpWebResponse; if (resp == null) throw; }
+            using (resp)
+            using (var sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) { body = sr.ReadToEnd(); return (int)resp.StatusCode; }
+        }
         public static void Download(string url, string dest, Action<long, long> progress)
         {
             using (var resp = (HttpWebResponse)Req(url, 30000).GetResponse())
@@ -315,6 +376,7 @@ namespace Majinheim
     public class PkgInfo
     {
         public string Id, Version, Date, Description;
+        public bool Deprecated;   // su autor lo ha marcado como obsoleto en Thunderstore
         public List<string> Deps = new List<string>();
     }
 
@@ -333,6 +395,8 @@ namespace Majinheim
             p.Version = (string)l["version_number"];
             p.Date = ((string)l["date_created"]).Substring(0, 10);
             p.Description = l.ContainsKey("description") ? (string)l["description"] : "";
+            object dep;
+            p.Deprecated = d.TryGetValue("is_deprecated", out dep) && dep is bool && (bool)dep;
             var deps = l["dependencies"] as IEnumerable;
             if (deps != null) foreach (var o in deps) p.Deps.Add((string)o);
             return p;
@@ -693,7 +757,7 @@ namespace Majinheim
         }
 
         // ---- Copia fuera del PC: los backups con el mundo se copian también a otra carpeta (en segundo plano).
-        static readonly string[] OffsiteLabels = { "programado", "mundo-al-arrancar", "manual", "web" };
+        static readonly string[] OffsiteLabels = { "programado", "mundo-al-arrancar", "manual", "web", "antes-de-actualizar" };
         public const int OffsiteKeep = 10;
         public static string OffsiteFolder { get { var d = (Settings.Current.OffsiteDir ?? "").Trim(); return d.Length == 0 ? null : System.IO.Path.Combine(d, "Majinheim-backups"); } }
         public static DateTime OffsiteLast { get; private set; }
@@ -750,8 +814,12 @@ namespace Majinheim
                     try { File.Delete(old.Path); Log.W("Backup antiguo borrado: {0}", System.IO.Path.GetFileName(old.Path)); } catch { }
         }
 
-        // Restaura sobre los destinos originales. Antes guarda un backup de lo que va a pisar.
-        public static void Restore(string zipPath)
+        // Las partes de un backup que son "el mundo": el mundo, los personajes guardados en el server y lo explorado en el mapa de la web.
+        // Restaurar desde la web solo pone estas (ni ajustes, ni cuentas, ni la lista de baneados).
+        public static bool IsWorldPart(string key) { return key == "saves_worlds_local" || key == "saves_characters_local" || key.StartsWith("mapa_"); }
+
+        // Restaura sobre los destinos originales. Antes guarda un backup de lo que va a pisar. only: qué partes (null = todas).
+        public static void Restore(string zipPath, Func<string, bool> only = null)
         {
             Dictionary<string, string> map;
             using (var z = ZipFile.OpenRead(zipPath))
@@ -760,6 +828,8 @@ namespace Majinheim
                 if (je == null) throw new Exception("Este backup no tiene backup.json, no se puede restaurar automaticamente.");
                 using (var sr = new StreamReader(je.Open())) map = Json.Parse<Dictionary<string, string>>(sr.ReadToEnd());
             }
+            if (only != null) map = map.Where(kv => only(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
+            if (map.Count == 0) throw new Exception("Este backup no lleva el mundo.");
             Create("antes-de-restaurar", map.Select(kv => new Item(kv.Value, kv.Key)), false);
             using (var z = ZipFile.OpenRead(zipPath))
             {
@@ -896,6 +966,13 @@ namespace Majinheim
             return serverState;
         }
 
+        // Igual, pero leído ahora mismo (para esperar a que Steam termine una actualización).
+        public static AppState ServerNow()
+        {
+            serverStateAt = DateTime.MinValue;
+            return Server();
+        }
+
         public static List<string> Libraries()
         {
             var libs = new List<string> { SteamPath() };
@@ -995,6 +1072,7 @@ namespace Majinheim
         volatile int tailGen;
         int quickCrashes;   // caídas seguidas a menos de 5 min de arrancar
         public const string GaveUpStatus = "Caído: no arranca (3 intentos)";
+        public volatile bool NoAutoRestart;   // durante el mantenimiento: si se cae, no se reinicia solo (lo decide el mantenimiento)
         public event Action<string> GameLog;
         public event Action StateChanged;
         public int Players { get; private set; }
@@ -1026,7 +1104,10 @@ namespace Majinheim
             return a.ToString();
         }
 
-        public void Start()
+        public void Start() { Start(true); }
+
+        // backup = false solo cuando quien arranca ya ha hecho uno (el mantenimiento).
+        public void Start(bool backup)
         {
             var s = Settings.Current;
             if (Running) throw new Exception("El server ya está en marcha.");
@@ -1036,10 +1117,13 @@ namespace Majinheim
             if (s.Password.Length > 0 && s.Password.Length < 5) Log.W("Ojo: Valheim recomienda contraseñas de 5 o mas caracteres.");
 
             stopRequested = false;
-            SetStatus("Haciendo backup...");
-            if (Directory.Exists(Path.Combine(AppInfo.SavesDir, "worlds_local")))
+            SetStatus(backup ? "Haciendo backup..." : "Arrancando...");
+            if (backup && Directory.Exists(Path.Combine(AppInfo.SavesDir, "worlds_local")))
                 Backup.Create("mundo-al-arrancar", Backup.WorldItems(), true);
             Doorstop.EnsureServerProxy(s.ServerDir, AppInfo.Profile);
+#if SERVER
+            WorldMod.EnsureFresh();   // el mod que lee el mundo para la IA, compilado para el Valheim de este PC
+#endif
 
             var psi = new ProcessStartInfo(ServerExe(), BuildArgs());
             psi.WorkingDirectory = s.ServerDir;
@@ -1076,7 +1160,7 @@ namespace Majinheim
             int code = -1;
             try { code = proc.ExitCode; } catch { }
             Log.W("El server se ha cerrado (codigo {0}).", code);
-            if (!stopRequested && Settings.Current.AutoRestart)
+            if (!stopRequested && Settings.Current.AutoRestart && !NoAutoRestart)
             {
                 // Si se cae una y otra vez al poco de arrancar (un mod roto tras una actualización de Valheim...), no insistir:
                 // cada arranque hace un backup del mundo y en un rato se llevaría por delante los buenos más antiguos.
@@ -1478,14 +1562,31 @@ namespace Majinheim
         }
 
         // ¿Salimos a Internet por la misma IP pública a la que apunta la DDNS? Entonces estamos en casa del server.
-        public static bool SamePublicIp(string ddns)
+        public static bool SamePublicIp(string ddns, string mine = null)
         {
             try
             {
-                var mine = Http.GetString("https://api.ipify.org", 5000).Trim();
+                if (mine == null) mine = Http.GetString("https://api.ipify.org", 5000).Trim();
                 return Dns.GetHostAddresses(ddns).Any(a => a.AddressFamily == AddressFamily.InterNetwork && a.ToString() == mine);
             }
             catch (Exception e) { Log.W("No pude comprobar la IP pública: {0}", e.Message); return false; }
+        }
+
+        // La IP pública de casa (null si no se puede saber ahora). Prueba dos servicios.
+        public static string PublicIp()
+        {
+            foreach (var u in new[] { "https://api.ipify.org", "https://icanhazip.com" })
+            {
+                try
+                {
+                    string ip = Http.GetString(u, 5000).Trim();
+                    IPAddress a;
+                    if (IPAddress.TryParse(ip, out a) && a.AddressFamily == AddressFamily.InterNetwork) return ip;
+                }
+                catch { }
+            }
+            Log.W("No pude saber la IP pública de casa.");
+            return null;
         }
 
         // ¿Hay un server de Valheim en esa IP? Pregunta por el puerto de consultas de Steam (juego + 1, UDP).

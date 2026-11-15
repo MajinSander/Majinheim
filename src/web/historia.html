@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Majinheim · Máquina del tiempo</title>
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/estilo.css">
+</head>
+<body>
+<header>
+  <div class="marca">
+    <a href="/"><img src="/icono.svg" alt="Volver al estado" width="40" height="40"></a>
+    <div>
+      <h1>Máquina del tiempo</h1>
+      <p class="sub" id="sub">Cargando…</p>
+    </div>
+  </div>
+  <div class="acciones">
+    <a class="boton secundario" href="/vivo">Mapa en vivo</a>
+    <a class="boton secundario" href="/3d" id="enlace-3d">Mundo en 3D</a>
+    <a class="boton secundario" href="/">Estado</a>
+  </div>
+</header>
+
+<main class="mundo" id="contenido" hidden>
+  <section class="tarjeta tiempo">
+    <div class="fila-dia">
+      <button id="b-antes" class="boton secundario chico" type="button" aria-label="Día anterior">◀</button>
+      <h2 id="titulo">—</h2>
+      <button id="b-despues" class="boton secundario chico" type="button" aria-label="Día siguiente">▶</button>
+    </div>
+    <input id="deslizador" type="range" min="0" max="0" value="0" step="1" aria-label="Elegir día">
+    <div class="eje"><span id="eje-ini"></span><span id="eje-fin"></span></div>
+  </section>
+
+  <section class="tarjeta lienzo-mapa">
+    <canvas id="mapa" aria-label="El mapa como estaba ese día, con la ruta de cada vikingo"></canvas>
+    <p id="sin-mapa" class="vacio sobre-mapa" hidden>Todavía no hay mapa: se dibuja solo unos minutos después de encender el server.</p>
+    <div class="mandos-mapa">
+      <button id="b-todo" class="boton secundario chico" type="button">Ver todo</button>
+      <button id="b-repetir" class="boton chico" type="button" disabled>▶ Ver el día en un minuto</button>
+    </div>
+    <div id="reloj" class="reloj-mapa" hidden></div>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Qué pasó</h2>
+    <ul id="hechos" class="hechos"></ul>
+    <p id="sin-hechos" class="vacio" hidden>Un día tranquilo: no hay nada especial apuntado.</p>
+    <p id="nota-mapa" class="tenue" hidden></p>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Quién jugó <span id="n-jug" class="cuenta">0</span></h2>
+    <ul id="jugaron" class="lista apilada"></ul>
+    <p id="nadie" class="vacio" hidden>Nadie jugó ese día.</p>
+  </section>
+
+  <section class="tarjeta ancha">
+    <h2>Todos los días <span id="n-dias" class="cuenta">0</span></h2>
+    <ul id="dias" class="dias"></ul>
+  </section>
+</main>
+<main id="vacio" hidden><section class="tarjeta ancha"><p class="vacio" id="vacio-texto">Todavía no hay nada que contar: en cuanto alguien juegue, aparecerá aquí.</p></section></main>
+
+<footer><span>Majinheim Web · el mapa de cada día se guarda desde que se instaló esta página</span></footer>
+<script src="/mapa2d.js"></script>
+<script src="/historia.js"></script>
+</body>
+</html>
