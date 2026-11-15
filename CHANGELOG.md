@@ -1,5 +1,10 @@
 # Novedades
 
+## 2.7.1
+- Launcher de jugador: en casa del server, los botones **Web del server** y **Ayuda** abren la web por la red de casa (la dirección que se pone en Ajustes), porque desde dentro de casa la dirección de internet no abre. Fuera de casa siguen abriendo la de internet.
+- MajinBot: sabe si el server va con lag, cuántos portales hay y cómo se instala; da el enlace del mapa en vivo y de la máquina del tiempo; nunca nombra sus herramientas internas; las tumbas dicen "hace unas horas de partida" en vez de una fecha falsa.
+- `/estadisticas` en Discord enseña el tiempo jugado real en vez de "0 h".
+
 ## 2.7.0
 - **Mapa en vivo** (`/vivo` en la web): dónde está cada vikingo ahora mismo, actualizado cada 2 segundos, sobre el mapa de lo explorado. Cada uno deja la raya de por dónde ha ido, «Seguir» hace que el mapa vaya detrás de alguien y «Repetir la noche» enseña las últimas horas en un minuto. Sale quien tiene marcada en el juego la casilla «Visible para los demás»; el administrador, con su cuenta, ve a todos, y en la pestaña Web del launcher se puede elegir que se vea a todos siempre. El mod Majinheim Mundo (1.4.0) apunta las posiciones; sigue sin tocar nada del mundo.
 - **Máquina del tiempo** (`/historia`): una barra para viajar por los días. De cada día cuenta quién jugó y a qué horas, las muertes, los jefes, los portales nuevos, cuánto mapa se exploró y cuántas piezas se construyeron, y enseña el mapa como estaba ese día con la ruta de cada uno. «Ver el día en un minuto» lo repite. El mapa y las rutas de cada día se guardan desde que se instala esta versión; de los días anteriores salen las partidas.
